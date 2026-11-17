@@ -88,6 +88,28 @@ class TestOptimizerFusionPass(unittest.TestCase):
             uninstall_optimizer_fusion_hook(fake_torch)
             mgr.reset()
 
+    def test_optimizer_load_state_dict_restores_injected_fused_flag(self) -> None:
+        from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
+
+        p = nn.Parameter(torch.randn(4, 4))
+        opt = torch.optim.AdamW([p], lr=1e-3)
+        baseline_sd = opt.state_dict()
+        self.assertIsNone(baseline_sd["param_groups"][0]["fused"])
+
+        # Simulate a CUDA optimizer whose __init__ received injected fused=True
+        opt._ptopt_injected_fused = True  # type: ignore[attr-defined]
+        opt.param_groups[0]["fused"] = True
+        opt.defaults["foreach"] = None
+
+        install_checkpoint_compat_hooks(torch)
+        try:
+            saved_sd = opt.state_dict()
+            self.assertFalse(saved_sd["param_groups"][0]["fused"])
+            opt.load_state_dict(baseline_sd)
+            self.assertTrue(opt.param_groups[0]["fused"])
+        finally:
+            uninstall_checkpoint_compat_hooks(torch)
+
 
 class TestAutoAmpPass(unittest.TestCase):
     """Tests for T4 vs L4 config selection, pre-existing AMP yielding, and NaN watchdog."""

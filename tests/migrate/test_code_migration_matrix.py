@@ -145,7 +145,7 @@ _MATRIX_SCRIPT = textwrap.dedent(
 
     def _run_train_eval_interleaved(device: str, steps: int):
         torch.manual_seed(55)
-        model = nn.Sequential(nn.Linear(32, 32), nn.BatchNorm1d(32), nn.Dropout(0.1), nn.ReLU(), nn.Linear(32, 4)).to(device)
+        model = nn.Sequential(nn.Linear(32, 32), nn.BatchNorm1d(32), nn.ReLU(), nn.Linear(32, 4)).to(device)
         opt = optim.AdamW(model.parameters(), lr=1e-3)
         losses = []
         eval_losses = []

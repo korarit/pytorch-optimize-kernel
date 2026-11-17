@@ -147,6 +147,7 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
     if opt_cls is not None and hasattr(opt_cls, "state_dict"):
         orig_opt_sd = opt_cls.state_dict
+        orig_opt_load_sd = getattr(opt_cls, "load_state_dict", None)
 
         @functools.wraps(orig_opt_sd)
         def _compat_opt_state_dict(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
@@ -155,6 +156,31 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
 
         opt_cls._ptopt_orig_state_dict = orig_opt_sd  # type: ignore[attr-defined]
         opt_cls.state_dict = _compat_opt_state_dict  # type: ignore[method-assign]
+
+        if callable(orig_opt_load_sd):
+            @functools.wraps(orig_opt_load_sd)
+            def _compat_opt_load_state_dict(
+                opt_self: Any,
+                state_dict: Mapping[str, Any],
+                *args: Any,
+                **kwargs: Any,
+            ) -> Any:
+                res = orig_opt_load_sd(opt_self, state_dict, *args, **kwargs)
+                if getattr(opt_self, "_ptopt_injected_fused", False):
+                    default_foreach = getattr(opt_self, "defaults", {}).get("foreach")
+                    for grp in getattr(opt_self, "param_groups", ()):
+                        if isinstance(grp, dict) and "fused" in grp:
+                            grp["fused"] = True
+                            if "foreach" in grp:
+                                grp["foreach"] = default_foreach
+                elif getattr(opt_self, "_ptopt_injected_foreach", False):
+                    for grp in getattr(opt_self, "param_groups", ()):
+                        if isinstance(grp, dict) and "foreach" in grp:
+                            grp["foreach"] = True
+                return res
+
+            opt_cls._ptopt_orig_load_state_dict = orig_opt_load_sd  # type: ignore[attr-defined]
+            opt_cls.load_state_dict = _compat_opt_load_state_dict  # type: ignore[method-assign]
 
     _COMPAT_INSTALLED = True
     return True
@@ -173,7 +199,11 @@ def uninstall_checkpoint_compat_hooks(torch_mod: Any) -> None:
         nn_module.load_state_dict = nn_module._ptopt_orig_load_state_dict  # type: ignore[method-assign]
         delattr(nn_module, "_ptopt_orig_load_state_dict")
     opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
-    if opt_cls is not None and hasattr(opt_cls, "_ptopt_orig_state_dict"):
-        opt_cls.state_dict = opt_cls._ptopt_orig_state_dict  # type: ignore[method-assign]
-        delattr(opt_cls, "_ptopt_orig_state_dict")
+    if opt_cls is not None:
+        if hasattr(opt_cls, "_ptopt_orig_state_dict"):
+            opt_cls.state_dict = opt_cls._ptopt_orig_state_dict  # type: ignore[method-assign]
+            delattr(opt_cls, "_ptopt_orig_state_dict")
+        if hasattr(opt_cls, "_ptopt_orig_load_state_dict"):
+            opt_cls.load_state_dict = opt_cls._ptopt_orig_load_state_dict  # type: ignore[method-assign]
+            delattr(opt_cls, "_ptopt_orig_load_state_dict")
     _COMPAT_INSTALLED = False
