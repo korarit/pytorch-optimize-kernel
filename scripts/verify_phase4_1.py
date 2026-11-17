@@ -67,7 +67,8 @@ def _extract_unittest_summary(output: str, returncode: int) -> str:
 
 
 def _run_suite(name: str, test_path: str, coverage: str) -> SuiteResult:
-    cmd = [sys.executable, "-m", "unittest", test_path, "-v"]
+    # Execute by file path so third-party `tests` packages in site-packages cannot shadow `tests/`.
+    cmd = [sys.executable, str(REPO_ROOT / test_path), "-v"]
     t0 = time.perf_counter()
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
     elapsed = time.perf_counter() - t0

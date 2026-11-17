@@ -1,0 +1,34 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.1 REPORT: FULL 3-AXIS MIGRATE TEST MATRIX
+==============================================================================
+Timestamp          : 2026-11-18 02:38:19 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 3552c8d
+GPU / Backend      : CPU-only | cpu
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+
+[3-Axis Migrate Matrix Verification Results]
+------------------------------------------------------------------------------
+Suite / Axis                  | Coverage                                                          | Target | Duration | Status | Test Outcome               
+------------------------------+-------------------------------------------------------------------+--------+----------+--------+----------------------------
+Unit: Config Migrator & Cache | v0->v1 schema, warnings, cache-key isolation, lazy torch          | cpu    | 0.20s    | PASS   | Ran 8 tests in 0.089s -> OK
+Axis 1: Code Migration Matrix | legacy AMP, grad accum, multi-opt+LR, custom autograd, train/eval | cpu    | 27.38s   | PASS   | Ran 1 test in 26.193s -> OK
+Axis 2: Checkpoint Matrix     | 5x5 cross-load (baseline/supersafe/safe/balanced/aggressive)      | cpu    | 30.08s   | PASS   | Ran 1 test in 29.020s -> OK
+Axis 3: Config & Cache Matrix | end-to-end v0 CLI/hook upgrade + cross-arch stale cache isolation | cpu    | 6.24s    | PASS   | Ran 2 tests in 5.154s -> OK
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+None — all 4 suites passed with zero failures or skipped assertions.
+
+[Phase 4.1 Verdict]
+------------------------------------------------------------------------------
+Suites Passed         : 4/4
+Total Wall Time       : 63.90s
+Overall Phase 4.1     : PASS
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Run `python3 scripts/verify_phase4_1.py` on Google Colab GPU & verify manually before advancing to Phase 4.2)
+==============================================================================

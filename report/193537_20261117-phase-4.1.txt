@@ -1,0 +1,101 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.1 REPORT: FULL 3-AXIS MIGRATE TEST MATRIX
+==============================================================================
+Timestamp          : 2026-11-17 19:35:37 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 3552c8d
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+
+[3-Axis Migrate Matrix Verification Results]
+------------------------------------------------------------------------------
+Suite / Axis                  | Coverage                                                          | Target       | Duration | Status | Test Outcome                             
+------------------------------+-------------------------------------------------------------------+--------------+----------+--------+------------------------------------------
+Unit: Config Migrator & Cache | v0->v1 schema, warnings, cache-key isolation, lazy torch          | cuda (sm_89) | 0.07s    | FAIL   | Ran 1 test in 0.000s -> FAILED (errors=1)
+Axis 1: Code Migration Matrix | legacy AMP, grad accum, multi-opt+LR, custom autograd, train/eval | cuda (sm_89) | 0.07s    | FAIL   | Ran 1 test in 0.000s -> FAILED (errors=1)
+Axis 2: Checkpoint Matrix     | 5x5 cross-load (baseline/supersafe/safe/balanced/aggressive)      | cuda (sm_89) | 0.07s    | FAIL   | Ran 1 test in 0.000s -> FAILED (errors=1)
+Axis 3: Config & Cache Matrix | end-to-end v0 CLI/hook upgrade + cross-arch stale cache isolation | cuda (sm_89) | 0.07s    | FAIL   | Ran 1 test in 0.000s -> FAILED (errors=1)
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+--- FAILURE TRACE: Unit: Config Migrator & Cache (tests/unit/test_config_migrator.py, exit=1) ---
+unit (unittest.loader._FailedTest.unit) ... ERROR
+
+======================================================================
+ERROR: unit (unittest.loader._FailedTest.unit)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: unit
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'tests.unit'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+--- FAILURE TRACE: Axis 1: Code Migration Matrix (tests/migrate/test_code_migration_matrix.py, exit=1) ---
+migrate (unittest.loader._FailedTest.migrate) ... ERROR
+
+======================================================================
+ERROR: migrate (unittest.loader._FailedTest.migrate)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: migrate
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'tests.migrate'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+--- FAILURE TRACE: Axis 2: Checkpoint Matrix (tests/migrate/test_checkpoint_migration_matrix.py, exit=1) ---
+migrate (unittest.loader._FailedTest.migrate) ... ERROR
+
+======================================================================
+ERROR: migrate (unittest.loader._FailedTest.migrate)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: migrate
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'tests.migrate'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+--- FAILURE TRACE: Axis 3: Config & Cache Matrix (tests/migrate/test_config_cache_migration.py, exit=1) ---
+migrate (unittest.loader._FailedTest.migrate) ... ERROR
+
+======================================================================
+ERROR: migrate (unittest.loader._FailedTest.migrate)
+----------------------------------------------------------------------
+ImportError: Failed to import test module: migrate
+Traceback (most recent call last):
+  File "/usr/lib/python3.13/unittest/loader.py", line 141, in loadTestsFromName
+    module = __import__(module_name)
+ModuleNotFoundError: No module named 'tests.migrate'
+
+
+----------------------------------------------------------------------
+Ran 1 test in 0.000s
+
+FAILED (errors=1)
+
+[Phase 4.1 Verdict]
+------------------------------------------------------------------------------
+Suites Passed         : 0/4
+Total Wall Time       : 0.29s
+Overall Phase 4.1     : FAIL
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : NEEDS_FIX (Run `python3 scripts/verify_phase4_1.py` on Google Colab GPU & verify manually before advancing to Phase 4.2)
+==============================================================================
