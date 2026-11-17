@@ -331,7 +331,13 @@ class TelemetryCollector:
                         cur["data_other_ms"] += (t_pre_prof - prev_end) * 1000.0
                         cur["in_step"] = True
                     if collector.torch_profile:
+                        t_ps = time.perf_counter()
                         collector._start_profiler_if_ready()
+                        prof_init_sec = time.perf_counter() - t_ps
+                        if collector._last_step_end is not None:
+                            collector._last_step_end += prof_init_sec
+                        else:
+                            collector.t_start += prof_init_sec
                     t0 = time.perf_counter()
                 else:
                     if collector.torch_profile:
