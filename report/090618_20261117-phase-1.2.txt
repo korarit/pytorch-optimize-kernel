@@ -1,0 +1,84 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 1.2: CONFIG SCHEMA V1 & LAYERED RULE ENGINE
+==============================================================================
+Timestamp          : 2026-11-17 09:06:18 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 592a48d
+Live Backend       : cuda
+Live GPU           : NVIDIA L4
+Test Runner        : pytest (exit_code=0)
+
+[LIVE HOST MATCHED RULES (balanced)]
+------------------------------------------------------------------------------
+base_safe_defaults
+host_linux_x86_64
+host_colab_runtime
+gpu_cuda_ada_sm89
+vram_12_24gb
+profile_balanced_cuda
+profile_balanced_dataloader
+
+[LIVE HOST RESOLUTION TRACE (balanced)]
+------------------------------------------------------------------------------
+[host_arch] host_linux_x86_64: runtime.omp_threads (0 -> 6) | Tune CPU threads and jemalloc for Linux x86_64
+[gpu_arch] gpu_cuda_ada_sm89: runtime.tf32 (False -> True) | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[gpu_arch] gpu_cuda_ada_sm89: amp.dtype ('fp32' -> 'bf16') | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[gpu_arch] gpu_cuda_ada_sm89: attention.flash_sdp (False -> True) | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[user_profile] profile_balanced_cuda: runtime.cudnn_benchmark (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: amp.enabled (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: optimizer.fused (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: compile.enabled (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: inference.inference_mode (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_dataloader: dataloader.auto_tune (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.pin_memory (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.persistent_workers (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.num_workers (None -> 3) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+
+[ARCHITECTURE x PROFILE RESOLUTION MATRIX]
+------------------------------------------------------------------------------
+Target                  | Profile    | TF32  | AMP        | Scaler | Compile           | FusedOpt | DL-Tune | Kernels
+------------------------+------------+-------+------------+--------+-------------------+----------+---------+--------
+Live Host               | safe       | True  | False/bf16 | False  | False/default     | True     | False   | False  
+Live Host               | balanced   | True  | True/bf16  | False  | True/default      | True     | True    | False  
+Live Host               | aggressive | True  | True/bf16  | False  | True/max-autotune | True     | True    | True   
+Mock Colab T4 (sm_75)   | safe       | False | False/fp16 | False  | False/default     | True     | False   | False  
+Mock Colab T4 (sm_75)   | balanced   | False | True/fp16  | True   | True/default      | True     | True    | False  
+Mock Colab T4 (sm_75)   | aggressive | False | True/fp16  | True   | True/default      | True     | True    | False  
+Mock Colab L4 (sm_89)   | safe       | True  | False/bf16 | False  | False/default     | True     | False   | False  
+Mock Colab L4 (sm_89)   | balanced   | True  | True/bf16  | False  | True/default      | True     | True    | False  
+Mock Colab L4 (sm_89)   | aggressive | True  | True/bf16  | False  | True/max-autotune | True     | True    | True   
+Mock Colab A100 (sm_80) | safe       | True  | False/bf16 | False  | False/default     | True     | False   | False  
+Mock Colab A100 (sm_80) | balanced   | True  | True/bf16  | False  | True/default      | True     | True    | False  
+Mock Colab A100 (sm_80) | aggressive | True  | True/bf16  | False  | True/max-autotune | True     | True    | True   
+Mock Low-SHM T4         | safe       | False | False/fp16 | False  | False/default     | True     | False   | False  
+Mock Low-SHM T4         | balanced   | False | True/fp16  | True   | True/default      | True     | False   | False  
+Mock Low-SHM T4         | aggressive | False | True/fp16  | True   | True/default      | True     | False   | False  
+Mock CPU-Only           | safe       | False | False/fp32 | False  | False/default     | False    | False   | False  
+Mock CPU-Only           | balanced   | False | False/fp32 | False  | False/default     | False    | False   | False  
+Mock CPU-Only           | aggressive | False | False/fp32 | False  | False/default     | False    | False   | False  
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 9 items
+
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_a100_sm80_balanced PASSED [ 11%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_cpu_only_and_mps PASSED [ 22%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_l4_sm89_aggressive PASSED [ 33%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_shm_disables_dataloader_autotune PASSED [ 44%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_vram_disables_cuda_graphs_and_keeps_default_compile PASSED [ 55%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_overrides_and_trace PASSED [ 66%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_t4_sm75_balanced_and_safe PASSED [ 77%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_invalid_profile_and_env PASSED [ 88%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_unknown_keys_and_invalid_constraints PASSED [100%]
+
+============================== 9 passed in 0.04s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect resolved config matrix on Google Colab before starting Phase 1.3)
+==============================================================================

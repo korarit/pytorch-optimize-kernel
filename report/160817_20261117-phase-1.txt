@@ -1,0 +1,144 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 1 CONSOLIDATED REPORT: HARDWARE PROBE, CONFIG ENGINE & --EXPLAIN
+==============================================================================
+Timestamp          : 2026-11-17 16:08:17 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 592a48d
+Google Colab       : False
+Live Backend       : cpu
+Live GPU           : None
+Test Runner        : unittest (exit_code=0)
+
+[LIVE HOST PROFILES SUMMARY]
+------------------------------------------------------------------------------
+Profile    | TF32  | AMP        | Scaler | Compile       | FusedOpt | FlashSDP | DL-Tune | Kernels
+-----------+-------+------------+--------+---------------+----------+----------+---------+--------
+safe       | False | False/fp32 | False  | False/default | False    | False    | False   | False  
+balanced   | False | False/fp32 | False  | False/default | False    | False    | False   | False  
+aggressive | False | False/fp32 | False  | False/default | False    | False    | False   | False  
+
+[MOCK TARGET ARCH COMPARISON (balanced)]
+------------------------------------------------------------------------------
+Preset | Backend | SM    | TF32  | AMP        | Scaler | Compile
+-------+---------+-------+-------+------------+--------+--------
+t4     | cuda    | sm_75 | False | True/fp16  | True   | True   
+l4     | cuda    | sm_89 | True  | True/bf16  | False  | True   
+a100   | cuda    | sm_80 | True  | True/bf16  | False  | True   
+h100   | cuda    | sm_90 | True  | True/bf16  | False  | True   
+cpu    | cpu     | N/A   | False | False/fp32 | False  | False  
+mps    | mps     | N/A   | False | False/fp32 | False  | False  
+
+[LIVE --EXPLAIN OUTPUT (balanced)]
+------------------------------------------------------------------------------
+==============================================================================
+PTOPT CONFIG EXPLAIN (profile=balanced)
+==============================================================================
+[HARDWARE FINGERPRINT]
+------------------------------------------------------------------------------
+Backend / Colab    : cpu (is_colab=False)
+Primary GPU        : None
+Host OS / Arch     : Linux / x86_64 (cores=6/12)
+RAM / /dev/shm     : 31793.2 MB / 15896.6 MB (low_shm=False)
+PyTorch / Triton   : 2.15.0+cpu / None
+
+[MATCHED RULES]
+------------------------------------------------------------------------------
+base_safe_defaults
+host_linux_x86_64
+gpu_cpu_only
+profile_balanced_non_cuda
+
+[RESOLUTION TRACE]
+------------------------------------------------------------------------------
+[host_arch] host_linux_x86_64: runtime.omp_threads (0 -> 6) | Tune CPU threads and jemalloc for Linux x86_64
+[host_arch] host_linux_x86_64: runtime.jemalloc (False -> True) | Tune CPU threads and jemalloc for Linux x86_64
+[gpu_arch] gpu_cpu_only: runtime.alloc_conf ('expandable_segments:True' -> None) | CPU-only backend: disable CUDA/GPU flags
+[gpu_arch] gpu_cpu_only: attention.mem_efficient_sdp (True -> False) | CPU-only backend: disable CUDA/GPU flags
+[user_profile] profile_balanced_non_cuda: inference.inference_mode (False -> True) | Balanced profile on CPU/MPS: enable inference_mode safely
+
+[FINAL RESOLVED CONFIG]
+------------------------------------------------------------------------------
+{
+  "schema_version": 1,
+  "profile": "balanced",
+  "runtime": {
+    "tf32": false,
+    "cudnn_benchmark": false,
+    "alloc_conf": null,
+    "omp_threads": 6,
+    "jemalloc": true
+  },
+  "amp": {
+    "enabled": false,
+    "dtype": "fp32",
+    "grad_scaler": false
+  },
+  "compile": {
+    "enabled": false,
+    "mode": "default",
+    "dynamic": false,
+    "cache_dir": ".torch_inductor_cache"
+  },
+  "optimizer": {
+    "fused": false,
+    "foreach": true
+  },
+  "attention": {
+    "flash_sdp": false,
+    "mem_efficient_sdp": false,
+    "math_sdp": true
+  },
+  "dataloader": {
+    "auto_tune": false,
+    "pin_memory": false,
+    "persistent_workers": false,
+    "num_workers": null,
+    "prefetch_factor": 2
+  },
+  "inference": {
+    "inference_mode": true,
+    "cuda_graphs": false
+  },
+  "kernels": {
+    "enabled": false,
+    "allow_list": [],
+    "fallback_on_error": true
+  }
+}
+==============================================================================
+
+[FULL PHASE 1 UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+test_a100_sm80_balanced (test_config_resolver.TestConfigResolverMatrix.test_a100_sm80_balanced) ... ok
+test_cpu_only_and_mps (test_config_resolver.TestConfigResolverMatrix.test_cpu_only_and_mps) ... ok
+test_l4_sm89_aggressive (test_config_resolver.TestConfigResolverMatrix.test_l4_sm89_aggressive) ... ok
+test_low_shm_disables_dataloader_autotune (test_config_resolver.TestConfigResolverMatrix.test_low_shm_disables_dataloader_autotune) ... ok
+test_low_vram_disables_cuda_graphs_and_keeps_default_compile (test_config_resolver.TestConfigResolverMatrix.test_low_vram_disables_cuda_graphs_and_keeps_default_compile) ... ok
+test_overrides_and_trace (test_config_resolver.TestConfigResolverMatrix.test_overrides_and_trace) ... ok
+test_t4_sm75_balanced_and_safe (test_config_resolver.TestConfigResolverMatrix.test_t4_sm75_balanced_and_safe) ... ok
+test_invalid_profile_and_env (test_config_resolver.TestConfigValidation.test_invalid_profile_and_env) ... ok
+test_unknown_keys_and_invalid_constraints (test_config_resolver.TestConfigValidation.test_unknown_keys_and_invalid_constraints) ... ok
+test_apple_silicon_mps_arm64 (test_detect.TestHardwareDetection.test_apple_silicon_mps_arm64) ... ok
+test_colab_a100_sm80 (test_detect.TestHardwareDetection.test_colab_a100_sm80) ... ok
+test_colab_l4_sm89 (test_detect.TestHardwareDetection.test_colab_l4_sm89) ... ok
+test_colab_t4_sm75_low_shm (test_detect.TestHardwareDetection.test_colab_t4_sm75_low_shm) ... ok
+test_cpu_only_x86_and_aarch64 (test_detect.TestHardwareDetection.test_cpu_only_x86_and_aarch64) ... ok
+test_fingerprint_json_roundtrip (test_detect.TestHardwareDetection.test_fingerprint_json_roundtrip) ... ok
+test_hopper_h100_sm90_multigpu (test_detect.TestHardwareDetection.test_hopper_h100_sm90_multigpu) ... ok
+test_low_shm_and_cuda_runtime_error_fallback (test_detect.TestHardwareDetection.test_low_shm_and_cuda_runtime_error_fallback) ... ok
+test_report_filename_and_output (test_detect.TestTextReportBuilder.test_report_filename_and_output) ... ok
+test_dump_config_roundtrip_and_validation (test_explain_cli.TestExplainCLI.test_dump_config_roundtrip_and_validation) ... ok
+test_explain_contains_all_sections (test_explain_cli.TestExplainCLI.test_explain_contains_all_sections) ... ok
+test_invalid_target_arch_raises (test_explain_cli.TestExplainCLI.test_invalid_target_arch_raises) ... ok
+test_snapshot_dict_helper (test_explain_cli.TestExplainCLI.test_snapshot_dict_helper) ... ok
+test_target_arch_presets_and_overrides (test_explain_cli.TestExplainCLI.test_target_arch_presets_and_overrides) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 0.043s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Phase 1 consolidated report on Google Colab before starting Phase 2)
+==============================================================================
