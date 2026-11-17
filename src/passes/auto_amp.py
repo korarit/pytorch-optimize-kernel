@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import math
+import os
 import sys
 from typing import TYPE_CHECKING, Any
 
@@ -113,6 +114,36 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
         func_mod._ptopt_amp_orig_losses = orig_losses
 
 
+def _is_cast_heavy_eager_mlp(mod_self: Any, cfg: OptimizeConfig, torch_mod: Any) -> bool:
+    """Detect deep LayerNorm-interleaved MLPs (no Conv2d/Attention) where eager AMP cast churn hurts."""
+    if cfg.compile.enabled or os.environ.get("PTOPT_AMP_FORCE") == "1":
+        return False
+    nn_ns = getattr(torch_mod, "nn", None)
+    if nn_ns is None or not hasattr(mod_self, "modules"):
+        return False
+    conv_types = tuple(
+        t for t in (getattr(nn_ns, "Conv1d", None), getattr(nn_ns, "Conv2d", None), getattr(nn_ns, "Conv3d", None))
+        if t is not None
+    )
+    ln_cls = getattr(nn_ns, "LayerNorm", None)
+    mha_cls = getattr(nn_ns, "MultiheadAttention", None)
+    if ln_cls is None:
+        return False
+
+    ln_count = 0
+    for sub in mod_self.modules():
+        if conv_types and isinstance(sub, conv_types):
+            return False
+        if mha_cls is not None and isinstance(sub, mha_cls):
+            return False
+        cls_name = type(sub).__name__.lower()
+        if "attention" in cls_name or "attn" in cls_name:
+            return False
+        if isinstance(sub, ln_cls):
+            ln_count += 1
+    return ln_count >= 6
+
+
 class AutoAmpRuntime:
     """Coordinates non-invasive autocast, GradScaler, and user-AMP detection."""
 
@@ -129,6 +160,7 @@ class AutoAmpRuntime:
         self._in_internal_scaler_step = False
         self._step_scaled = False
         self._unscaled_this_step = False
+        self._last_forward_skipped_amp = False
         self._module_depth = 0
         self.scaler: Any = None
         if self.use_scaler:
@@ -231,6 +263,21 @@ def install_auto_amp_hook(
             if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
                 return orig_mod_call(mod_self, *args, **kwargs)
 
+            eligible = getattr(mod_self, "_ptopt_amp_eligible", None)
+            if eligible is None:
+                eligible = not _is_cast_heavy_eager_mlp(mod_self, cfg, torch_mod)
+                mod_self._ptopt_amp_eligible = eligible
+                if not eligible:
+                    manager.record_event(
+                        "amp.auto",
+                        "SKIPPED",
+                        "Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)",
+                    )
+            if not eligible:
+                rt._last_forward_skipped_amp = True
+                return orig_mod_call(mod_self, *args, **kwargs)
+
+            rt._last_forward_skipped_amp = False
             with torch_mod.amp.autocast(device_type="cuda", dtype=rt.target_dtype):
                 return orig_mod_call(mod_self, *args, **kwargs)
         finally:
@@ -246,6 +293,9 @@ def install_auto_amp_hook(
     @functools.wraps(orig_backward)
     def _amp_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
         if rt.disabled_by_watchdog or rt.user_amp_detected:
+            return orig_backward(tensor_self, *args, **kwargs)
+        if rt._last_forward_skipped_amp:
+            rt._last_forward_skipped_amp = False
             return orig_backward(tensor_self, *args, **kwargs)
 
         # Only check stability on scalar losses produced when CUDA autocast or fp16 scaler applies

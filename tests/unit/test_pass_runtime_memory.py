@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 import torch.nn as nn
@@ -17,7 +19,12 @@ if str(REPO_ROOT) not in sys.path:
 from src.config import OptimizeConfig
 from src.hooks import HookManager
 from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
-from src.passes.channels_last import convert_module_channels_last, install_channels_last_hook, uninstall_channels_last_hook
+from src.passes.channels_last import (
+    apply_channels_last_pass,
+    convert_module_channels_last,
+    install_channels_last_hook,
+    uninstall_channels_last_hook,
+)
 from src.passes.memory_allocator import apply_prelaunch_env
 from src.passes.runtime_flags import apply_runtime_flags_pass
 
@@ -193,6 +200,33 @@ class TestChannelsLastPass(unittest.TestCase):
         finally:
             uninstall_channels_last_hook(torch)
             uninstall_checkpoint_compat_hooks(torch)
+
+    def test_auto_channels_last_converts_only_large_cuda_conv2d(self) -> None:
+        cnn_small = nn.Conv2d(3, 8, kernel_size=3, padding=1)
+        cnn_large = nn.Conv2d(3, 8, kernel_size=3, padding=1)
+        mgr = HookManager()
+        cfg = OptimizeConfig(profile="balanced")
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PTOPT_CHANNELS_LAST", None)
+            with patch.object(torch.cuda, "is_available", return_value=True):
+                msg = apply_channels_last_pass(cfg, mgr, torch_mod=torch)
+            self.assertIn("Auto channels_last hook installed", msg)
+            try:
+                # 64x64 is below 128x128 spatial threshold -> stays contiguous NCHW
+                with patch("src.passes.channels_last._has_large_4d_input", return_value=False):
+                    cnn_small(torch.randn(1, 3, 64, 64))
+                self.assertTrue(cnn_small.weight.is_contiguous())
+                self.assertTrue(any(ev.status == "SKIPPED" and "below auto threshold" in ev.reason for ev in mgr.events))
+
+                # >=128x128 CUDA input -> converts automatically to channels_last
+                with patch("src.passes.channels_last._has_large_4d_input", return_value=True):
+                    cnn_large(torch.randn(1, 3, 128, 128))
+                self.assertTrue(cnn_large.weight.is_contiguous(memory_format=torch.channels_last))
+                self.assertTrue(any(ev.status == "APPLIED" and "Converted Conv2d" in ev.reason for ev in mgr.events))
+            finally:
+                uninstall_channels_last_hook(torch)
+                mgr.reset()
 
 
 if __name__ == "__main__":

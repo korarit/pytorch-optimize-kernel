@@ -57,8 +57,35 @@ def convert_module_channels_last(module: Any, torch_mod: Any) -> bool:
     return True
 
 
-def install_channels_last_hook(torch_mod: Any) -> bool:
-    """Intercept top-level Module forward calls to convert Conv2d models on first execution."""
+def _has_large_4d_input(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    *,
+    min_spatial_area: int,
+    require_cuda: bool,
+) -> bool:
+    """Return True if any 4D Tensor input satisfies device and spatial size thresholds."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is None:
+        return False
+    for item in (*args, *kwargs.values()):
+        if isinstance(item, tensor_cls) and item.dim() == 4:
+            if require_cuda and not getattr(item, "is_cuda", False):
+                continue
+            if int(item.shape[-2]) * int(item.shape[-1]) >= min_spatial_area:
+                return True
+    return False
+
+
+def install_channels_last_hook(
+    torch_mod: Any,
+    *,
+    min_spatial_area: int = 0,
+    require_cuda: bool = False,
+    manager: "HookManager | None" = None,
+) -> bool:
+    """Intercept top-level Module forward calls to convert eligible Conv2d models on first execution."""
     global _CHANNELS_LAST_INSTALLED  # noqa: PLW0603
     if _CHANNELS_LAST_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return False
@@ -74,7 +101,27 @@ def install_channels_last_hook(torch_mod: Any) -> bool:
         try:
             if depth[0] == 1 and not getattr(mod_self, "_ptopt_channels_last_checked", False):
                 mod_self._ptopt_channels_last_checked = True
-                convert_module_channels_last(mod_self, torch_mod)
+                if has_conv2d(mod_self, torch_mod):
+                    should_convert = min_spatial_area <= 0 or _has_large_4d_input(
+                        args,
+                        kwargs,
+                        torch_mod,
+                        min_spatial_area=min_spatial_area,
+                        require_cuda=require_cuda,
+                    )
+                    if should_convert:
+                        if convert_module_channels_last(mod_self, torch_mod) and manager is not None:
+                            manager.record_event(
+                                "runtime.channels_last",
+                                "APPLIED",
+                                f"Converted Conv2d module to channels_last (min_spatial_area={min_spatial_area})",
+                            )
+                    elif manager is not None:
+                        manager.record_event(
+                            "runtime.channels_last",
+                            "SKIPPED",
+                            f"Conv2d spatial input below auto threshold ({min_spatial_area} px)",
+                        )
             return orig_call(mod_self, *args, **kwargs)
         finally:
             depth[0] -= 1
@@ -101,15 +148,36 @@ def uninstall_channels_last_hook(torch_mod: Any) -> None:
 
 
 def apply_channels_last_pass(
-    _cfg: OptimizeConfig,
-    _manager: "HookManager",
+    cfg: OptimizeConfig,
+    manager: "HookManager",
     torch_mod: Any = None,
 ) -> str:
-    """Enable Conv2d channels_last pass when `PTOPT_CHANNELS_LAST=1`."""
-    if os.environ.get("PTOPT_CHANNELS_LAST") != "1":
-        return "SKIPPED: opt-in only (set PTOPT_CHANNELS_LAST=1)"
+    """Enable Conv2d channels_last pass when forced (`=1`) or auto-enabled for large CUDA Conv2d."""
+    env_mode = os.environ.get("PTOPT_CHANNELS_LAST")
+    if env_mode == "0":
+        return "SKIPPED: disabled via PTOPT_CHANNELS_LAST=0"
+
     tmod = torch_mod if torch_mod is not None else sys.modules.get("torch")
     if tmod is None:
         return "SKIPPED: torch not loaded"
-    installed = install_channels_last_hook(tmod)
-    return "channels_last Conv2d hook installed" if installed else "channels_last hook already active"
+
+    if env_mode == "1":
+        installed = install_channels_last_hook(tmod, min_spatial_area=0, require_cuda=False)
+        return "channels_last Conv2d hook installed (forced)" if installed else "channels_last hook already active"
+
+    # Auto mode: Phase 3.4 profiler showed 13.7% NCHW<->NHWC cuDNN overhead on large (>=128x128) CUDA CNNs
+    has_cuda = bool(getattr(getattr(tmod, "cuda", None), "is_available", lambda: False)())
+    if cfg.profile not in ("balanced", "aggressive") or not has_cuda:
+        return "SKIPPED: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)"
+
+    installed = install_channels_last_hook(
+        tmod,
+        min_spatial_area=128 * 128,
+        require_cuda=True,
+        manager=manager,
+    )
+    return (
+        "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)"
+        if installed
+        else "channels_last hook already active"
+    )

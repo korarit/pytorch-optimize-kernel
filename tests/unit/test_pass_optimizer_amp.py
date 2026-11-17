@@ -273,6 +273,39 @@ class TestAutoAmpPass(unittest.TestCase):
         self.assertIs(F.cross_entropy, orig_ce_real)
         self.assertIs(F.binary_cross_entropy_with_logits, orig_bce_real)
 
+    def test_eager_amp_skips_cast_heavy_layernorm_mlp_without_conv_or_attn(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        cfg.compile.enabled = False
+        mgr = HookManager()
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+
+        entered: list[tuple[str, object]] = []
+
+        def _fake_autocast(device_type: str = "cuda", dtype: object = None, **_kw: object):
+            entered.append((device_type, dtype))
+            return nullcontext()
+
+        deep_ln_mlp = nn.Sequential(*[m for _ in range(6) for m in (nn.Linear(8, 8), nn.LayerNorm(8))])
+        conv_with_ln = nn.Sequential(nn.Conv2d(3, 4, 3, padding=1), *[nn.Identity() for _ in range(6)])
+        try:
+            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+                torch.amp, "autocast", side_effect=_fake_autocast
+            ):
+                out_mlp = deep_ln_mlp(torch.randn(2, 8))
+                out_cnn = conv_with_ln(torch.randn(1, 3, 8, 8))
+
+            self.assertEqual(out_mlp.shape, (2, 8))
+            self.assertEqual(out_cnn.shape, (1, 4, 8, 8))
+            # Only the Conv2d module entered autocast; the 6-LayerNorm MLP skipped eager AMP
+            self.assertEqual(len(entered), 1)
+            self.assertTrue(any(ev.status == "SKIPPED" and "deep LayerNorm MLP" in ev.reason for ev in mgr.events))
+        finally:
+            uninstall_auto_amp_hook(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()
