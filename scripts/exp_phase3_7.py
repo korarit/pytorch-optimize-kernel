@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Phase 3.7 Experiment Runner: Custom Triton Kernels Micro-Benchmark & E2E Transformer A/B."""
+"""Phase 3.7 Experiment Runner: Multi-Scale Triton Kernel Micro-Benchmarks, E2E Scaling & Deep Debug."""
 
 from __future__ import annotations
 
@@ -51,8 +51,7 @@ def _run_test_file(rel_path: str) -> tuple[str, int, str]:
     return runner, res.returncode, (res.stdout + "\n" + res.stderr).strip()
 
 
-def _bench_op(fn: Callable[[], torch.Tensor], *, is_cuda: bool, bytes_moved: int, iters: int = 30) -> tuple[float, float]:
-    # Warmup
+def _bench_op(fn: Callable[[], torch.Tensor], *, is_cuda: bool, bytes_moved: int, iters: int = 25) -> tuple[float, float]:
     for _ in range(5):
         out = fn()
         if out.requires_grad:
@@ -77,50 +76,58 @@ def _run_microbenchmarks(is_cuda: bool) -> list[list[object]]:
     elem_bytes = 2 if dtype in (torch.float16, torch.bfloat16) else 4
     rows: list[list[object]] = []
 
-    # 1. RMSNorm (M=2048, N=768)
-    x_rms = torch.randn(2048, 768, device=device, dtype=dtype, requires_grad=True)
-    w_rms = torch.ones(768, device=device, dtype=dtype, requires_grad=True)
-    rms_bytes = 2 * x_rms.numel() * elem_bytes * 2  # fwd+bwd approx
-    eager_ms, eager_bw = _bench_op(lambda: ref_rmsnorm(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
-    comp_rms = torch.compile(ref_rmsnorm) if is_cuda else ref_rmsnorm
-    comp_ms, comp_bw = _bench_op(lambda: comp_rms(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
-    tri_ms, tri_bw = _bench_op(lambda: triton_rmsnorm(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
-    max_diff = round(float((ref_rmsnorm(x_rms, w_rms) - triton_rmsnorm(x_rms, w_rms)).abs().max().item()), 6)
-    rows.append(["RMSNorm (2048x768)", f"{eager_ms} ({eager_bw}GB/s)", f"{comp_ms} ({comp_bw}GB/s)", f"{tri_ms} ({tri_bw}GB/s)", max_diff])
+    shape_tiers = (
+        [("small", 512, 256, 2048), ("medium", 2048, 768, 2048), ("large", 8192, 1025, 8192)]
+        if is_cuda
+        else [("small", 512, 256, 512), ("medium_cpu", 1024, 512, 1024)]
+    )
 
-    # 2. LayerNorm (M=2048, N=1024)
-    x_ln = torch.randn(2048, 1024, device=device, dtype=dtype, requires_grad=True)
-    w_ln = torch.ones(1024, device=device, dtype=dtype, requires_grad=True)
-    b_ln = torch.zeros(1024, device=device, dtype=dtype, requires_grad=True)
-    ln_bytes = 2 * x_ln.numel() * elem_bytes * 2
-    eager_ms, eager_bw = _bench_op(lambda: ref_layernorm(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
-    comp_ln = torch.compile(ref_layernorm) if is_cuda else ref_layernorm
-    comp_ms, comp_bw = _bench_op(lambda: comp_ln(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
-    tri_ms, tri_bw = _bench_op(lambda: triton_layernorm(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
-    max_diff = round(float((ref_layernorm(x_ln, w_ln, b_ln) - triton_layernorm(x_ln, w_ln, b_ln)).abs().max().item()), 6)
-    rows.append(["LayerNorm (2048x1024)", f"{eager_ms} ({eager_bw}GB/s)", f"{comp_ms} ({comp_bw}GB/s)", f"{tri_ms} ({tri_bw}GB/s)", max_diff])
+    for tier, m_rows, dim, vocab in shape_tiers:
+        # 1. RMSNorm
+        x_rms = torch.randn(m_rows, dim, device=device, dtype=dtype, requires_grad=True)
+        w_rms = torch.ones(dim, device=device, dtype=dtype, requires_grad=True)
+        rms_bytes = 2 * x_rms.numel() * elem_bytes * 2
+        e_ms, e_bw = _bench_op(lambda: ref_rmsnorm(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
+        c_rms = torch.compile(ref_rmsnorm) if is_cuda else ref_rmsnorm
+        c_ms, c_bw = _bench_op(lambda: c_rms(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
+        t_ms, t_bw = _bench_op(lambda: triton_rmsnorm(x_rms, w_rms), is_cuda=is_cuda, bytes_moved=rms_bytes)
+        diff = round(float((ref_rmsnorm(x_rms, w_rms) - triton_rmsnorm(x_rms, w_rms)).abs().max().item()), 6)
+        rows.append([f"RMSNorm [{tier}] ({m_rows}x{dim})", f"{e_ms} ({e_bw})", f"{c_ms} ({c_bw})", f"{t_ms} ({t_bw})", diff])
 
-    # 3. CrossEntropy (M=2048, V=2048)
-    logits = torch.randn(2048, 2048, device=device, dtype=dtype, requires_grad=True)
-    targets = torch.randint(0, 2048, (2048,), device=device)
-    ce_bytes = logits.numel() * elem_bytes * 2
-    eager_ms, eager_bw = _bench_op(lambda: ref_cross_entropy(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
-    comp_ce = torch.compile(ref_cross_entropy) if is_cuda else ref_cross_entropy
-    comp_ms, comp_bw = _bench_op(lambda: comp_ce(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
-    tri_ms, tri_bw = _bench_op(lambda: triton_cross_entropy(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
-    max_diff = round(float((ref_cross_entropy(logits, targets) - triton_cross_entropy(logits, targets)).abs().max().item()), 6)
-    rows.append(["CrossEntropy (2048x2048)", f"{eager_ms} ({eager_bw}GB/s)", f"{comp_ms} ({comp_bw}GB/s)", f"{tri_ms} ({tri_bw}GB/s)", max_diff])
+        # 2. LayerNorm
+        x_ln = torch.randn(m_rows, dim, device=device, dtype=dtype, requires_grad=True)
+        w_ln = torch.ones(dim, device=device, dtype=dtype, requires_grad=True)
+        b_ln = torch.zeros(dim, device=device, dtype=dtype, requires_grad=True)
+        ln_bytes = 2 * x_ln.numel() * elem_bytes * 2
+        e_ms, e_bw = _bench_op(lambda: ref_layernorm(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
+        c_ln = torch.compile(ref_layernorm) if is_cuda else ref_layernorm
+        c_ms, c_bw = _bench_op(lambda: c_ln(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
+        t_ms, t_bw = _bench_op(lambda: triton_layernorm(x_ln, w_ln, b_ln), is_cuda=is_cuda, bytes_moved=ln_bytes)
+        diff = round(float((ref_layernorm(x_ln, w_ln, b_ln) - triton_layernorm(x_ln, w_ln, b_ln)).abs().max().item()), 6)
+        rows.append([f"LayerNorm [{tier}] ({m_rows}x{dim})", f"{e_ms} ({e_bw})", f"{c_ms} ({c_bw})", f"{t_ms} ({t_bw})", diff])
 
-    # 4. SwiGLU (2048x3072)
-    g_sw = torch.randn(2048, 3072, device=device, dtype=dtype, requires_grad=True)
-    u_sw = torch.randn(2048, 3072, device=device, dtype=dtype, requires_grad=True)
-    sw_bytes = 3 * g_sw.numel() * elem_bytes * 2
-    eager_ms, eager_bw = _bench_op(lambda: ref_swiglu(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
-    comp_sw = torch.compile(ref_swiglu) if is_cuda else ref_swiglu
-    comp_ms, comp_bw = _bench_op(lambda: comp_sw(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
-    tri_ms, tri_bw = _bench_op(lambda: triton_swiglu(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
-    max_diff = round(float((ref_swiglu(g_sw, u_sw) - triton_swiglu(g_sw, u_sw)).abs().max().item()), 6)
-    rows.append(["SwiGLU (2048x3072)", f"{eager_ms} ({eager_bw}GB/s)", f"{comp_ms} ({comp_bw}GB/s)", f"{tri_ms} ({tri_bw}GB/s)", max_diff])
+        # 3. CrossEntropy
+        logits = torch.randn(m_rows, vocab, device=device, dtype=dtype, requires_grad=True)
+        targets = torch.randint(0, vocab, (m_rows,), device=device)
+        ce_bytes = logits.numel() * elem_bytes * 2
+        e_ms, e_bw = _bench_op(lambda: ref_cross_entropy(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
+        c_ce = torch.compile(ref_cross_entropy) if is_cuda else ref_cross_entropy
+        c_ms, c_bw = _bench_op(lambda: c_ce(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
+        t_ms, t_bw = _bench_op(lambda: triton_cross_entropy(logits, targets), is_cuda=is_cuda, bytes_moved=ce_bytes)
+        diff = round(float((ref_cross_entropy(logits, targets) - triton_cross_entropy(logits, targets)).abs().max().item()), 6)
+        rows.append([f"CrossEntropy [{tier}] ({m_rows}x{vocab})", f"{e_ms} ({e_bw})", f"{c_ms} ({c_bw})", f"{t_ms} ({t_bw})", diff])
+
+        # 4. SwiGLU
+        sw_dim = dim * 4
+        g_sw = torch.randn(m_rows, sw_dim, device=device, dtype=dtype, requires_grad=True)
+        u_sw = torch.randn(m_rows, sw_dim, device=device, dtype=dtype, requires_grad=True)
+        sw_bytes = 3 * g_sw.numel() * elem_bytes * 2
+        e_ms, e_bw = _bench_op(lambda: ref_swiglu(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
+        c_sw = torch.compile(ref_swiglu) if is_cuda else ref_swiglu
+        c_ms, c_bw = _bench_op(lambda: c_sw(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
+        t_ms, t_bw = _bench_op(lambda: triton_swiglu(g_sw, u_sw), is_cuda=is_cuda, bytes_moved=sw_bytes)
+        diff = round(float((ref_swiglu(g_sw, u_sw) - triton_swiglu(g_sw, u_sw)).abs().max().item()), 6)
+        rows.append([f"SwiGLU [{tier}] ({m_rows}x{sw_dim})", f"{e_ms} ({e_bw})", f"{c_ms} ({c_bw})", f"{t_ms} ({t_bw})", diff])
 
     return rows
 
@@ -135,9 +142,15 @@ def _run_e2e_variant(
     variant_name: str,
     profile: str,
     is_baseline: bool = False,
+    disable_builtin_passes: bool = False,
     compile_enabled: bool = False,
     overrides: list[str] | None = None,
-) -> RunRecord:
+    cache_dir: Path | None = None,
+    debug_profile: bool = False,
+    torch_profile: bool = False,
+    prof_start: int = 2,
+    prof_steps: int = 3,
+) -> tuple[RunRecord, dict[str, Any] | None]:
     script_path = WORKLOADS_DIR / WORKLOAD_SPECS["transformer_lm"]["script"]
     wl_args = ["--steps", str(steps), "--batch-size", str(batch_size), "--seed", "42", "--device", device, *extra_args]
     env = os.environ.copy()
@@ -148,11 +161,26 @@ def _run_e2e_variant(
             cmd = [sys.executable, str(script_path), *wl_args]
         else:
             env["PTOPT_TELEMETRY_OUT"] = str(tel_path)
+            if disable_builtin_passes:
+                env["PTOPT_DISABLE_BUILTIN_PASSES"] = "1"
+            if debug_profile:
+                env["PTOPT_DEBUG_PROFILE"] = "1"
+            if torch_profile:
+                env["PTOPT_TORCH_PROFILE"] = "1"
+                env["PTOPT_TORCH_PROFILE_START"] = str(prof_start)
+                env["PTOPT_TORCH_PROFILE_STEPS"] = str(prof_steps)
             if device == "cpu" and compile_enabled:
                 env["PTOPT_COMPILE_CPU"] = "1"
+            if cache_dir is not None:
+                env["TORCHINDUCTOR_CACHE_DIR"] = str(cache_dir)
+                env["TORCHINDUCTOR_FX_GRAPH_CACHE"] = "1"
+
             ovr_flags: list[str] = []
             for item in (overrides or []):
                 ovr_flags.extend(["--override", item])
+            if cache_dir is not None and compile_enabled:
+                ovr_flags.extend(["--override", f"compile.cache_dir={cache_dir}"])
+
             cmd = [
                 sys.executable,
                 "-m",
@@ -173,20 +201,49 @@ def _run_e2e_variant(
         summary = _extract_workload_summary(res.stdout)
         tel_data = json.loads(tel_path.read_text(encoding="utf-8")) if tel_path.is_file() else None
         err = (res.stderr.strip() or res.stdout.strip())[-350:] if res.returncode != 0 else None
-        return merge_summary_and_telemetry(
+        rec = merge_summary_and_telemetry(
             workload=f"transformer_lm:{scale_name}",
             mode=variant_name,
-            cache_state="none",
+            cache_state="warm" if cache_dir else "none",
             exit_code=res.returncode,
             summary=summary,
             telemetry=tel_data,
             wall_sec=wall,
             error=err,
         )
+        return rec, tel_data
+
+
+def _diagnose_phase37(
+    e2e_records: dict[tuple[str, str], RunRecord],
+    micro_rows: list[list[object]],
+) -> list[str]:
+    lines: list[str] = []
+    for scale in sorted({sc for sc, _ in e2e_records}):
+        base = e2e_records.get((scale, "baseline"))
+        ek = e2e_records.get((scale, "3.7a_kernels_eager"))
+        co = e2e_records.get((scale, "3.7b_compile_only"))
+        af = e2e_records.get((scale, "3.7c_aggressive_full"))
+        if not base or not ek or not co or not af:
+            continue
+        sp_ek = compute_speedup(base.step_stats.median, ek.step_stats.median)
+        sp_co = compute_speedup(base.step_stats.median, co.step_stats.median)
+        sp_af = compute_speedup(base.step_stats.median, af.step_stats.median)
+        winner = max(
+            [("kernels_eager", sp_ek), ("compile_only", sp_co), ("aggressive_full", sp_af)],
+            key=lambda x: x[1],
+        )
+        lines.append(
+            f"- transformer_lm [{scale}]: base={base.step_stats.median:.2f}ms | kernels_eager={ek.step_stats.median:.2f}ms ({sp_ek:.2f}x) "
+            f"| compile_only={co.step_stats.median:.2f}ms ({sp_co:.2f}x) | aggressive_full={af.step_stats.median:.2f}ms ({sp_af:.2f}x) -> BEST={winner[0]} ({winner[1]:.2f}x)"
+        )
+    if micro_rows:
+        lines.append(f"- Micro-benchmark pairs evaluated: {len(micro_rows)} across RMSNorm/LayerNorm/CrossEntropy/SwiGLU")
+    return lines
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Phase 3.7 Custom Triton Kernels & E2E Transformer Experiment")
+    parser = argparse.ArgumentParser(description="Phase 3.7 Multi-Scale Triton Kernels & Deep Debug Experiment")
     parser.add_argument("--report-dir", type=Path, default=None)
     parser.add_argument("--steps", type=int, default=15)
     args = parser.parse_args()
@@ -195,6 +252,9 @@ def main() -> int:
     target_device = "cuda" if fp.effective_backend == "cuda" else "cpu"
     is_cuda = target_device == "cuda"
     steps = args.steps if is_cuda else min(args.steps, 5)
+    dbg_steps = 8 if is_cuda else 4
+    prof_start = 2 if dbg_steps >= 5 else 1
+    prof_cnt = 3 if dbg_steps >= 5 else 2
 
     unit_runner, unit_rc, unit_out = _run_test_file("tests/unit/test_kernels_parity.py")
     mig_runner, mig_rc, mig_out = _run_test_file("tests/migrate/test_phase3_7_kernels.py")
@@ -204,72 +264,171 @@ def main() -> int:
     scales = (
         [
             ("small", 16, ["--d-model", "256", "--n-heads", "4", "--n-layers", "4", "--seq-len", "128"]),
+            ("medium", 16, ["--d-model", "512", "--n-heads", "8", "--n-layers", "6", "--seq-len", "256"]),
             ("large", 16, ["--d-model", "768", "--n-heads", "12", "--n-layers", "12", "--seq-len", "512"]),
         ]
         if is_cuda
-        else [("small", 8, ["--d-model", "128", "--n-heads", "4", "--n-layers", "2", "--seq-len", "64"])]
+        else [
+            ("small", 8, ["--d-model", "128", "--n-heads", "4", "--n-layers", "2", "--seq-len", "64"]),
+            ("medium_cpu", 8, ["--d-model", "256", "--n-heads", "4", "--n-layers", "4", "--seq-len", "128"]),
+        ]
     )
 
+    e2e_records: dict[tuple[str, str], RunRecord] = {}
     e2e_rows: list[list[object]] = []
     hook_lines: list[str] = []
+    phase_rows: list[list[object]] = []
+    mem_rows: list[list[object]] = []
+    prof_lines: list[str] = []
     any_fail = False
 
-    for scale_name, bs, extra in scales:
-        variants: list[tuple[str, str, bool, bool, list[str], str]] = [
-            ("baseline", "safe", True, False, [], "safe"),
-            ("3.7a_kernels_eager", "aggressive", False, False, ["kernels.enabled=true", "compile.mode=default"], "aggressive"),
-            ("3.7b_compile_only", "balanced", False, True, ["kernels.enabled=false"], "balanced"),
-            ("3.7c_aggressive_full", "aggressive", False, True, ["kernels.enabled=true", "compile.mode=default"], "aggressive"),
-        ]
-        base_rec: RunRecord | None = None
-        for var_name, prof, is_base, comp_en, ovr, parity_prof in variants:
-            rec = _run_e2e_variant(
-                scale_name=scale_name,
-                batch_size=bs,
-                extra_args=extra,
-                steps=steps,
-                device=target_device,
-                variant_name=var_name,
-                profile=prof,
-                is_baseline=is_base,
-                compile_enabled=comp_en,
-                overrides=ovr,
-            )
-            if is_base:
-                base_rec = rec
-                continue
-            assert base_rec is not None
-            if base_rec.exit_code != 0 or rec.exit_code != 0:
-                any_fail = True
-                e2e_rows.append([f"transformer:{scale_name}", var_name, "-", "-", "-", "0.00x", "N/A", "None", "FAIL"])
-                hook_lines.append(f"[ERROR] {scale_name} ({var_name}): {rec.error or base_rec.error}")
-            else:
-                parity = check_parity(base_rec.losses, rec.losses, profile=parity_prof)
-                speedup = compute_speedup(base_rec.step_stats.median, rec.step_stats.median)
-                vram_d = compute_vram_delta(base_rec.peak_allocated_mb, rec.peak_allocated_mb)
-                status = "PASS" if parity.passed else "FAIL"
-                if not parity.passed:
+    with tempfile.TemporaryDirectory() as cache_root:
+        for scale_name, bs, extra in scales:
+            wl_cache = Path(cache_root) / scale_name
+            wl_cache.mkdir(parents=True, exist_ok=True)
+            variants: list[tuple[str, str, bool, bool, list[str], str]] = [
+                ("baseline", "safe", True, False, [], "safe"),
+                ("3.7a_kernels_eager", "aggressive", False, False, ["kernels.enabled=true", "compile.mode=default"], "aggressive"),
+                ("3.7b_compile_only", "balanced", False, True, ["kernels.enabled=false"], "balanced"),
+                ("3.7c_aggressive_full", "aggressive", False, True, ["kernels.enabled=true", "compile.mode=default"], "aggressive"),
+            ]
+            base_rec: RunRecord | None = None
+            for var_name, prof, is_base, comp_en, ovr, parity_prof in variants:
+                if comp_en and is_cuda:
+                    _run_e2e_variant(
+                        scale_name=scale_name,
+                        batch_size=bs,
+                        extra_args=extra,
+                        steps=min(steps, 6),
+                        device=target_device,
+                        variant_name=f"{var_name}_warmup",
+                        profile=prof,
+                        compile_enabled=True,
+                        overrides=ovr,
+                        cache_dir=wl_cache,
+                    )
+                rec, _ = _run_e2e_variant(
+                    scale_name=scale_name,
+                    batch_size=bs,
+                    extra_args=extra,
+                    steps=steps,
+                    device=target_device,
+                    variant_name=var_name,
+                    profile=prof,
+                    is_baseline=is_base,
+                    compile_enabled=comp_en,
+                    overrides=ovr,
+                    cache_dir=wl_cache if comp_en else None,
+                )
+                e2e_records[(scale_name, var_name)] = rec
+                if is_base:
+                    base_rec = rec
+                    continue
+                assert base_rec is not None
+                if base_rec.exit_code != 0 or rec.exit_code != 0:
                     any_fail = True
-                e2e_rows.append([
-                    f"transformer:{scale_name}",
-                    var_name,
-                    f"{base_rec.step_stats.median:.2f}",
-                    f"{rec.step_stats.median:.2f}",
-                    f"{rec.step_stats.p95:.2f}",
-                    f"{speedup:.2f}x",
-                    f"{base_rec.peak_allocated_mb:.1f}/{rec.peak_allocated_mb:.1f} ({vram_d:+.1f})",
-                    parity.max_rel_diff,
-                    status,
-                ])
-                for ev in rec.fallback_events:
-                    if str(ev.get("pass_name", "")).startswith("kernels") or ev.get("status") != "APPLIED":
+                    e2e_rows.append([f"transformer:{scale_name}", var_name, "-", "-", "-", "0.00x", "N/A", "None", "FAIL"])
+                    hook_lines.append(f"[ERROR] {scale_name} ({var_name}): {rec.error or base_rec.error}")
+                else:
+                    parity = check_parity(base_rec.losses, rec.losses, profile=parity_prof)
+                    speedup = compute_speedup(base_rec.step_stats.median, rec.step_stats.median)
+                    vram_d = compute_vram_delta(base_rec.peak_allocated_mb, rec.peak_allocated_mb)
+                    status = "PASS" if parity.passed else "FAIL"
+                    if not parity.passed:
+                        any_fail = True
+                    e2e_rows.append([
+                        f"transformer:{scale_name}",
+                        var_name,
+                        f"{base_rec.step_stats.median:.2f}",
+                        f"{rec.step_stats.median:.2f}",
+                        f"{rec.step_stats.p95:.2f}",
+                        f"{speedup:.2f}x",
+                        f"{base_rec.peak_allocated_mb:.1f}/{rec.peak_allocated_mb:.1f} ({vram_d:+.1f})",
+                        parity.max_rel_diff,
+                        status,
+                    ])
+                    for ev in rec.fallback_events:
                         hook_lines.append(
                             f"[{ev.get('status')}] {scale_name} ({var_name}) -> {ev.get('pass_name')}: {ev.get('reason')}"
                         )
 
+        # Deep Debug & Profiler Pass on smallest and largest scale
+        dbg_scales = [scales[0], scales[-1]] if len(scales) > 1 else [scales[0]]
+        for scale_name, bs, extra in dbg_scales:
+            wl_cache = Path(cache_root) / scale_name
+            dbg_variants: list[tuple[str, str, bool, bool, list[str]]] = [
+                ("baseline_dbg", "safe", True, False, []),
+                ("kernels_eager_dbg", "aggressive", False, False, ["kernels.enabled=true", "compile.mode=default"]),
+                ("compile_only_dbg", "balanced", False, True, ["kernels.enabled=false"]),
+            ]
+            for d_name, prof, dis_passes, comp_en, ovr in dbg_variants:
+                rec, tel = _run_e2e_variant(
+                    scale_name=scale_name,
+                    batch_size=bs,
+                    extra_args=extra,
+                    steps=dbg_steps,
+                    device=target_device,
+                    variant_name=d_name,
+                    profile=prof,
+                    disable_builtin_passes=dis_passes,
+                    compile_enabled=comp_en,
+                    overrides=ovr,
+                    cache_dir=wl_cache if comp_en else None,
+                    debug_profile=True,
+                    torch_profile=True,
+                    prof_start=prof_start,
+                    prof_steps=prof_cnt,
+                )
+                if rec.exit_code != 0 or not tel:
+                    hook_lines.append(f"[ERROR] debug {scale_name} ({d_name}): {rec.error}")
+                    continue
+                dbg = tel.get("debug_profile", {})
+                pb = dbg.get("phase_breakdown", {})
+                if pb:
+                    st = pb["steady_mean_ms"]
+                    sh = pb["steady_shares_pct"]
+                    phase_rows.append([
+                        scale_name,
+                        d_name,
+                        f"{pb['step_0_cold']['total_ms']:.2f}",
+                        f"{st['total_ms']:.2f}",
+                        f"{st['data_other_ms']:.2f} ({sh['data_other']}%)",
+                        f"{st['forward_ms']:.2f} ({sh['forward']}%)",
+                        f"{st['loss_clip_ms']:.2f} ({sh['loss_clip']}%)",
+                        f"{st['backward_ms']:.2f} ({sh['backward']}%)",
+                        f"{st['optim_ms']:.2f} ({sh['optim']}%)",
+                    ])
+                mem_dbg = dbg.get("cuda_memory_debug")
+                if mem_dbg:
+                    mem_rows.append([
+                        scale_name,
+                        d_name,
+                        f"{mem_dbg['peak_allocated_mb']:.1f}",
+                        f"{mem_dbg['peak_reserved_mb']:.1f}",
+                        f"{mem_dbg['reserved_overhead_mb']:.1f}",
+                        f"{mem_dbg['headroom_mb']:.1f}",
+                        f"{mem_dbg['utilization_pct']:.1f}%",
+                        mem_dbg["num_alloc_retries"],
+                    ])
+                tp = dbg.get("torch_profiler")
+                if tp:
+                    ops_key = "top_cuda_ops" if tp.get("top_cuda_ops") else "top_cpu_ops"
+                    ops = tp.get(ops_key, [])[:8]
+                    prof_lines.append(
+                        f"[{scale_name} | {d_name}] Profiler window={tp.get('window_steps')} "
+                        f"self_cuda={tp.get('total_self_cuda_ms')}ms self_cpu={tp.get('total_self_cpu_ms')}ms ({ops_key}):"
+                    )
+                    for op in ops:
+                        sv = op.get("self_cuda_ms", op.get("self_cpu_ms", 0.0))
+                        tv = op.get("total_cuda_ms", op.get("total_cpu_ms", 0.0))
+                        prof_lines.append(
+                            f"  {op['name']:<48} calls={op['calls']:<5} self={sv:>7.3f}ms ({op['pct']:>4.1f}%) total={tv:>7.3f}ms"
+                        )
+
+    diag_lines = _diagnose_phase37(e2e_records, micro_rows)
     overall_rc = 0 if (unit_rc == 0 and mig_rc == 0 and not any_fail) else 1
     builder = TextReportBuilder(
-        phase_title="PHASE 3.7 EXPERIMENT REPORT: CUSTOM TRITON KERNELS & CAPABILITY GATE",
+        phase_title="PHASE 3.7 EXPERIMENT REPORT: CUSTOM TRITON KERNELS, SCALING & DEEP DEBUG",
         repo_root=REPO_ROOT,
     )
     builder.add_header({
@@ -285,21 +444,34 @@ def main() -> int:
         "Overall Experiment": "PASS" if overall_rc == 0 else "FAIL",
     })
     builder.add_table(
-        "KERNEL MICRO-BENCHMARK (PYTORCH EAGER VS TORCH.COMPILE VS CUSTOM TRITON)",
-        ["Kernel (Shape)", "Eager ms (BW)", "Compile ms (BW)", "Triton ms (BW)", "MaxAbsDiff"],
+        "MULTI-SCALE KERNEL MICRO-BENCHMARK (EAGER VS COMPILE VS CUSTOM TRITON)",
+        ["Kernel [Tier] (Shape)", "Eager ms (GB/s)", "Compile ms (GB/s)", "Triton ms (GB/s)", "MaxAbsDiff"],
         micro_rows,
     )
     builder.add_table(
-        "END-TO-END TRANSFORMER_LM ABLATION (KERNELS VS COMPILE)",
+        "END-TO-END TRANSFORMER_LM SCALING (SMALL VS MEDIUM VS LARGE)",
         ["Workload", "Variant", "Base ms", "Wrap ms", "Wrap P95", "Speedup", "VRAM MB (B/W/d)", "MaxRelDiff", "Status"],
         e2e_rows,
     )
-    builder.add_lines_section("KERNEL CAPABILITY GATE & FALLBACK LOGS", hook_lines)
+    builder.add_table(
+        "DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)",
+        ["Scale", "Mode", "Step0 ms", "Steady ms", "Data/Other", "Forward", "Loss/Clip", "Backward", "Optim"],
+        phase_rows,
+    )
+    if mem_rows:
+        builder.add_table(
+            "DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM",
+            ["Scale", "Mode", "Alloc MB", "Resv MB", "Ovhead MB", "Headroom", "Util %", "Retries"],
+            mem_rows,
+        )
+    builder.add_lines_section("AUTOMATED KERNEL VS COMPILE DIAGNOSIS", diag_lines)
+    builder.add_lines_section("TOP PYTORCH PROFILER OPS (BASELINE VS KERNELS VS COMPILE)", prof_lines)
+    builder.add_lines_section("KERNEL CAPABILITY GATE & HOOK LOGS", hook_lines)
     builder.add_lines_section(f"MIGRATE TEST OUTPUT ({mig_runner})", mig_out.splitlines())
     builder.add_lines_section(f"UNIT TEST OUTPUT ({unit_runner})", unit_out.splitlines())
     builder.add_verification_footer(
         status="PENDING_USER_REVIEW" if overall_rc == 0 else "FAILED_NEEDS_ATTENTION",
-        note="Verify Triton kernel micro-benchmarks vs torch.compile and E2E parity on Google Colab before finalizing Phase 3 rules",
+        note="Verify Small/Medium/Large Triton kernel micro-benchmarks, phase breakdowns, and Top CUDA Ops on Google Colab before finalizing Phase 3",
     )
 
     out_path = builder.write("phase-3.7", report_dir=args.report_dir)

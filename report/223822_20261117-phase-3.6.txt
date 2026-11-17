@@ -1,0 +1,271 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.6 EXPERIMENT REPORT: INFERENCE / RUNNING OPTIMIZATION
+==============================================================================
+Timestamp          : 2026-11-17 22:38:22 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 4253f54
+Google Colab       : False
+Backend / GPU      : cpu
+Unit Tests         : unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Overall Experiment : PASS
+
+[INFERENCE LATENCY (BS=1) & THROUGHPUT (BS=64) ABLATION]
+------------------------------------------------------------------------------
+Case              | Variant                | Step0 ms | Med ms | P95 ms | P99 ms | Steady Samp/s | E2E s  | Speedup | VRAM MB (d) | MaxRelDiff | Status
+------------------+------------------------+----------+--------+--------+--------+---------------+--------+---------+-------------+------------+-------
+infer_bs1_small   | baseline               | 1.6      | 0.43   | 0.58   | 0.61   | 2314.8        | 1.21s  | 1.00x   | 0.0 (+0.0)  | 0.0        | BASE  
+infer_bs1_small   | 3.6a_inference_mode    | 2.1      | 0.51   | 0.61   | 0.79   | 1953.1        | 2.39s  | 0.84x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs1_small   | 3.6b_infer_amp_compile | 8800.0   | 0.49   | 0.59   | 0.65   | 2036.7        | 12.57s | 0.88x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs1_small   | 3.6d_cpu_int8          | 8.7      | 0.53   | 0.61   | 0.66   | 1886.8        | 2.65s  | 0.81x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs1_medium  | baseline               | 6.4      | 3.93   | 4.96   | 5.10   | 254.6         | 1.35s  | 1.00x   | 0.0 (+0.0)  | 0.0        | BASE  
+infer_bs1_medium  | 3.6a_inference_mode    | 3.9      | 2.55   | 2.94   | 3.12   | 391.8         | 2.85s  | 1.54x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs1_medium  | 3.6b_infer_amp_compile | 10260.4  | 3.06   | 3.12   | 3.22   | 327.1         | 14.25s | 1.28x   | 0.0 (+0.0)  | 2e-06      | PASS  
+infer_bs1_medium  | 3.6d_cpu_int8          | 22.3     | 2.01   | 2.72   | 2.89   | 496.5         | 2.78s  | 1.95x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_small  | baseline               | 5.4      | 3.30   | 3.94   | 3.96   | 9694.0        | 1.42s  | 1.00x   | 0.0 (+0.0)  | 0.0        | BASE  
+infer_bs32_small  | 3.6a_inference_mode    | 6.7      | 4.29   | 4.36   | 4.46   | 7454.0        | 2.80s  | 0.77x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_small  | 3.6b_infer_amp_compile | 9639.4   | 3.79   | 4.39   | 4.66   | 8441.0        | 13.65s | 0.87x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_small  | 3.6d_cpu_int8          | 15.3     | 3.70   | 4.01   | 4.10   | 8644.0        | 2.62s  | 0.89x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_medium | baseline               | 60.8     | 72.53  | 75.12  | 75.62  | 441.2         | 1.76s  | 1.00x   | 0.0 (+0.0)  | 0.0        | BASE  
+infer_bs32_medium | 3.6a_inference_mode    | 45.9     | 50.71  | 53.41  | 53.69  | 631.1         | 3.01s  | 1.43x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_medium | 3.6b_infer_amp_compile | 9830.1   | 49.22  | 51.03  | 51.22  | 650.2         | 13.95s | 1.47x   | 0.0 (+0.0)  | 0.0        | PASS  
+infer_bs32_medium | 3.6d_cpu_int8          | 63.3     | 44.98  | 48.92  | 49.26  | 711.5         | 2.78s  | 1.61x   | 0.0 (+0.0)  | 0.0        | PASS  
+
+[DEEP DEBUG: INFERENCE PHASE BREAKDOWN & LATENCY JITTER]
+------------------------------------------------------------------------------
+Case              | Mode           | Step0 ms | Steady ms | Min/Max/Std      | Host/Data (%) | Model Fwd (%)
+------------------+----------------+----------+-----------+------------------+---------------+--------------
+infer_bs1_small   | baseline_dbg   | 9.41     | 0.94      | 0.54/1.08/0.20   | 0.13 (14.1%)  | 0.81 (85.9%) 
+infer_bs1_small   | infer_mode_dbg | 10.71    | 0.94      | 0.55/1.15/0.27   | 0.15 (16.5%)  | 0.79 (83.5%) 
+infer_bs32_medium | baseline_dbg   | 72.19    | 57.27     | 42.99/65.62/9.54 | 0.17 (0.3%)   | 57.09 (99.7%)
+infer_bs32_medium | infer_mode_dbg | 91.32    | 68.33     | 64.30/73.17/2.99 | 0.26 (0.4%)   | 68.07 (99.6%)
+
+[AUTOMATED INFERENCE DIAGNOSIS]
+------------------------------------------------------------------------------
+- infer_bs1_medium: base=3.93ms | inference_mode=2.55ms (1.54x) | amp+compile=3.06ms (1.28x)
+- infer_bs1_small: base=0.43ms | inference_mode=0.51ms (0.84x) | amp+compile=0.49ms (0.88x)
+- infer_bs32_medium: base=72.53ms | inference_mode=50.71ms (1.43x) | amp+compile=49.22ms (1.47x)
+- infer_bs32_small: base=3.30ms | inference_mode=4.29ms (0.77x) | amp+compile=3.79ms (0.87x)
+
+[WARMUP VS STEADY-STATE STEP TRACE]
+------------------------------------------------------------------------------
+[infer_bs1_small | baseline_dbg] First steps trace (ms):
+  step  0: total=   9.41 (host_data=7.44, fwd=1.97)
+  step  1: total=   1.01 (host_data=0.26, fwd=0.75)
+  step  2: total=   1.13 (host_data=0.05, fwd=1.08)
+  step  3: total=   0.84 (host_data=0.14, fwd=0.70)
+  step  4: total=   0.60 (host_data=0.06, fwd=0.54)
+[infer_bs1_small | infer_mode_dbg] First steps trace (ms):
+  step  0: total=  10.71 (host_data=8.73, fwd=1.98)
+  step  1: total=   0.82 (host_data=0.27, fwd=0.56)
+  step  2: total=   1.24 (host_data=0.09, fwd=1.15)
+  step  3: total=   0.75 (host_data=0.15, fwd=0.60)
+  step  4: total=   0.65 (host_data=0.10, fwd=0.56)
+[infer_bs32_medium | baseline_dbg] First steps trace (ms):
+  step  0: total=  72.19 (host_data=25.22, fwd=46.97)
+  step  1: total=  43.25 (host_data=0.26, fwd=42.99)
+  step  2: total=  65.74 (host_data=0.11, fwd=65.62)
+  step  3: total=  64.71 (host_data=0.16, fwd=64.54)
+  step  4: total=  48.36 (host_data=0.15, fwd=48.21)
+[infer_bs32_medium | infer_mode_dbg] First steps trace (ms):
+  step  0: total=  91.32 (host_data=26.09, fwd=65.23)
+  step  1: total=  69.56 (host_data=0.37, fwd=69.19)
+  step  2: total=  64.48 (host_data=0.19, fwd=64.30)
+  step  3: total=  67.30 (host_data=0.26, fwd=67.05)
+  step  4: total=  73.41 (host_data=0.25, fwd=73.17)
+
+[TOP PYTORCH PROFILER OPS]
+------------------------------------------------------------------------------
+[infer_bs1_small | baseline_dbg] Profiler window=[2, 5] self_cuda=0.0ms self_cpu=1.706ms (top_cpu_ops):
+  aten::addmm                                      calls=18    self=  0.385ms (22.6%) total=  0.441ms
+  aten::_addmm_activation                          calls=6     self=  0.144ms ( 8.4%) total=  0.269ms
+  aten::mm                                         calls=6     self=  0.116ms ( 6.8%) total=  0.117ms
+  aten::gelu_                                      calls=6     self=  0.099ms ( 5.8%) total=  0.099ms
+  aten::gelu                                       calls=3     self=  0.095ms ( 5.5%) total=  0.095ms
+  aten::_native_multi_head_attention               calls=6     self=  0.094ms ( 5.5%) total=  0.562ms
+  aten::copy_                                      calls=32    self=  0.082ms ( 4.8%) total=  0.082ms
+  aten::bmm                                        calls=12    self=  0.070ms ( 4.1%) total=  0.071ms
+[infer_bs1_small | infer_mode_dbg] Profiler window=[2, 5] self_cuda=0.0ms self_cpu=1.653ms (top_cpu_ops):
+  aten::addmm                                      calls=18    self=  0.409ms (24.8%) total=  0.475ms
+  aten::_addmm_activation                          calls=6     self=  0.133ms ( 8.1%) total=  0.267ms
+  aten::mm                                         calls=6     self=  0.105ms ( 6.4%) total=  0.106ms
+  aten::gelu_                                      calls=6     self=  0.104ms ( 6.3%) total=  0.104ms
+  aten::_native_multi_head_attention               calls=6     self=  0.087ms ( 5.3%) total=  0.549ms
+  aten::gelu                                       calls=3     self=  0.087ms ( 5.3%) total=  0.087ms
+  aten::copy_                                      calls=32    self=  0.083ms ( 5.0%) total=  0.083ms
+  aten::bmm                                        calls=12    self=  0.069ms ( 4.2%) total=  0.070ms
+[infer_bs32_medium | baseline_dbg] Profiler window=[2, 5] self_cuda=0.0ms self_cpu=173.378ms (top_cpu_ops):
+  aten::addmm                                      calls=30    self= 54.592ms (31.5%) total= 56.813ms
+  aten::_addmm_activation                          calls=12    self= 39.135ms (22.6%) total= 50.833ms
+  aten::mm                                         calls=12    self= 29.362ms (16.9%) total= 29.370ms
+  aten::copy_                                      calls=59    self= 10.432ms ( 6.0%) total= 10.432ms
+  aten::_transformer_encoder_layer_fwd             calls=12    self=  8.156ms ( 4.7%) total=168.455ms
+  aten::_transform_bias_rescale_qkv                calls=12    self=  7.589ms ( 4.4%) total=  7.960ms
+  aten::bmm                                        calls=24    self=  5.906ms ( 3.4%) total=  5.916ms
+  aten::_native_multi_head_attention               calls=12    self=  5.056ms ( 2.9%) total= 61.438ms
+[infer_bs32_medium | infer_mode_dbg] Profiler window=[2, 5] self_cuda=0.0ms self_cpu=199.281ms (top_cpu_ops):
+  aten::addmm                                      calls=30    self= 64.650ms (32.4%) total= 67.228ms
+  aten::_addmm_activation                          calls=12    self= 44.748ms (22.5%) total= 57.800ms
+  aten::mm                                         calls=12    self= 33.006ms (16.6%) total= 33.012ms
+  aten::copy_                                      calls=59    self= 11.550ms ( 5.8%) total= 11.550ms
+  aten::_transformer_encoder_layer_fwd             calls=12    self=  9.431ms ( 4.7%) total=194.441ms
+  aten::_transform_bias_rescale_qkv                calls=12    self=  7.959ms ( 4.0%) total=  8.343ms
+  aten::bmm                                        calls=24    self=  7.340ms ( 3.7%) total=  7.351ms
+  aten::_native_multi_head_attention               calls=12    self=  5.955ms ( 3.0%) total= 70.169ms
+
+[INFERENCE HOOK & FALLBACK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp3kq76q9f/infer_bs1_small)
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs1_small (3.6d_cpu_int8) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_small (3.6d_cpu_int8) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_small (3.6d_cpu_int8) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6d_cpu_int8) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6d_cpu_int8) -> inference.quant: CPU INT8 dynamic quantization applied
+[FALLBACK] infer_bs1_small (3.6d_cpu_int8) -> inference.quant: Dynamic INT8 forward unsupported on InferenceBackbone; reverted to fp32 eval
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp3kq76q9f/infer_bs1_medium)
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs1_medium (3.6d_cpu_int8) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_medium (3.6d_cpu_int8) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_medium (3.6d_cpu_int8) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6d_cpu_int8) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6d_cpu_int8) -> inference.quant: CPU INT8 dynamic quantization applied
+[FALLBACK] infer_bs1_medium (3.6d_cpu_int8) -> inference.quant: Dynamic INT8 forward unsupported on InferenceBackbone; reverted to fp32 eval
+[APPLIED] infer_bs32_small (3.6a_inference_mode) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_small (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_small (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_small (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_small (3.6b_infer_amp_compile) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_small (3.6b_infer_amp_compile) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_small (3.6b_infer_amp_compile) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_small (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs32_small (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp3kq76q9f/infer_bs32_small)
+[SKIPPED] infer_bs32_small (3.6b_infer_amp_compile) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_small (3.6b_infer_amp_compile) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_small (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_small (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_small (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs32_small (3.6d_cpu_int8) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_small (3.6d_cpu_int8) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_small (3.6d_cpu_int8) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_small (3.6d_cpu_int8) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_small (3.6d_cpu_int8) -> inference.quant: CPU INT8 dynamic quantization applied
+[FALLBACK] infer_bs32_small (3.6d_cpu_int8) -> inference.quant: Dynamic INT8 forward unsupported on InferenceBackbone; reverted to fp32 eval
+[APPLIED] infer_bs32_medium (3.6a_inference_mode) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_medium (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_medium (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_medium (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_medium (3.6b_infer_amp_compile) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_medium (3.6b_infer_amp_compile) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_medium (3.6b_infer_amp_compile) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_medium (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs32_medium (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp3kq76q9f/infer_bs32_medium)
+[SKIPPED] infer_bs32_medium (3.6b_infer_amp_compile) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_medium (3.6b_infer_amp_compile) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_medium (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_medium (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_medium (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs32_medium (3.6d_cpu_int8) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs32_medium (3.6d_cpu_int8) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs32_medium (3.6d_cpu_int8) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs32_medium (3.6d_cpu_int8) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs32_medium (3.6d_cpu_int8) -> inference.quant: CPU INT8 dynamic quantization applied
+[FALLBACK] infer_bs32_medium (3.6d_cpu_int8) -> inference.quant: Dynamic INT8 forward unsupported on InferenceBackbone; reverted to fp32 eval
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cnn_vision_training_unaffected_by_inference_opt (tests.migrate.test_phase3_6_inference.TestPhase36InferenceMigration.test_cnn_vision_training_unaffected_by_inference_opt) ... ok
+test_infer_runner_bs1_and_bs32_parity (tests.migrate.test_phase3_6_inference.TestPhase36InferenceMigration.test_infer_runner_bs1_and_bs32_parity) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 20.109s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cpu_dynamic_quantization_opt_in (tests.unit.test_pass_inference.TestInferenceOptPass.test_cpu_dynamic_quantization_opt_in) ... /home/korarit/.local/lib/python3.12/site-packages/torch/ao/nn/quantized/modules/utils.py:72: UserWarning: torch.quantize_per_tensor, torch.quantize_per_channel and other quantized tensor creation functions that produce tensors with dtype torch.quint8, torch.qint8, and torch.qint32 are deprecated and will be removed in a future PyTorch release. Please see https://github.com/pytorch/pytorch/issues/184982 for more information. (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/quantized/Quantizer.cpp:111.)
+  qweight = torch.quantize_per_tensor(
+ok
+test_cuda_graphs_reduce_overhead_and_dynamic_shape_fallback (tests.unit.test_pass_inference.TestInferenceOptPass.test_cuda_graphs_reduce_overhead_and_dynamic_shape_fallback) ... ok
+test_fp8_hardware_gate_t4_skips_and_l4_allows (tests.unit.test_pass_inference.TestInferenceOptPass.test_fp8_hardware_gate_t4_skips_and_l4_allows) ... ok
+test_requires_grad_and_enable_grad_guards_skip_inference_mode (tests.unit.test_pass_inference.TestInferenceOptPass.test_requires_grad_and_enable_grad_guards_skip_inference_mode) ... ok
+test_train_eval_switching_preserves_backward_and_uses_inference_mode (tests.unit.test_pass_inference.TestInferenceOptPass.test_train_eval_switching_preserves_backward_and_uses_inference_mode) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.884s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Inference Latency (bs=1), CUDA Graphs, Throughput (bs=64), Top Ops, and FP8 parity on Google Colab before Phase 3.7)
+==============================================================================

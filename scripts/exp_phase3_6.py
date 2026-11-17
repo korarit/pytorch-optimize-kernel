@@ -182,13 +182,18 @@ def main() -> int:
     if is_cuda:
         cases: list[tuple[str, int, int, list[str]]] = [
             ("infer_bs1_small", 1, 50, ["--d-model", "256", "--n-layers", "4", "--seq-len", "64"]),
-            ("infer_bs1_scaled", 1, 40, ["--d-model", "512", "--n-layers", "8", "--seq-len", "128"]),
-            ("infer_bs64_tput", 64, 30, ["--d-model", "512", "--n-layers", "6", "--seq-len", "128"]),
+            ("infer_bs1_medium", 1, 40, ["--d-model", "512", "--n-layers", "8", "--seq-len", "128"]),
+            ("infer_bs1_large", 1, 30, ["--d-model", "768", "--n-layers", "12", "--seq-len", "256"]),
+            ("infer_bs64_small", 64, 30, ["--d-model", "256", "--n-layers", "4", "--seq-len", "64"]),
+            ("infer_bs64_medium", 64, 25, ["--d-model", "512", "--n-layers", "6", "--seq-len", "128"]),
+            ("infer_bs64_large", 64, 20, ["--d-model", "768", "--n-layers", "12", "--seq-len", "256"]),
         ]
     else:
         cases = [
             ("infer_bs1_small", 1, 12, ["--d-model", "128", "--n-layers", "2", "--seq-len", "32"]),
-            ("infer_bs32_tput", 32, 8, ["--d-model", "128", "--n-layers", "2", "--seq-len", "32"]),
+            ("infer_bs1_medium", 1, 10, ["--d-model", "256", "--n-layers", "4", "--seq-len", "64"]),
+            ("infer_bs32_small", 32, 8, ["--d-model", "128", "--n-layers", "2", "--seq-len", "32"]),
+            ("infer_bs32_medium", 32, 6, ["--d-model", "256", "--n-layers", "4", "--seq-len", "64"]),
         ]
 
     ab_records: dict[tuple[str, str], RunRecord] = {}
@@ -326,7 +331,7 @@ def main() -> int:
         trace_lines: list[str] = []
         prof_lines: list[str] = []
 
-        dbg_targets = [cases[0], cases[-1]]
+        dbg_targets = [cases[0], cases[2], cases[-1]] if is_cuda else [cases[0], cases[-1]]
         for case_name, bs, _steps, extra_args in dbg_targets:
             dbg_steps = 12 if is_cuda else 6
             prof_start = 4 if is_cuda else 2
