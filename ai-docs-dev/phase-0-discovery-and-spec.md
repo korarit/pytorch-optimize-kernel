@@ -37,5 +37,5 @@
 
 ## Exit Criteria & Human Verification Gate (เกณฑ์ผ่าน Phase 0)
 - [x] มี script ตรวจ environment ที่พร้อมรันบน Google Colab แล้วได้ **Detailed Text Report (`report/HHMMSS_YYYYMMDD-phase-0-env.txt`)** ออกมาอ่านได้ครบถ้วน
-- [ ] ตกลง Config Schema v1, Text Report Format และ Parity Thresholds เรียบร้อยแล้ว *(รอผู้ใช้ตรวจทาน)*
-- [ ] **[WAIT FOR USER]** รอผู้ใช้รัน `python scripts/phase0_env_discovery.py` ตรวจสอบบน Google Colab และยืนยันผลด้วยตนเองก่อนเริ่ม Phase 1
+- [x] ตกลง Config Schema v1, Text Report Format และ Parity Thresholds เรียบร้อยแล้ว
+- [x] **[VERIFIED BY USER]** ผู้ใช้รันตรวจสอบบน Google Colab (NVIDIA L4 `sm_89`, PyTorch `2.14.1+cu130`, Triton `3.8.0`) แล้วใน [085558_20261117-phase-0-env.txt](../report/085558_20261117-phase-0-env.txt)
