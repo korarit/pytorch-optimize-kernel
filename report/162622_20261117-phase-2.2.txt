@@ -1,0 +1,38 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 2.2: PURE PYTORCH WORKLOADS BASELINE VERIFICATION
+==============================================================================
+Timestamp          : 2026-11-17 16:26:22 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ bd9280e
+Google Colab       : False
+Live Backend       : cpu
+GPU                : None
+Target Device      : cpu
+Test Runner        : unittest (exit_code=0)
+
+[BASELINE WORKLOAD RUNS (Unwrapped Pure PyTorch)]
+------------------------------------------------------------------------------
+Workload          | Device | Status | Steps | Wall Time | Avg Step | VRAM & Final Metric   
+------------------+--------+--------+-------+-----------+----------+-----------------------
+cnn_vision        | cpu    | PASS   | 6     | 0.5398s   | 89.964ms | 0.0 MB | loss=2.811185
+transformer_lm    | cpu    | PASS   | 6     | 0.5616s   | 93.601ms | 0.0 MB | loss=7.783415
+deep_mlp          | cpu    | PASS   | 6     | 0.0768s   | 12.792ms | 0.0 MB | loss=2.832802
+infer_runner_bs1  | cpu    | PASS   | 6     | 0.0184s   | 3.064ms  | 0.0 MB | loss=0.575669
+infer_runner_bs32 | cpu    | PASS   | 6     | 0.3026s   | 50.434ms | 0.0 MB | loss=0.615704
+edge_cases_all    | cpu    | PASS   | 18    | 0.8616s   | 47.867ms | 0.0 MB | loss=2.052198
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+test_all_workloads_cpu_smoke_and_determinism (tests.unit.test_workloads.TestWorkloadsPureAndDeterministic.test_all_workloads_cpu_smoke_and_determinism) ... ok
+test_checkpoint_save_and_resume_roundtrip (tests.unit.test_workloads.TestWorkloadsPureAndDeterministic.test_checkpoint_save_and_resume_roundtrip) ... ok
+test_workloads_do_not_import_src_wrapper (tests.unit.test_workloads.TestWorkloadsPureAndDeterministic.test_workloads_do_not_import_src_wrapper) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 26.783s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify baseline workload timings and VRAM fit Google Colab runtime before Phase 2.3)
+==============================================================================

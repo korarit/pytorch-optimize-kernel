@@ -1,0 +1,47 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 2.1: CLI LAUNCHER & SITECUSTOMIZE HOOK INJECTION
+==============================================================================
+Timestamp          : 2026-11-17 09:20:46 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ bd9280e
+Google Colab       : True
+Backend            : cuda
+GPU                : NVIDIA L4
+Test Runner        : pytest (exit_code=0)
+
+[LIVE PTOPT INJECTION PROBE]
+------------------------------------------------------------------------------
+passthrough_exit_code : 0
+ptopt_active          : 1
+bootstrapped          : True
+torch_patched         : True
+profile               : safe
+cuda                  : True
+exit_code             : 0
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 9 items
+
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_module_invocation_prepends_python_executable PASSED [ 11%]
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_split_with_separator_preserves_duplicate_user_flags PASSED [ 22%]
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_split_without_separator_stops_at_script_or_executable PASSED [ 33%]
+tests/unit/test_cli_hooks.py::TestHookManagerLifecycle::test_bootstrap_idempotency_and_pass_execution PASSED [ 44%]
+tests/unit/test_cli_hooks.py::TestHookManagerLifecycle::test_fallback_vs_strict_mode PASSED [ 55%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_chain_load_helper_directly PASSED [ 66%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_exit_code_propagation PASSED [ 77%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_lazy_torch_import_hook_and_spawn_worker_propagation PASSED [ 88%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_sitecustomize_chain_loading_and_bootstrapped_marker PASSED [100%]
+
+============================== 9 passed in 4.59s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify ptopt injection works cleanly on Google Colab without interfering with Colab runtime)
+==============================================================================
