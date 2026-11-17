@@ -191,12 +191,6 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
         if not getattr(sub.weight, "is_cuda", False):
             continue
 
-        # Pre-quantize FP8 weights at patch time while keeping `sub.weight` & `state_dict()` untouched
-        try:
-            sub._ptopt_fp8_w_cache = _build_weight_cache(sub)
-        except Exception:  # noqa: BLE001
-            pass
-
         orig_fwd = sub.forward
 
         def _make_fp8_fwd(lin: Any, base_fwd: Any) -> Any:

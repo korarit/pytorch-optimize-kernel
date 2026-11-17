@@ -88,7 +88,7 @@ class TestKernelCapabilityGate(unittest.TestCase):
         cfg_off.kernels.enabled = False
         self.assertTrue(apply_custom_kernels_pass(cfg_off, mgr, torch).startswith("SKIPPED:"))
 
-    def test_compile_aware_kernel_gate_defers_layernorm_and_swiglu(self) -> None:
+    def test_compile_aware_kernel_gate_defers_module_wrappers_to_inductor(self) -> None:
         cfg = OptimizeConfig(profile="aggressive")
         cfg.kernels.enabled = True
         cfg.compile.enabled = True
@@ -100,10 +100,11 @@ class TestKernelCapabilityGate(unittest.TestCase):
             assert reg is not None
             try:
                 entries = reg.fallback_registry.entries
-                self.assertEqual(entries["rmsnorm"].status, "APPLIED")
                 self.assertEqual(entries["cross_entropy"].status, "APPLIED")
+                self.assertEqual(entries["rmsnorm"].status, "SKIPPED")
                 self.assertEqual(entries["layernorm"].status, "SKIPPED")
                 self.assertEqual(entries["swiglu"].status, "SKIPPED")
+                self.assertIn("Inductor", entries["rmsnorm"].reason)
                 self.assertIn("Inductor", entries["layernorm"].reason)
             finally:
                 uninstall_custom_kernels_hooks(torch)

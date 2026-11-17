@@ -224,13 +224,15 @@ class TestInferenceOptPass(unittest.TestCase):
         orig_sd = {k: v.clone() for k, v in model.state_dict().items()}
         orig_param_ids = {name: id(p) for name, p in model.named_parameters()}
 
-        # Mock `.is_cuda = True` via subclass/proxy check isn't needed if we test weight-untouched invariant cleanly
-        # Ensure non-CUDA Linear keeps state_dict intact and patching with simulated is_cuda pre-caches without mutating weight
+        # Verify small-M eval skips FP8 weight caching (no VRAM overhead on bs=1) and state_dict stays intact
         for m in model.modules():
             if isinstance(m, nn.Linear):
                 with patch.object(torch.Tensor, "is_cuda", new=True):
                     n_patched = apply_fp8_linear_eval_hooks(m, torch)
                     self.assertEqual(n_patched, 1)
+                    m.eval()
+                    _ = m(torch.randn(4, 128))
+                    self.assertIsNone(getattr(m, "_ptopt_fp8_w_cache", None))
                 break
 
         after_sd = model.state_dict()

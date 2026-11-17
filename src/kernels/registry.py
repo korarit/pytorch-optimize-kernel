@@ -168,9 +168,10 @@ def install_custom_kernels_hooks(
             sm_override=sm_override,
             allow_list=cfg.kernels.allow_list,
         )
-        # When torch.compile is active, Inductor fuses pointwise SwiGLU and native LayerNorm
-        # without graph breaks; defer those unless explicitly requested via allow_list/env.
-        if ok and compile_active and name in ("layernorm", "swiglu"):
+        # When torch.compile is active, Inductor fuses RMSNorm/LayerNorm/SwiGLU across
+        # adjacent Linear/Residual ops without graph breaks; defer internal module kernels
+        # unless explicitly requested via allow_list/env, keeping cross_entropy active.
+        if ok and compile_active and name in ("rmsnorm", "layernorm", "swiglu"):
             ok = False
             reason = f"{reason}; deferred to torch.compile Inductor fusion"
         eligible[name] = ok
