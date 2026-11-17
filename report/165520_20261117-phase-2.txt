@@ -1,0 +1,98 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 2 CONSOLIDATED REPORT: WRAPPER CORE, BENCHMARK & MIGRATE TESTS
+==============================================================================
+Timestamp          : 2026-11-17 16:55:20 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ ff902bd
+Google Colab       : False
+Backend / GPU      : cpu
+Unit Tests         : unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Benchmark Smoke    : PASS
+
+[SAFE PROFILE CONFIG]
+------------------------------------------------------------------------------
+tf32                  : False
+amp                   : False (fp32)
+compile               : False
+fused_optimizer       : False
+dataloader_auto_tune  : False
+
+[SMOKE BENCHMARK COMPARISON (Baseline vs safe)]
+------------------------------------------------------------------------------
+Workload          | Mode | Base ms | Wrap ms | Wrap P95 | Speedup | E2E (B/W)     | VRAM MB (B/W/d)  | MaxRelDiff | Status
+------------------+------+---------+---------+----------+---------+---------------+------------------+------------+-------
+cnn_vision        | safe | 112.43  | 74.25   | 89.48    | 1.51x   | 2.79s / 3.75s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+transformer_lm    | safe | 81.24   | 82.67   | 90.36    | 0.98x   | 2.70s / 3.82s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+deep_mlp          | safe | 9.32    | 11.23   | 11.36    | 0.83x   | 2.21s / 3.31s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+infer_runner_bs1  | safe | 1.77    | 1.85    | 1.95     | 0.96x   | 1.10s / 2.30s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+infer_runner_bs32 | safe | 33.27   | 33.64   | 33.87    | 0.99x   | 1.30s / 2.57s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+edge_cases        | safe | 0.58    | 0.59    | 1.88     | 0.98x   | 2.11s / 3.31s | 0.0 / 0.0 (+0.0) | 0.0        | PASS  
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_baseline_save_wrapped_resume_and_wrapped_save_baseline_resume (test_checkpoint_compat.TestCheckpointCrossCompatibility.test_baseline_save_wrapped_resume_and_wrapped_save_baseline_resume) ... ok
+test_orig_mod_prefix_transparency_hooks (test_checkpoint_compat.TestCheckpointCrossCompatibility.test_orig_mod_prefix_transparency_hooks) ... ok
+test_unmodified_workloads_under_ptopt_safe (test_script_migration.TestUnmodifiedScriptMigration.test_unmodified_workloads_under_ptopt_safe) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 40.361s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_module_invocation_prepends_python_executable (test_cli_hooks.TestCLIArgParsing.test_module_invocation_prepends_python_executable) ... ok
+test_split_with_separator_preserves_duplicate_user_flags (test_cli_hooks.TestCLIArgParsing.test_split_with_separator_preserves_duplicate_user_flags) ... ok
+test_split_without_separator_stops_at_script_or_executable (test_cli_hooks.TestCLIArgParsing.test_split_without_separator_stops_at_script_or_executable) ... ok
+test_bootstrap_idempotency_and_pass_execution (test_cli_hooks.TestHookManagerLifecycle.test_bootstrap_idempotency_and_pass_execution) ... ok
+test_fallback_vs_strict_mode (test_cli_hooks.TestHookManagerLifecycle.test_fallback_vs_strict_mode) ... ok
+test_chain_load_helper_directly (test_cli_hooks.TestSubprocessAndColabPlumbing.test_chain_load_helper_directly) ... ok
+test_exit_code_propagation (test_cli_hooks.TestSubprocessAndColabPlumbing.test_exit_code_propagation) ... ok
+test_lazy_torch_import_hook_and_spawn_worker_propagation (test_cli_hooks.TestSubprocessAndColabPlumbing.test_lazy_torch_import_hook_and_spawn_worker_propagation) ... ok
+test_sitecustomize_chain_loading_and_bootstrapped_marker (test_cli_hooks.TestSubprocessAndColabPlumbing.test_sitecustomize_chain_loading_and_bootstrapped_marker) ... ok
+test_a100_sm80_balanced (test_config_resolver.TestConfigResolverMatrix.test_a100_sm80_balanced) ... ok
+test_cpu_only_and_mps (test_config_resolver.TestConfigResolverMatrix.test_cpu_only_and_mps) ... ok
+test_l4_sm89_aggressive (test_config_resolver.TestConfigResolverMatrix.test_l4_sm89_aggressive) ... ok
+test_low_shm_disables_dataloader_autotune (test_config_resolver.TestConfigResolverMatrix.test_low_shm_disables_dataloader_autotune) ... ok
+test_low_vram_disables_cuda_graphs_and_keeps_default_compile (test_config_resolver.TestConfigResolverMatrix.test_low_vram_disables_cuda_graphs_and_keeps_default_compile) ... ok
+test_overrides_and_trace (test_config_resolver.TestConfigResolverMatrix.test_overrides_and_trace) ... ok
+test_t4_sm75_balanced_and_safe (test_config_resolver.TestConfigResolverMatrix.test_t4_sm75_balanced_and_safe) ... ok
+test_invalid_profile_and_env (test_config_resolver.TestConfigValidation.test_invalid_profile_and_env) ... ok
+test_unknown_keys_and_invalid_constraints (test_config_resolver.TestConfigValidation.test_unknown_keys_and_invalid_constraints) ... ok
+test_apple_silicon_mps_arm64 (test_detect.TestHardwareDetection.test_apple_silicon_mps_arm64) ... ok
+test_colab_a100_sm80 (test_detect.TestHardwareDetection.test_colab_a100_sm80) ... ok
+test_colab_l4_sm89 (test_detect.TestHardwareDetection.test_colab_l4_sm89) ... ok
+test_colab_t4_sm75_low_shm (test_detect.TestHardwareDetection.test_colab_t4_sm75_low_shm) ... ok
+test_cpu_only_x86_and_aarch64 (test_detect.TestHardwareDetection.test_cpu_only_x86_and_aarch64) ... ok
+test_fingerprint_json_roundtrip (test_detect.TestHardwareDetection.test_fingerprint_json_roundtrip) ... ok
+test_hopper_h100_sm90_multigpu (test_detect.TestHardwareDetection.test_hopper_h100_sm90_multigpu) ... ok
+test_low_shm_and_cuda_runtime_error_fallback (test_detect.TestHardwareDetection.test_low_shm_and_cuda_runtime_error_fallback) ... ok
+test_report_filename_and_output (test_detect.TestTextReportBuilder.test_report_filename_and_output) ... ok
+test_dump_config_roundtrip_and_validation (test_explain_cli.TestExplainCLI.test_dump_config_roundtrip_and_validation) ... ok
+test_explain_contains_all_sections (test_explain_cli.TestExplainCLI.test_explain_contains_all_sections) ... ok
+test_invalid_target_arch_raises (test_explain_cli.TestExplainCLI.test_invalid_target_arch_raises) ... ok
+test_snapshot_dict_helper (test_explain_cli.TestExplainCLI.test_snapshot_dict_helper) ... ok
+test_target_arch_presets_and_overrides (test_explain_cli.TestExplainCLI.test_target_arch_presets_and_overrides) ... ok
+test_report_generation_handles_pass_and_fail (test_telemetry_and_bench.TestBenchmarkReportFormatter.test_report_generation_handles_pass_and_fail) ... ok
+test_collector_captures_steps_and_losses (test_telemetry_and_bench.TestTelemetryHookDummyLoop.test_collector_captures_steps_and_losses) ... ok
+test_parity_pass_fail_and_nan (test_telemetry_and_bench.TestTelemetryMathAndParity.test_parity_pass_fail_and_nan) ... ok
+test_percentile_and_step_stats (test_telemetry_and_bench.TestTelemetryMathAndParity.test_percentile_and_step_stats) ... ok
+test_speedup_and_vram_delta (test_telemetry_and_bench.TestTelemetryMathAndParity.test_speedup_and_vram_delta) ... ok
+test_all_workloads_cpu_smoke_and_determinism (test_workloads.TestWorkloadsPureAndDeterministic.test_all_workloads_cpu_smoke_and_determinism) ... ok
+test_checkpoint_save_and_resume_roundtrip (test_workloads.TestWorkloadsPureAndDeterministic.test_checkpoint_save_and_resume_roundtrip) ... ok
+test_workloads_do_not_import_src_wrapper (test_workloads.TestWorkloadsPureAndDeterministic.test_workloads_do_not_import_src_wrapper) ... ok
+
+----------------------------------------------------------------------
+Ran 40 tests in 27.723s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Phase 2 consolidated report on Google Colab before entering Phase 3 Optimization Lab)
+==============================================================================

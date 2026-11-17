@@ -218,7 +218,7 @@ def merge_summary_and_telemetry(
     summary_map = summary or {}
     tel_map = telemetry or {}
 
-    raw_steps = tel_map.get("step_times_ms") or []
+    raw_steps = tel_map.get("step_times_ms") or summary_map.get("step_times_ms") or []
     if not raw_steps and summary_map.get("step_ms_avg"):
         steps_count = int(summary_map.get("steps", 1) or 1)
         raw_steps = [float(summary_map["step_ms_avg"])] * steps_count

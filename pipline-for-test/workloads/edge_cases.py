@@ -39,7 +39,7 @@ class _LambdaDataset(Dataset):
         return self.transform(self.x[idx]), self.y[idx]
 
 
-def _run_preexisting_amp(device: torch.device, steps: int, batch_size: int, seed: int) -> list[float]:
+def _run_preexisting_amp(device: torch.device, steps: int, batch_size: int, seed: int) -> tuple[list[float], list[float]]:
     seed_everything(seed)
     model = nn.Sequential(nn.Linear(128, 256), nn.GELU(), nn.Linear(256, 8)).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=1e-3)
@@ -48,7 +48,9 @@ def _run_preexisting_amp(device: torch.device, steps: int, batch_size: int, seed
 
     gen = torch.Generator().manual_seed(seed + 10)
     losses: list[float] = []
+    step_times_ms: list[float] = []
     for _ in range(steps):
+        step_t0 = time.perf_counter()
         x = torch.randn(batch_size, 128, generator=gen).to(device)
         y = torch.randint(0, 8, (batch_size,), generator=gen).to(device)
         opt.zero_grad(set_to_none=True)
@@ -57,17 +59,21 @@ def _run_preexisting_amp(device: torch.device, steps: int, batch_size: int, seed
         scaler.scale(loss).backward()
         scaler.step(opt)
         scaler.update()
+        sync_device(device)
+        step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
         losses.append(float(loss.detach().cpu()))
-    return losses
+    return losses, step_times_ms
 
 
-def _run_dynamic_shape(device: torch.device, steps: int, batch_size: int, seed: int) -> list[float]:
+def _run_dynamic_shape(device: torch.device, steps: int, batch_size: int, seed: int) -> tuple[list[float], list[float]]:
     seed_everything(seed)
     model = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 8)).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=1e-3)
     gen = torch.Generator().manual_seed(seed + 20)
     losses: list[float] = []
+    step_times_ms: list[float] = []
     for step in range(steps):
+        step_t0 = time.perf_counter()
         cur_bs = max(1, batch_size + (step % 5) - 2)
         seq = 8 + (step % 7) * 4
         x = torch.randn(cur_bs, seq, 64, generator=gen).to(device)
@@ -77,11 +83,13 @@ def _run_dynamic_shape(device: torch.device, steps: int, batch_size: int, seed: 
         loss = F.cross_entropy(logits, y)
         loss.backward()
         opt.step()
+        sync_device(device)
+        step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
         losses.append(float(loss.detach().cpu()))
-    return losses
+    return losses, step_times_ms
 
 
-def _run_unpicklable_dataset(device: torch.device, steps: int, batch_size: int, seed: int) -> list[float]:
+def _run_unpicklable_dataset(device: torch.device, steps: int, batch_size: int, seed: int) -> tuple[list[float], list[float]]:
     seed_everything(seed)
     ds = _LambdaDataset(max(steps * batch_size, batch_size * 2), dim=64, seed=seed + 30)
     loader = DataLoader(ds, batch_size=batch_size, shuffle=False, num_workers=0)
@@ -89,8 +97,10 @@ def _run_unpicklable_dataset(device: torch.device, steps: int, batch_size: int, 
     opt = torch.optim.SGD(model.parameters(), lr=0.05)
 
     losses: list[float] = []
+    step_times_ms: list[float] = []
     it = iter(loader)
     for _ in range(steps):
+        step_t0 = time.perf_counter()
         try:
             x, y = next(it)
         except StopIteration:
@@ -102,8 +112,10 @@ def _run_unpicklable_dataset(device: torch.device, steps: int, batch_size: int, 
         loss = F.cross_entropy(model(x), y)
         loss.backward()
         opt.step()
+        sync_device(device)
+        step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
         losses.append(float(loss.detach().cpu()))
-    return losses
+    return losses, step_times_ms
 
 
 def main() -> int:
@@ -137,10 +149,12 @@ def main() -> int:
     t0 = time.perf_counter()
 
     all_losses: list[float] = []
+    all_step_times: list[float] = []
     case_finals: dict[str, float] = {}
     for name in selected:
-        case_losses = cases[name](device, args.steps, args.batch_size, args.seed)
+        case_losses, case_times = cases[name](device, args.steps, args.batch_size, args.seed)
         all_losses.extend(case_losses)
+        all_step_times.extend(case_times)
         case_finals[name] = round(case_losses[-1], 6)
 
     sync_device(device)
@@ -156,6 +170,7 @@ def main() -> int:
         losses=all_losses,
         peak_alloc_mb=alloc_mb,
         peak_reserved_mb=resv_mb,
+        step_times_ms=all_step_times,
         extra={"cases": case_finals},
     )
     return 0

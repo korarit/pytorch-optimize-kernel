@@ -109,6 +109,7 @@ def emit_summary(
     losses: list[float],
     peak_alloc_mb: float,
     peak_reserved_mb: float,
+    step_times_ms: list[float] | None = None,
     extra: dict[str, Any] | None = None,
 ) -> None:
     """Print human-readable summary and machine-parseable WORKLOAD_SUMMARY_JSON line."""
@@ -125,6 +126,8 @@ def emit_summary(
         "losses": [round(float(x), 6) for x in losses],
         "final_loss": round(float(losses[-1]), 6) if losses else None,
     }
+    if step_times_ms is not None:
+        summary["step_times_ms"] = [round(float(t), 4) for t in step_times_ms]
     if extra:
         summary.update(extra)
     print(f"[{name}] device={device} steps={steps} elapsed={summary['elapsed_sec']}s final_loss={summary['final_loss']} peak_vram={peak_alloc_mb}MB")

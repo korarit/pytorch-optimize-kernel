@@ -137,7 +137,9 @@ def main() -> int:
     t0 = time.perf_counter()
 
     losses: list[float] = []
+    step_times_ms: list[float] = []
     for x, y in batches:
+        step_t0 = time.perf_counter()
         x = x.to(device)
         y = y.to(device)
         optimizer.zero_grad(set_to_none=True)
@@ -145,6 +147,8 @@ def main() -> int:
         loss = F.cross_entropy(logits.view(-1, logits.size(-1)), y.view(-1))
         loss.backward()
         optimizer.step()
+        sync_device(device)
+        step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
         losses.append(float(loss.detach().cpu()))
 
     sync_device(device)
@@ -163,6 +167,7 @@ def main() -> int:
         losses=losses,
         peak_alloc_mb=alloc_mb,
         peak_reserved_mb=resv_mb,
+        step_times_ms=step_times_ms,
         extra={"tokens_per_sec": round((args.steps * args.batch_size * args.seq_len) / max(1e-9, elapsed), 2)},
     )
     return 0

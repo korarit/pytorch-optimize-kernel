@@ -1,0 +1,61 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 2.3 BENCHMARK HARNESS (SMOKE)
+==============================================================================
+Timestamp          : 2026-11-17 09:45:39 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ ff902bd
+Total Runs         : 12
+Comparisons        : 6
+Overall Status     : PASS
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+
+[HARDWARE & ENVIRONMENT]
+------------------------------------------------------------------------------
+os_arch               : Linux / x86_64
+cores_ram_shm         : cores=6/12, ram=54229.1MB, shm=26155.0MB
+torch_triton          : torch=2.14.1+cu130, triton=3.8.0
+vram_mb               : 22563.1
+
+[CONFIG PROFILE SUMMARY]
+------------------------------------------------------------------------------
+Profile | TF32 | AMP        | Compile       | FusedOpt | DL-Tune | Kernels
+--------+------+------------+---------------+----------+---------+--------
+safe    | True | False/bf16 | False/default | True     | False   | False  
+
+[BENCHMARK COMPARISON (Baseline vs Wrapped)]
+------------------------------------------------------------------------------
+Workload          | Mode | Cache | Base ms | Wrap ms | Wrap P95 | Speedup | E2E (B/W)     | VRAM MB (B/W/d)      | MaxRelDiff | Status
+------------------+------+-------+---------+---------+----------+---------+---------------+----------------------+------------+-------
+cnn_vision        | safe | warm  | 55.47   | 5.97    | 7.01     | 9.30x   | 4.24s / 6.38s | 95.8 / 95.8 (+0.0)   | 0.000244   | PASS  
+transformer_lm    | safe | warm  | 46.33   | 10.99   | 11.44    | 4.21x   | 4.12s / 6.25s | 220.0 / 220.0 (+0.0) | 0.0        | PASS  
+deep_mlp          | safe | warm  | 31.11   | 8.43    | 8.62     | 3.69x   | 3.89s / 6.08s | 46.7 / 46.7 (+0.0)   | 0.0        | PASS  
+infer_runner_bs1  | safe | warm  | 20.66   | 20.54   | 20.54    | 1.01x   | 2.44s / 4.58s | 21.0 / 21.0 (+0.0)   | 0.0        | PASS  
+infer_runner_bs32 | safe | warm  | 22.10   | 22.16   | 22.16    | 1.00x   | 2.53s / 4.63s | 38.5 / 38.5 (+0.0)   | 0.0        | PASS  
+edge_cases        | safe | warm  | 54.18   | 1.57    | 33.80    | 34.49x  | 4.18s / 6.33s | 16.9 / 16.9 (+0.0)   | 0.0        | PASS  
+
+[RAW RUN DETAILS]
+------------------------------------------------------------------------------
+Workload          | Mode     | Cache | RC | Warmup | Steady | Med ms | P95 ms | Throughput         | VRAM Alloc/Res MB
+------------------+----------+-------+----+--------+--------+--------+--------+--------------------+------------------
+cnn_vision        | baseline | none  | 0  | 2      | 8      | 55.47  | 55.47  | 288.5 samples/sec  | 95.8/108.0       
+cnn_vision        | safe     | warm  | 0  | 2      | 8      | 5.97   | 7.01   | 292.6 samples/sec  | 95.8/108.0       
+transformer_lm    | baseline | none  | 0  | 2      | 8      | 46.33  | 46.33  | 22103.7 tokens/sec | 220.0/246.0      
+transformer_lm    | safe     | warm  | 0  | 2      | 8      | 10.99  | 11.44  | 22164.4 tokens/sec | 220.0/246.0      
+deep_mlp          | baseline | none  | 0  | 2      | 8      | 31.11  | 31.11  | 1028.5 samples/sec | 46.7/52.0        
+deep_mlp          | safe     | warm  | 0  | 2      | 8      | 8.43   | 8.62   | 1017.4 samples/sec | 46.7/52.0        
+infer_runner_bs1  | baseline | none  | 0  | 2      | 8      | 20.66  | 20.66  | 48.4 samples/sec   | 21.0/34.0        
+infer_runner_bs1  | safe     | warm  | 0  | 2      | 8      | 20.54  | 20.54  | 48.7 samples/sec   | 21.0/34.0        
+infer_runner_bs32 | baseline | none  | 0  | 2      | 8      | 22.10  | 22.10  | 1447.7 samples/sec | 38.5/54.0        
+infer_runner_bs32 | safe     | warm  | 0  | 2      | 8      | 22.16  | 22.16  | 1444.3 samples/sec | 38.5/54.0        
+edge_cases        | baseline | none  | 0  | 6      | 24     | 54.18  | 54.18  | 147.7 samples/sec  | 16.9/22.0        
+edge_cases        | safe     | warm  | 0  | 6      | 24     | 1.57   | 33.80  | 147.0 samples/sec  | 16.9/22.0        
+
+[FALLBACK & ERRORS]
+------------------------------------------------------------------------------
+(none)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify benchmark metrics and parity on Google Colab before advancing)
+==============================================================================

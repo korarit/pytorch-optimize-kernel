@@ -73,10 +73,14 @@ def main() -> int:
     t0 = time.perf_counter()
 
     checksums: list[float] = []
+    step_times_ms: list[float] = []
     with torch.no_grad():
         for x in inputs:
+            step_t0 = time.perf_counter()
             x = x.to(device)
             logits = model(x)
+            sync_device(device)
+            step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
             checksums.append(float(logits.float().pow(2).mean().sqrt().detach().cpu()))
 
     sync_device(device)
@@ -95,6 +99,7 @@ def main() -> int:
         losses=checksums,
         peak_alloc_mb=alloc_mb,
         peak_reserved_mb=resv_mb,
+        step_times_ms=step_times_ms,
         extra={"metric_kind": "output_rms"},
     )
     return 0

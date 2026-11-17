@@ -169,8 +169,10 @@ class HookManager:
         if torch_mod is None:
             torch_mod = sys.modules.get("torch")
 
+        from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks  # noqa: PLC0415
         from src.hooks.telemetry_hook import maybe_install_telemetry_hook  # noqa: PLC0415
 
+        install_checkpoint_compat_hooks(torch_mod)
         telemetry_collector = maybe_install_telemetry_hook(torch_mod, self)
         if telemetry_collector is not None:
             self._telemetry_collector = telemetry_collector

@@ -115,8 +115,10 @@ def main() -> int:
     t0 = time.perf_counter()
 
     losses: list[float] = []
+    step_times_ms: list[float] = []
     loader_iter = iter(loader)
     for step in range(args.steps):
+        step_t0 = time.perf_counter()
         try:
             images, labels = next(loader_iter)
         except StopIteration:
@@ -130,6 +132,8 @@ def main() -> int:
         loss = F.cross_entropy(logits, labels)
         loss.backward()
         optimizer.step()
+        sync_device(device)
+        step_times_ms.append((time.perf_counter() - step_t0) * 1000.0)
         losses.append(float(loss.detach().cpu()))
 
     sync_device(device)
@@ -148,6 +152,7 @@ def main() -> int:
         losses=losses,
         peak_alloc_mb=alloc_mb,
         peak_reserved_mb=resv_mb,
+        step_times_ms=step_times_ms,
     )
     return 0
 
