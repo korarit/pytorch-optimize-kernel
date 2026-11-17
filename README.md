@@ -1,6 +1,10 @@
 # kernel-pytouch-optimize (`ptopt`)
 
-> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster** and cuts peak **VRAM by up to 47% (-4.32 GB)** without touching a single line of user model code, altering `nn.Parameter` values, shrinking matrix precision to FP4/INT4, or requiring external pip dependencies in `src/`.
+> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster** and cuts peak **VRAM by up to 47% (-4.32 GB)** without touching a single line of user model code, altering `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `src/`.
+>
+> **Precision Transparency Notice (`balanced` / `aggressive` vs. `safe`):**
+> - By default, `--profile balanced` and `--profile aggressive` accelerate matmuls using standard **Mixed Precision (`BF16`/`FP16` + `TF32`)** with `FP32` master weights, optimizers, and loss/norm reductions. On Transformers (`transformer_lm:large`), measured loss drift vs. pure `FP32` is **`3e-05` (`0.00003`, or ~`0.003%`)**, while `cnn_vision` and `deep_mlp:medium` sit at `~0.09%–0.22%`—matching standard industry BF16 training with no practical loss of capability.
+> - However, **precision-sensitive architectures** (e.g., deep sequential MLPs without skip connections like `deep_mlp:large` 24-layer at `~2.17%`, physics/PINNs, or strict numerical workloads) **can be affected by BF16/TF32 mantissa rounding**. If your workload requires **exact `FP32` (`0.0` drift)**, use **`--profile safe`** (`FP32` end-to-end, verified `MaxRelDiff = 0.0` across all workloads).
 
 ---
 
