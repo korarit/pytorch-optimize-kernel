@@ -4,8 +4,8 @@
 >
 > **Precision Transparency Notice (`supersafe` / `safe` / `balanced` / `aggressive`):**
 > - `--profile supersafe` (Strict Exact FP32): Keeps `TF32=False`, `AMP=False` (`fp32` end-to-end), and `compile=False` while enabling fused optimizers and `inference_mode()` (`0.0` numerical drift across all workloads).
-> - `--profile safe` (FP32 Weights + TF32 Tensor Cores): Keeps all weights/activations stored in **`FP32`** (no BF16/FP16 AMP, no compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last` (`>= 128x128` Conv2d) for **`~1.8x`** LLM speedup with `~1e-6–4e-6` (`0.0004%`) drift.
-> - `--profile balanced` / `aggressive` (Standard Mixed Precision): Adds **`BF16`/`FP16` AMP**, `torch.compile`, CUDA Graphs, and Triton kernels (`~0.003%` / `3e-05` loss drift on `transformer_lm:large` at `4.41x`; `~0.09%–0.22%` on `cnn_vision` and `deep_mlp:medium`). Deep unresidualized MLPs (e.g., 24-layer `deep_mlp:large` at `~2.17%`) or strict scientific PDE/PINN workloads should use `--profile supersafe`.
+> - `--profile safe` (FP32 Weights + TF32 Tensor Cores): Keeps all weights/activations stored in **`FP32`** (no BF16/FP16 AMP, no compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last` (`>= 128x128` Conv2d) — verified at **`1.88x`** (`1e-06` drift) on `transformer_lm` and **`1.50x`** on `deep_mlp` on NVIDIA L4.
+> - `--profile balanced` / `aggressive` (Standard Mixed Precision): Adds **`BF16`/`FP16` AMP**, `torch.compile`, CUDA Graphs, and Triton kernels (`~0.003%` / `3e-05` loss drift on `transformer_lm:large` at `4.41x`; `4e-6–6e-6` on `transformer_lm:medium` at `3.80x–3.89x`; `~0.04%–0.22%` on `cnn_vision` and `deep_mlp:medium`). Deep unresidualized MLPs (e.g., 24-layer `deep_mlp:large` at `~2.17%`) or strict scientific PDE/PINN workloads should use `--profile supersafe`.
 
 ---
 
@@ -16,8 +16,8 @@ By default, **Pure PyTorch** prioritizes conservative cross-hardware defaults an
 **`ptopt` automates the entire stack before `import torch` runs:**
 1. **Zero-Code Injection**: Wraps existing commands (`ptopt -- python3 train.py`) via `sitecustomize` and propagates automatically to `DataLoader` worker subprocesses.
 2. **Hardware-Aware Auto-Tuning**: Probes GPU SM architecture (`T4 sm_75`, `A100 sm_80`, `L4 sm_89`, `H100 sm_90`, Apple Silicon MPS, or CPU), VRAM headroom, CPU cores, and `/dev/shm` size to apply only safe, profitable passes.
-3. **Model & Checkpoint Transparency**: Never modifies `nn.Parameter` dtypes/shapes permanently, strips `_orig_mod.` prefixes, and restores contiguous `NCHW` weights on `state_dict()` so checkpoints load seamlessly between baseline PyTorch and `ptopt`.
-4. **Fail-Safe Guards & Fallback**: Protects runs with an AMP `NaN` watchdog, `/dev/shm` & pickle checks, `requires_grad` guards on eval, dynamic-shape compilation fallback, and runtime error recovery.
+3. **Model & Checkpoint Transparency**: Never modifies `nn.Parameter` dtypes/shapes permanently, strips `_orig_mod.` prefixes, restores contiguous `NCHW` weights on `state_dict()`, and re-syncs injected `fused=True` flags and 4D optimizer buffers (`exp_avg`, `exp_avg_sq`) on `load_state_dict()` and `channels_last` conversion — verified across a full 5×5 checkpoint cross-load matrix.
+4. **Fail-Safe Guards, Cache Isolation & Diagnostics**: Protects runs with an AMP `NaN` watchdog, `/dev/shm` & pickle checks, `requires_grad` guards on eval, dynamic-shape compilation fallback, legacy v0 config auto-migration, `(gpu_arch, torch_version, triton_version)` Inductor/Triton cache isolation, plus `ptopt --doctor` and `--fallback-report --save-report`.
 
 ---
 
@@ -66,7 +66,7 @@ flowchart TD
 | **5. DataLoader & Host-to-Device Copy** | Defaults to `num_workers=0`, `pin_memory=False`, and synchronous blocking `.to(device)` / `.cuda()` host transfers. | Checks `/dev/shm` & fast picklability before tuning `num_workers`, enables `pin_memory=True` + `persistent_workers=True`, and auto-promotes pinned CPU->CUDA `.to()`/`.cuda()` calls to `non_blocking=True`. | `cnn_vision:large` Data/Other phase drops **16.77 ms -> 2.40 ms (~7x)** while preventing `/dev/shm` crashes. |
 | **6. Custom Triton Kernels & Compile Cooperation** | Eager `RMSNorm` and `CrossEntropy` launch multiple HBM-bound kernels; naive `autograd.Function` custom ops inserted inside compiled graphs trigger graph breaks. | Ships fused Triton `RMSNorm`, online-softmax `CrossEntropy` (zero `.item()` CPU-GPU sync), `SwiGLU`, and `LayerNorm` for eager speedup (**3.81x–4.11x**), plus a **Compile-Aware Gate** that defers internal module wrappers (`rmsnorm`, `layernorm`, `swiglu`) to Inductor when compiling so zero graph breaks occur. | Standalone micro-benchmarks beat both Eager & `torch.compile`: `RMSNorm [large]` **`7.39x vs Eager`** (`0.592 ms` / `105.8 GB/s`), `CrossEntropy [large]` **`3.55x vs Eager`** (`3.362 ms`), and E2E `aggressive_full` reaches **`4.41x`**. |
 | **7. Inference Latency (`bs=1`) & FP8 (`sm >= 89`)** | Runs `.eval()` with autograd tracking and Python kernel dispatch overhead; naive eager FP8 drifts on small tensors and spends >50% GPU time quantizing. | Enters `torch.inference_mode()` (guarded against `requires_grad`/`enable_grad`), uses `reduce-overhead` CUDA Graphs for static shapes, and gates opt-in FP8 (`m_rows >= 512`) with a fused Triton 2-pass quantizer + lazy weight cache (zero bloat on `bs=1`). | `bs=1` latency drops `1.55 ->` **`0.49 ms` (`3.18x`)**; `bs=64` reaches **`4.16x`** (`89.89 ms`); Fused FP8 `bs=64` hits **`2.48x`** with only `+0.2–2.2 MB` overhead on `bs=1`. |
-| **8. Allocator & Cold-Start Cache** | Default CUDA allocator risks segment fragmentation; Inductor/Triton compile caches stay fragmented across runs. | Configures `expandable_segments:True`, physical-core `OMP/MKL_NUM_THREADS`, `TORCHINDUCTOR_CACHE_DIR`, `TORCHINDUCTOR_FX_GRAPH_CACHE=1`, `TORCHINDUCTOR_AUTOGRAD_CACHE=1`, and `TRITON_CACHE_DIR` pre-import. | Achieves `num_alloc_retries=0` and cuts Warm Step-0 compile time **24.9s -> 6.2s**. |
+| **8. Allocator, Cache Isolation & Diagnostics** | Default CUDA allocator risks segment fragmentation; Inductor/Triton compile caches collide across GPU arch/PyTorch upgrades; setup failures happen silently. | Configures `expandable_segments:True`, physical-core `OMP/MKL_NUM_THREADS`, scopes `TORCHINDUCTOR_CACHE_DIR` & `TRITON_CACHE_DIR` by `(gpu_arch, torch_version, triton_version)`, and adds `ptopt --doctor` + `--fallback-report --save-report`. | Achieves `num_alloc_retries=0`, cuts Warm Step-0 compile time **24.9s -> 6.2s**, and passes full **14/14 L4 GPU Regression Gate** ([Phase 4 Final](report/211155_20261117-phase-4.txt)). |
 
 ---
 
@@ -98,7 +98,7 @@ All metrics below are directly measured from the reports in [`report/`](report/)
 | **`cnn_vision:large`** | 280.96 ms | **96.84 ms** | **2.90x** | **-1,728.1 MB** | [144108](report/144108_20261117-phase-3.5.txt) |
 | **`deep_mlp:large`** | 50.45 ms | **22.10 ms** | **2.28x** | **-382.6 MB** | [141819](report/141819_20261117-phase-3.4.txt) |
 
-### Inference & Standalone Triton Kernel Micro-Benchmarks
+### Inference, Consolidated 4-Profile Gate & Standalone Triton Kernels
 | Benchmark Case | Baseline | `ptopt` Optimized | Gain | Report |
 | :--- | :---: | :---: | :---: | :--- |
 | **`infer_bs1_small` (Latency)** | 1.55 ms | **0.49 ms** (`CUDA Graphs`) | **3.18x** (`2,053 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
@@ -107,14 +107,15 @@ All metrics below are directly measured from the reports in [`report/`](report/)
 | **`infer_bs64_large` (Throughput)** | 373.94 ms | **89.89 ms** (`BF16 + Compile`) | **4.16x** (`-187.5 MB` VRAM) | [181115](report/181115_20261117-phase-3.6.txt) |
 | **`RMSNorm [large]` (8192x1025)** | 4.374 ms (Eager) | **0.592 ms** (Triton) vs 0.656 ms (Compile) | **7.39x vs Eager** (`105.8 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
 | **`CrossEntropy [large]` (8192x8192)** | 11.937 ms (Eager) | **3.362 ms** (Triton) vs 3.375 ms (Compile) | **3.55x vs Eager** (`74.4 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
+| **Phase 4 Final Gate (NVIDIA L4)** | `14/14` suites, `24/24` smoke runs | `supersafe` `1.00–1.54x` (`0.0`), `safe` `1.88x` LLM, `balanced` `3.80x`, `aggressive` `3.89x` / `3.06x bs=1` | **PASS** (`605.66s`) | [211155](report/211155_20261117-phase-4.txt) |
 
 ---
 
 ## Installation & Quick Start
 
-### 1. Install
+### 1. Install (Preserving Preinstalled CUDA PyTorch)
 ```bash
-pip install -e .
+pip install --no-deps -e .
 ```
 *(You can also invoke directly via `python3 -m src.cli.main ...` without installing.)*
 
@@ -133,8 +134,11 @@ ptopt --profile safe -- python3 your_train_script.py
 ptopt --profile aggressive -- python3 your_train_script.py
 ```
 
-### 3. Inspect, Simulate Hardware & Override Passes
+### 3. Diagnostics, Hardware Simulation & Audit Reports
 ```bash
+# Check CUDA, PyTorch, Triton, /dev/shm, allocators, cache permissions & recommended profile
+ptopt --doctor
+
 # Inspect detected hardware, rules triggered, and final resolved config
 ptopt --explain
 
@@ -146,9 +150,18 @@ ptopt --target-arch l4 --profile balanced --explain
 ptopt --profile balanced --no-compile -- python3 short_finetune.py
 ptopt --profile aggressive --override compile.mode=reduce-overhead -- python3 eval.py
 
-# Print applied/fallback audit report or capture PyTorch Profiler top ops
-ptopt --fallback-report --verbose -- python3 your_script.py
+# Print applied/skipped/fallback audit summary & save structured run report
+ptopt --fallback-report --save-report report/ -- python3 your_script.py
 PTOPT_DEBUG_PROFILE=1 PTOPT_TORCH_PROFILE=1 ptopt -- python3 your_script.py
+```
+
+### 4. Automated Regression Gate (CI & Colab GPU)
+```bash
+# Fast CPU / CI gate (CLI checks + all unit tests + CPU-safe migrate suites)
+python3 scripts/run_gate.py --mode fast
+
+# Full Colab GPU gate (adds CUDA compile + full 3-axis matrix + 4-profile smoke benchmark)
+python3 scripts/run_gate.py --mode full
 ```
 
 ### Opt-In Environment Flags
@@ -162,9 +175,10 @@ PTOPT_DEBUG_PROFILE=1 PTOPT_TORCH_PROFILE=1 ptopt -- python3 your_script.py
 ## Repository Structure
 
 - [`src/detect/`](src/detect/): Hardware fingerprinting (GPU SM, VRAM, CPU ISA/cores, `/dev/shm`, PyTorch/Triton/CUDA).
-- [`src/config/`](src/config/): Schema v1 dataclasses, built-in hardware rules, and `--override` resolver.
-- [`src/hooks/`](src/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, checkpoint `_orig_mod.`/`channels_last` compatibility, and Deep Debug Profiler telemetry.
+- [`src/config/`](src/config/): Schema v1 dataclasses, built-in hardware rules, `--override` resolver, v0 auto-migrator (`migrator.py`), and `(gpu_arch, torch_version, triton_version)` cache isolation.
+- [`src/cli/`](src/cli/): CLI launcher (`main.py`), `--explain`/`--target-arch` (`explain.py`), and `--doctor` environment diagnostics (`doctor.py`).
+- [`src/hooks/`](src/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, checkpoint `_orig_mod.`/`channels_last`/`fused` compatibility, `fallback_reporter.py`, and Deep Debug Profiler telemetry.
 - [`src/passes/`](src/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune`, `optimizer_fusion`, `auto_amp`, `channels_last`, `auto_compile`, `inference_opt`).
 - [`src/kernels/`](src/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `swiglu`) with `KernelSpec` & `FallbackRegistry`.
-- [`ai-docs-dev/optimize-history/`](ai-docs-dev/optimize-history/): Root-cause & profiler writeups ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md)).
-- [`scripts/`](scripts/) & [`tests/`](tests/): Multi-scale A/B experiment runners (`exp_phase*.py`), unit tests, and migration suites.
+- [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md) and root-cause / profiler writeups ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
+- [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`), verification scripts (`verify_phase*.py`), unit/3-axis migrate matrices, and CI workflow.
