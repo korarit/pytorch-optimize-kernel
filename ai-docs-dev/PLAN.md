@@ -32,9 +32,10 @@
 - [Phase 3.1](./phase-3/3.1-runtime-and-memory.md) — Track 3A.1: CUDA Flags, Memory Allocator & `channels_last` / CPU Threads
 - [Phase 3.2](./phase-3/3.2-dataloader-autotune.md) — Track 3A.2: DataLoader Auto-Tuning & Colab `/dev/shm` + Pickle Safety Guard
 - [Phase 3.3](./phase-3/3.3-fused-optimizer-and-amp.md) — Track 3B.1: Fused Optimizers & Safe Auto-AMP (`bf16` / `fp16 + GradScaler`)
-- [Phase 3.4](./phase-3/3.4-torch-compile.md) — Track 3B.2: Auto `torch.compile`, Persistent Cache & `_orig_mod.` Checkpoint Transparency
-- [Phase 3.5](./phase-3/3.5-inference-running.md) — Track 3C: Inference / Running Optimization (`inference_mode`, CUDA Graphs, Quant/FP8)
-- [Phase 3.6](./phase-3/3.6-custom-kernels.md) — Track 3D: Custom Kernels (Triton / CUDA), Capability Gate & Final Profile Consolidation
+- [Phase 3.4](./phase-3/3.4-scale-bottleneck-profiling.md) — Track 3B.0: Scale-Up Bottleneck Profiling (Small vs Medium vs Large) & Deep Debug Profiler
+- [Phase 3.5](./phase-3/3.5-torch-compile.md) — Track 3B.2: Auto `torch.compile`, Persistent Cache & `_orig_mod.` Checkpoint Transparency
+- [Phase 3.6](./phase-3/3.6-inference-running.md) — Track 3C: Inference / Running Optimization (`inference_mode`, CUDA Graphs, Quant/FP8)
+- [Phase 3.7](./phase-3/3.7-custom-kernels.md) — Track 3D: Custom Kernels (Triton / CUDA), Capability Gate & Final Profile Consolidation
 
 ### Phase 4: Hardening, Full Compatibility Matrix & Regression Gate ([Overview](./phase-4-hardening-and-regression-gate.md))
 - [Phase 4.1](./phase-4/4.1-full-migrate-matrix.md) — Full 3-Axis Migrate Test Matrix (Code, Checkpoint, Config/Cache Migration)

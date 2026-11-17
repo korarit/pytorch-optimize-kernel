@@ -10,5 +10,5 @@
 
 ## Observations
 - [INFO] CPU-only environment detected: GPU CUDA passes will be skipped; CPU thread/allocator rules apply.
-- [WARN] Triton not installed: Phase 3.6 custom Triton kernels will fallback to PyTorch native ops.
+- [WARN] Triton not installed: Phase 3.7 custom Triton kernels will fallback to PyTorch native ops.
 - [WARN] pytest not installed: install pytest before running Phase 1+ test suites.
