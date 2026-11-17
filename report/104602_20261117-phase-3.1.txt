@@ -1,0 +1,147 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.1 EXPERIMENT REPORT: RUNTIME FLAGS, MEMORY & CHANNELS-LAST
+==============================================================================
+Timestamp          : 2026-11-17 10:46:02 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ d7fe567
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Steps per Workload : 20
+Unit Tests         : pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Overall Experiment : PASS
+
+[SAFE PROFILE RESOLVED SETTINGS]
+------------------------------------------------------------------------------
+tf32                  : False
+cudnn_benchmark       : False
+alloc_conf            : expandable_segments:True
+omp_threads           : 6
+flash_sdp             : True
+mem_efficient_sdp     : True
+
+[ABLATION COMPARISON (Baseline vs 3.1a / 3.1b / 3.1c)]
+------------------------------------------------------------------------------
+Workload          | Variant                 | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d)     | MaxRelDiff | Status
+------------------+-------------------------+---------+---------+----------+---------+---------------------+------------+-------
+cnn_vision        | 3.1a_safe_alloc         | 5.93    | 6.16    | 6.63     | 0.96x   | 95.8/95.8 (+0.0)    | 0.003725   | PASS  
+cnn_vision        | 3.1b_tf32_only          | 5.93    | 6.22    | 6.49     | 0.95x   | 95.8/95.8 (+0.0)    | 0.00278    | PASS  
+cnn_vision        | 3.1c_tf32_cudnn_bench   | 5.93    | 6.07    | 7.11     | 0.98x   | 95.8/220.7 (+124.9) | 0.00259    | PASS  
+cnn_vision        | 3.1d_plus_channels_last | 5.93    | 6.11    | 6.90     | 0.97x   | 95.8/220.7 (+124.9) | 0.004023   | PASS  
+transformer_lm    | 3.1a_safe_alloc         | 10.89   | 11.05   | 13.09    | 0.98x   | 220.0/216.2 (-3.9)  | 0.0        | PASS  
+transformer_lm    | 3.1b_tf32_only          | 10.89   | 11.17   | 12.39    | 0.97x   | 220.0/216.2 (-3.9)  | 2e-06      | PASS  
+transformer_lm    | 3.1c_tf32_cudnn_bench   | 10.89   | 10.66   | 10.95    | 1.02x   | 220.0/216.2 (-3.9)  | 2e-06      | PASS  
+transformer_lm    | 3.1d_plus_channels_last | 10.89   | 11.21   | 13.02    | 0.97x   | 220.0/216.2 (-3.9)  | 2e-06      | PASS  
+deep_mlp          | 3.1a_safe_alloc         | 8.22    | 8.60    | 8.98     | 0.96x   | 46.7/46.7 (+0.0)    | 0.0        | PASS  
+deep_mlp          | 3.1b_tf32_only          | 8.22    | 8.45    | 8.65     | 0.97x   | 46.7/46.7 (+0.0)    | 0.000486   | PASS  
+deep_mlp          | 3.1c_tf32_cudnn_bench   | 8.22    | 8.71    | 9.30     | 0.94x   | 46.7/46.7 (+0.0)    | 0.000486   | PASS  
+deep_mlp          | 3.1d_plus_channels_last | 8.22    | 8.34    | 8.41     | 0.98x   | 46.7/46.7 (+0.0)    | 0.000486   | PASS  
+infer_runner_bs1  | 3.1a_safe_alloc         | 1.56    | 1.54    | 1.57     | 1.01x   | 21.0/21.0 (+0.0)    | 0.0        | PASS  
+infer_runner_bs1  | 3.1b_tf32_only          | 1.56    | 1.57    | 1.59     | 0.99x   | 21.0/21.0 (+0.0)    | 0.000233   | PASS  
+infer_runner_bs1  | 3.1c_tf32_cudnn_bench   | 1.56    | 1.58    | 1.62     | 0.98x   | 21.0/21.0 (+0.0)    | 0.000233   | PASS  
+infer_runner_bs1  | 3.1d_plus_channels_last | 1.56    | 1.58    | 1.63     | 0.99x   | 21.0/21.0 (+0.0)    | 0.000233   | PASS  
+infer_runner_bs32 | 3.1a_safe_alloc         | 2.37    | 2.39    | 2.44     | 0.99x   | 38.5/38.5 (+0.0)    | 0.0        | PASS  
+infer_runner_bs32 | 3.1b_tf32_only          | 2.37    | 2.14    | 2.19     | 1.11x   | 38.5/38.5 (+0.0)    | 3.8e-05    | PASS  
+infer_runner_bs32 | 3.1c_tf32_cudnn_bench   | 2.37    | 2.11    | 2.14     | 1.12x   | 38.5/38.5 (+0.0)    | 3.8e-05    | PASS  
+infer_runner_bs32 | 3.1d_plus_channels_last | 2.37    | 2.14    | 2.17     | 1.11x   | 38.5/38.5 (+0.0)    | 3.8e-05    | PASS  
+
+[PASS & FALLBACK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] cnn_vision (3.1a_safe_alloc) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.1a_safe_alloc) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1b_tf32_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.1b_tf32_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1d_plus_channels_last) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.1d_plus_channels_last) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] transformer_lm (3.1a_safe_alloc) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.1a_safe_alloc) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1b_tf32_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.1b_tf32_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1d_plus_channels_last) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.1d_plus_channels_last) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] deep_mlp (3.1a_safe_alloc) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.1a_safe_alloc) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1b_tf32_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.1b_tf32_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1d_plus_channels_last) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.1d_plus_channels_last) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 2 items
+
+tests/migrate/test_phase3_1_runtime_channels.py::TestPhase31Migration::test_cnn_and_transformer_with_runtime_flags_and_channels_last PASSED [ 50%]
+tests/migrate/test_phase3_1_runtime_channels.py::TestPhase31Migration::test_cnn_channels_last_checkpoint_cross_load PASSED [100%]
+
+============================== 2 passed in 33.49s ==============================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 5 items
+
+tests/unit/test_pass_runtime_memory.py::TestRuntimeFlagsPass::test_a100_sm80_enables_tf32_and_flash_sdp PASSED [ 20%]
+tests/unit/test_pass_runtime_memory.py::TestRuntimeFlagsPass::test_cpu_only_never_touches_cuda_backends PASSED [ 40%]
+tests/unit/test_pass_runtime_memory.py::TestRuntimeFlagsPass::test_t4_sm75_does_not_enable_tf32_or_flash_sdp PASSED [ 60%]
+tests/unit/test_pass_runtime_memory.py::TestMemoryAllocatorPrelaunch::test_sets_env_without_overwriting_user_vars PASSED [ 80%]
+tests/unit/test_pass_runtime_memory.py::TestChannelsLastPass::test_conv2d_converted_and_mlp_skipped_and_state_dict_contiguous PASSED [100%]
+
+============================== 5 passed in 1.67s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect Phase 3.1 ablation gains & parity on Google Colab before promoting or starting Phase 3.2)
+==============================================================================
