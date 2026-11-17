@@ -1,0 +1,160 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.5 EXPERIMENT REPORT: AUTO TORCH.COMPILE, CACHE & CHECKPOINT TRANSPARENCY
+==============================================================================
+Timestamp          : 2026-11-17 14:41:08 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 5d6f8f4
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Steps per Workload : 20
+Unit Tests         : pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Overall Experiment : PASS
+
+[COMPILE ABLATION (BASELINE VS EAGER VS COLD CACHE VS WARM CACHE)]
+------------------------------------------------------------------------------
+Workload:Scale           | Variant           | Base ms | Wrap ms | Wrap P95 | Speedup | E2E s (B/W) | VRAM MB (B/W/d)         | MaxRelDiff | Status
+-------------------------+-------------------+---------+---------+----------+---------+-------------+-------------------------+------------+-------
+transformer_lm:small     | 3.4_eager         | 11.72   | 12.20   | 13.81    | 0.96x   | 4.30/6.45   | 355.3/271.3 (-84.0)     | 9e-06      | PASS  
+transformer_lm:small     | 3.5a_compile_cold | 11.72   | 5.75    | 5.90     | 2.04x   | 4.30/20.51  | 355.3/233.4 (-121.9)    | 8e-06      | PASS  
+transformer_lm:small     | 3.5b_compile_warm | 11.72   | 5.65    | 6.13     | 2.08x   | 4.30/13.82  | 355.3/233.4 (-121.9)    | 8e-06      | PASS  
+transformer_lm:large     | 3.4_eager         | 780.07  | 252.86  | 254.97   | 3.08x   | 20.48/12.13 | 9174.4/6325.4 (-2848.9) | 1.9e-05    | PASS  
+transformer_lm:large     | 3.5a_compile_cold | 780.07  | 180.59  | 186.56   | 4.32x   | 20.48/36.46 | 9174.4/5006.9 (-4167.4) | 2.7e-05    | PASS  
+transformer_lm:large     | 3.5b_compile_warm | 780.07  | 179.02  | 183.74   | 4.36x   | 20.48/17.45 | 9174.4/5006.9 (-4167.4) | 3.1e-05    | PASS  
+cnn_vision:small         | 3.4_eager         | 8.18    | 6.96    | 9.38     | 1.17x   | 4.42/6.72   | 161.4/99.6 (-61.8)      | 0.002692   | PASS  
+cnn_vision:small         | 3.5a_compile_cold | 8.18    | 7.12    | 9.64     | 1.15x   | 4.42/26.42  | 161.4/132.6 (-28.9)     | 0.003727   | PASS  
+cnn_vision:small         | 3.5b_compile_warm | 8.18    | 5.93    | 6.72     | 1.38x   | 4.42/14.34  | 161.4/94.3 (-67.1)      | 0.003727   | PASS  
+cnn_vision:large         | 3.4_eager         | 280.96  | 107.98  | 110.42   | 2.60x   | 10.62/9.59  | 3300.9/1642.9 (-1658.0) | 0.004136   | PASS  
+cnn_vision:large         | 3.5a_compile_cold | 280.96  | 97.03   | 99.71    | 2.90x   | 10.62/28.06 | 3300.9/1605.4 (-1695.5) | 0.003193   | PASS  
+cnn_vision:large         | 3.5b_compile_warm | 280.96  | 96.84   | 100.12   | 2.90x   | 10.62/14.92 | 3300.9/1572.8 (-1728.1) | 0.003193   | PASS  
+deep_mlp:small           | 3.4_eager         | 10.19   | 7.67    | 7.73     | 1.33x   | 4.06/6.08   | 46.8/40.8 (-6.0)        | 0.000258   | PASS  
+deep_mlp:small           | 3.5a_compile_cold | 10.19   | 6.26    | 6.45     | 1.63x   | 4.06/24.74  | 46.8/75.1 (+28.4)       | 0.002439   | PASS  
+deep_mlp:small           | 3.5b_compile_warm | 10.19   | 6.21    | 6.44     | 1.64x   | 4.06/14.15  | 46.8/40.8 (-5.9)        | 0.002439   | PASS  
+deep_mlp:medium          | 3.4_eager         | 16.40   | 10.58   | 10.72    | 1.55x   | 4.53/6.39   | 498.5/402.7 (-95.8)     | 0.000311   | PASS  
+deep_mlp:medium          | 3.5a_compile_cold | 16.40   | 9.38    | 9.51     | 1.75x   | 4.53/25.60  | 498.5/404.2 (-94.3)     | 0.002193   | PASS  
+deep_mlp:medium          | 3.5b_compile_warm | 16.40   | 9.20    | 9.34     | 1.78x   | 4.53/14.41  | 498.5/404.2 (-94.3)     | 0.002193   | PASS  
+edge_cases:dynamic_shape | 3.4_eager         | 1.46    | 1.70    | 2.13     | 0.86x   | 3.91/6.11   | 16.9/16.7 (-0.2)        | 0.000182   | PASS  
+edge_cases:dynamic_shape | 3.5a_compile_cold | 1.46    | 1.99    | 2.37     | 0.73x   | 3.91/15.28  | 16.9/64.5 (+47.6)       | 0.000182   | PASS  
+edge_cases:dynamic_shape | 3.5b_compile_warm | 1.46    | 2.12    | 2.94     | 0.69x   | 3.91/13.43  | 16.9/16.6 (-0.2)        | 0.000182   | PASS  
+
+[COLD VS WARM COMPILE BREAKDOWN & BREAK-EVEN STEPS]
+------------------------------------------------------------------------------
+Workload:Scale           | Base Step0 | Cold Step0 | Warm Step0 | Eager ms | Warm ms | vs Base | vs Eager | BreakEven Steps
+-------------------------+------------+------------+------------+----------+---------+---------+----------+----------------
+transformer_lm:small     | 370.2      | 13196.3    | 4520.9     | 12.20    | 5.65    | 2.08x   | 2.16x    | 2172           
+transformer_lm:large     | 1019.9     | 24913.0    | 6202.6     | 252.86   | 179.02  | 4.36x   | 1.41x    | 42             
+cnn_vision:small         | 486.3      | 18709.8    | 4792.0     | 6.96     | 5.93    | 1.38x   | 1.18x    | 8313           
+cnn_vision:large         | 715.0      | 17933.7    | 5241.4     | 107.98   | 96.84   | 2.90x   | 1.11x    | 97             
+deep_mlp:small           | 238.9      | 17240.0    | 4615.9     | 7.67     | 6.21    | 1.64x   | 1.24x    | 4330           
+deep_mlp:medium          | 247.8      | 17703.8    | 4630.9     | 10.58    | 9.20    | 1.78x   | 1.15x    | 2457           
+edge_cases:dynamic_shape | 254.4      | 6155.9     | 3519.0     | 1.70     | 2.12    | 0.69x   | 0.80x    | N/A (slower)   
+
+[COMPILE & FALLBACK LOGS (COLD RUN)]
+------------------------------------------------------------------------------
+[APPLIED] transformer_lm:small (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm:small (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm:small (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] transformer_lm:small (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:small (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/transformer_lm_small)
+[APPLIED] transformer_lm:small (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] transformer_lm:small (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm:small (cold) -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm:small (cold) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] transformer_lm:large (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm:large (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm:large (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] transformer_lm:large (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:large (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/transformer_lm_large)
+[APPLIED] transformer_lm:large (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] transformer_lm:large (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm:large (cold) -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm:large (cold) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] cnn_vision:small (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision:small (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision:small (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision:small (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision:small (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/cnn_vision_small)
+[APPLIED] cnn_vision:small (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision:small (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision:small (cold) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision:small (cold) -> optimizer.SGD: fused=True
+[SKIPPED] cnn_vision:small (cold) -> runtime.channels_last: Conv2d spatial input below auto threshold (16384 px)
+[APPLIED] cnn_vision:small (cold) -> compile.auto: Compiled TinyResNet (mode=default, dynamic=False)
+[APPLIED] cnn_vision:large (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision:large (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision:large (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision:large (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision:large (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/cnn_vision_large)
+[APPLIED] cnn_vision:large (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision:large (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision:large (cold) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision:large (cold) -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision:large (cold) -> runtime.channels_last: Converted Conv2d module to channels_last (min_spatial_area=16384)
+[APPLIED] cnn_vision:large (cold) -> compile.auto: Compiled TinyResNet (mode=default, dynamic=False)
+[APPLIED] deep_mlp:small (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp:small (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp:small (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] deep_mlp:small (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:small (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/deep_mlp_small)
+[APPLIED] deep_mlp:small (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] deep_mlp:small (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp:small (cold) -> optimizer.AdamW: fused=True
+[APPLIED] deep_mlp:small (cold) -> compile.auto: Compiled DeepNarrowMLP (mode=default, dynamic=False)
+[APPLIED] deep_mlp:medium (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp:medium (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp:medium (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] deep_mlp:medium (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:medium (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/deep_mlp_medium)
+[APPLIED] deep_mlp:medium (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] deep_mlp:medium (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp:medium (cold) -> optimizer.AdamW: fused=True
+[APPLIED] deep_mlp:medium (cold) -> compile.auto: Compiled DeepNarrowMLP (mode=default, dynamic=False)
+[APPLIED] edge_cases:dynamic_shape (cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] edge_cases:dynamic_shape (cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] edge_cases:dynamic_shape (cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] edge_cases:dynamic_shape (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp03arsn7w/edge_cases_dynamic_shape)
+[APPLIED] edge_cases:dynamic_shape (cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] edge_cases:dynamic_shape (cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] edge_cases:dynamic_shape (cold) -> optimizer.Adam: fused=True
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_cases:dynamic_shape (cold) -> compile.auto: Dynamic input shapes detected on Sequential; switching to dynamic=True
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Recompiled(dynamic) Sequential (mode=default, dynamic=True)
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 2 items
+
+tests/migrate/test_phase3_5_compile.py::TestPhase35CompileMigration::test_compile_checkpoint_cross_load_and_keys_match PASSED [ 50%]
+tests/migrate/test_phase3_5_compile.py::TestPhase35CompileMigration::test_dynamic_shapes_edge_case_under_compile PASSED [100%]
+
+========================= 2 passed in 63.87s (0:01:03) =========================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 5 items
+
+tests/unit/test_pass_compile.py::TestAutoCompilePass::test_cache_dir_env_and_orig_mod_checkpoint_normalization PASSED [ 20%]
+tests/unit/test_pass_compile.py::TestAutoCompilePass::test_compile_error_fallback_keeps_script_running PASSED [ 40%]
+tests/unit/test_pass_compile.py::TestAutoCompilePass::test_compile_idempotency_and_precompiled_yield PASSED [ 60%]
+tests/unit/test_pass_compile.py::TestAutoCompilePass::test_compiled_runtime_execution_error_reverts_to_eager PASSED [ 80%]
+tests/unit/test_pass_compile.py::TestAutoCompilePass::test_dynamic_shape_switches_once_to_dynamic_true PASSED [100%]
+
+============================== 5 passed in 2.96s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Cold vs Warm torch.compile speedup, break-even steps, dynamic-shape guard, and checkpoint parity on Google Colab before Phase 3.6)
+==============================================================================
