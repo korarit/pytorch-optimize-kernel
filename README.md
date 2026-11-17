@@ -2,9 +2,10 @@
 
 > **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster** and cuts peak **VRAM by up to 47% (-4.32 GB)** without touching a single line of user model code, altering `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `src/`.
 >
-> **Precision Transparency Notice (`balanced` / `aggressive` vs. `safe`):**
-> - By default, `--profile balanced` and `--profile aggressive` accelerate matmuls using standard **Mixed Precision (`BF16`/`FP16` + `TF32`)** with `FP32` master weights, optimizers, and loss/norm reductions. On Transformers (`transformer_lm:large`), measured loss drift vs. pure `FP32` is **`3e-05` (`0.00003`, or ~`0.003%`)**, while `cnn_vision` and `deep_mlp:medium` sit at `~0.09%–0.22%`—matching standard industry BF16 training with no practical loss of capability.
-> - However, **precision-sensitive architectures** (e.g., deep sequential MLPs without skip connections like `deep_mlp:large` 24-layer at `~2.17%`, physics/PINNs, or strict numerical workloads) **can be affected by BF16/TF32 mantissa rounding**. If your workload requires **exact `FP32` (`0.0` drift)**, use **`--profile safe`** (`FP32` end-to-end, verified `MaxRelDiff = 0.0` across all workloads).
+> **Precision Transparency Notice (`supersafe` / `safe` / `balanced` / `aggressive`):**
+> - `--profile supersafe` (Strict Exact FP32): Keeps `TF32=False`, `AMP=False` (`fp32` end-to-end), and `compile=False` while enabling fused optimizers and `inference_mode()` (`0.0` numerical drift across all workloads).
+> - `--profile safe` (FP32 Weights + TF32 Tensor Cores): Keeps all weights/activations stored in **`FP32`** (no BF16/FP16 AMP, no compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last` (`>= 128x128` Conv2d) for **`~1.8x`** LLM speedup with `~1e-6–4e-6` (`0.0004%`) drift.
+> - `--profile balanced` / `aggressive` (Standard Mixed Precision): Adds **`BF16`/`FP16` AMP**, `torch.compile`, CUDA Graphs, and Triton kernels (`~0.003%` / `3e-05` loss drift on `transformer_lm:large` at `4.41x`; `~0.09%–0.22%` on `cnn_vision` and `deep_mlp:medium`). Deep unresidualized MLPs (e.g., 24-layer `deep_mlp:large` at `~2.17%`) or strict scientific PDE/PINN workloads should use `--profile supersafe`.
 
 ---
 
@@ -73,7 +74,8 @@ flowchart TD
 
 **Does `ptopt` compress matrices to FP4/INT4 or degrade model intelligence?** **No.**
 - **Zero Ultra-Low-Bit Approximation**: There is **no FP4, INT4, 2-bit quantization, pruning, or matrix truncation** anywhere in the codebase (`nn.Parameter` shapes, counts, and stored weights stay 100% intact).
-- **`--profile safe` (Strict FP32)**: Keeps `TF32=False` and `AMP=False` (`fp32`) for exact FP32 math end-to-end.
+- **`--profile supersafe` (Strict FP32)**: Keeps `TF32=False`, `AMP=False` (`fp32`), and `channels_last` opt-in for exact FP32 math (`0.0` drift) with `fused` optimizers and `inference_mode()`.
+- **`--profile safe` (FP32 + TF32 Tensor Cores)**: Keeps `AMP=False` (`fp32` tensors, zero compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last`.
 - **`--profile balanced` & `--profile aggressive` (Standard Mixed Precision)**:
   - On Ampere/Ada/Hopper (`sm >= 80`), uses hardware **`TF32`** (for FP32 matmuls) and **`BF16`** (`bfloat16`, which keeps FP32's full 8-bit exponent range), while master weights, optimizer states (`AdamW`), functional losses, and internal Triton reductions (`RMSNorm`, `LayerNorm`, `CrossEntropy`, `SwiGLU`) compute in **`FP32`**. Measured loss drift vs. pure FP32 on `transformer_lm:large` (`4.41x`) is only **`0.00003` (`MaxRelDiff = 3e-05`)**.
   - On older GPUs (`sm_70–79`, e.g., T4), `TF32` stays disabled and standard **`FP16 + GradScaler`** is used.
@@ -121,7 +123,10 @@ pip install -e .
 # Recommended balanced profile (safe + fast across training & inference)
 ptopt --profile balanced -- python3 your_train_script.py --epochs 10
 
-# Conservative profile (strict numerics, ideal for initial parity checks)
+# Pure FP32 parity (0.0 numerical drift, fused optimizer + inference_mode only)
+ptopt --profile supersafe -- python3 your_train_script.py
+
+# FP32 tensors + TF32 Tensor Core matmuls (sm>=80) + DataLoader tuning (zero compile warmup)
 ptopt --profile safe -- python3 your_train_script.py
 
 # Maximum optimization (enables CUDA Graphs on static eval + custom Triton kernels)

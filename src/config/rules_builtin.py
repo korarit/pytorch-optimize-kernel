@@ -259,12 +259,31 @@ def get_builtin_rules() -> list[ConfigRule]:
         ),
         # 5. user_profile
         ConfigRule(
-            name="profile_safe_cuda",
+            name="profile_supersafe_cuda",
             layer="user_profile",
-            reason="Safe profile on CUDA: strict FP32 parity (no TF32/cudnn_benchmark workspace bloat), fused optimizer, inference_mode",
-            condition=lambda fp, p: p == "safe" and _is_cuda(fp),
+            reason="Supersafe profile on CUDA: strict FP32 SIMT parity (0.0 drift; no TF32/AMP/compile), fused optimizer, inference_mode",
+            condition=lambda fp, p: p == "supersafe" and _is_cuda(fp),
             updates={
                 "runtime.tf32": False,
+                "runtime.cudnn_benchmark": False,
+                "optimizer.fused": True,
+                "inference.inference_mode": True,
+            },
+        ),
+        ConfigRule(
+            name="profile_supersafe_non_cuda",
+            layer="user_profile",
+            reason="Supersafe profile on CPU/MPS: strict FP32 with inference_mode only",
+            condition=lambda fp, p: p == "supersafe" and not _is_cuda(fp),
+            updates={"inference.inference_mode": True},
+        ),
+        ConfigRule(
+            name="profile_safe_cuda",
+            layer="user_profile",
+            reason="Safe profile on CUDA: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)",
+            condition=lambda fp, p: p == "safe" and _is_cuda(fp),
+            updates=lambda fp, _p: {
+                "runtime.tf32": fp.sm_int >= 80,
                 "runtime.cudnn_benchmark": False,
                 "optimizer.fused": True,
                 "inference.inference_mode": True,
@@ -295,8 +314,8 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_balanced_dataloader",
             layer="user_profile",
-            reason="Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning",
-            condition=lambda fp, p: p in ("balanced", "aggressive") and _is_cuda(fp) and not fp.is_low_shm,
+            reason="Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning",
+            condition=lambda fp, p: p in ("safe", "balanced", "aggressive") and _is_cuda(fp) and not fp.is_low_shm,
             updates=lambda fp, _p: {
                 "dataloader.auto_tune": True,
                 "dataloader.pin_memory": True,

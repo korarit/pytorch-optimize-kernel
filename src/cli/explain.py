@@ -182,7 +182,7 @@ def _parse_overrides(items: Sequence[str]) -> dict[str, Any]:
 def run_explain_cli(argv: Sequence[str] | None = None) -> int:
     """CLI entrypoint for --explain, --show-config, and --dump-config."""
     parser = argparse.ArgumentParser(description="Inspect hardware-aware ptopt configuration.")
-    parser.add_argument("--profile", default=None, choices=["safe", "balanced", "aggressive"])
+    parser.add_argument("--profile", default=None, choices=["supersafe", "safe", "balanced", "aggressive"])
     parser.add_argument("--explain", action="store_true", help="Print full hardware + rule trace + config")
     parser.add_argument("--show-config", action="store_true", help="Print only final resolved JSON config")
     parser.add_argument("--dump-config", type=Path, default=None, help="Write full snapshot JSON to path")

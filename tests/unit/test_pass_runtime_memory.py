@@ -226,6 +226,13 @@ class TestChannelsLastPass(unittest.TestCase):
         cnn_small = nn.Conv2d(3, 8, kernel_size=3, padding=1)
         cnn_large = nn.Conv2d(3, 8, kernel_size=3, padding=1)
         mgr = HookManager()
+        cfg_super = OptimizeConfig(profile="supersafe")
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PTOPT_CHANNELS_LAST", None)
+            with patch.object(torch.cuda, "is_available", return_value=True):
+                msg_super = apply_channels_last_pass(cfg_super, mgr, torch_mod=torch)
+            self.assertIn("opt-in only on CPU/supersafe", msg_super)
+
         cfg = OptimizeConfig(profile="balanced")
 
         with patch.dict(os.environ, {}, clear=False):

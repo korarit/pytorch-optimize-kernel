@@ -167,8 +167,8 @@ def apply_channels_last_pass(
 
     # Auto mode: Phase 3.4 profiler showed 13.7% NCHW<->NHWC cuDNN overhead on large (>=128x128) CUDA CNNs
     has_cuda = bool(getattr(getattr(tmod, "cuda", None), "is_available", lambda: False)())
-    if cfg.profile not in ("balanced", "aggressive") or not has_cuda:
-        return "SKIPPED: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)"
+    if cfg.profile not in ("safe", "balanced", "aggressive") or not has_cuda:
+        return "SKIPPED: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)"
 
     installed = install_channels_last_hook(
         tmod,

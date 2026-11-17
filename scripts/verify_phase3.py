@@ -153,7 +153,7 @@ def main() -> int:
                 extra_args_override=extra_ovr,
                 batch_size_override=bs_ovr,
             )
-            for prof in ("safe", "balanced", "aggressive"):
+            for prof in ("supersafe", "safe", "balanced", "aggressive"):
                 rec = _run_profile_case(
                     wl_name=wl,
                     steps=steps,

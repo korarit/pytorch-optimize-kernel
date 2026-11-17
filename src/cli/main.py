@@ -91,7 +91,7 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="ptopt",
         description="Zero-code PyTorch optimization wrapper for training and inference.",
     )
-    parser.add_argument("--profile", default=None, choices=["safe", "balanced", "aggressive"])
+    parser.add_argument("--profile", default=None, choices=["supersafe", "safe", "balanced", "aggressive"])
     parser.add_argument("--no-compile", action="store_true", help="Disable torch.compile")
     parser.add_argument("--compile-mode", default=None, choices=["default", "reduce-overhead", "max-autotune"])
     parser.add_argument("--no-amp", action="store_true", help="Disable Auto Mixed Precision")

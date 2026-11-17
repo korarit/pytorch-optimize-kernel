@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping
 
 SCHEMA_VERSION = 1
-VALID_PROFILES = frozenset({"safe", "balanced", "aggressive"})
+VALID_PROFILES = frozenset({"supersafe", "safe", "balanced", "aggressive"})
 VALID_AMP_DTYPES = frozenset({"fp32", "fp16", "bf16"})
 VALID_COMPILE_MODES = frozenset({"default", "reduce-overhead", "max-autotune"})
 

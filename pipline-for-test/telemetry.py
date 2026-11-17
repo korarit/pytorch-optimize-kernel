@@ -9,6 +9,7 @@ from typing import Any, Mapping, Sequence
 TELEMETRY_SCHEMA_VERSION = 1
 
 PARITY_THRESHOLDS: dict[str, float] = {
+    "supersafe": 1e-4,
     "safe": 1e-2,
     "balanced": 2e-2,
     "aggressive": 3e-2,
