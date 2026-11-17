@@ -14,6 +14,12 @@ if TYPE_CHECKING:
 
 _AUTO_AMP_INSTALLED = False
 _OPTIM_STEP_CLASSES = ("Adam", "AdamW", "SGD", "RMSprop", "Adagrad")
+_FUNCTIONAL_LOSS_FP32_SPECS: dict[str, bool] = {
+    "cross_entropy": False,
+    "nll_loss": False,
+    "binary_cross_entropy_with_logits": True,
+    "kl_div": True,
+}
 
 
 def _has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
@@ -50,6 +56,61 @@ def _resolve_torch_dtype(torch_mod: Any, dtype_name: str) -> Any:
     if dtype_name == "fp16":
         return getattr(torch_mod, "float16", None)
     return getattr(torch_mod, "float32", None)
+
+
+def _promote_half_cuda_tensor(value: Any, half_dtypes: tuple[Any, ...]) -> Any:
+    """Promote CUDA fp16/bf16 tensor to fp32 so functional losses outside autocast stay finite."""
+    if value is not None and getattr(value, "is_cuda", False) and getattr(value, "dtype", None) in half_dtypes:
+        return value.float()
+    return value
+
+
+def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
+    """Promote half-precision logits in functional losses invoked outside Module autocast."""
+    func_mod = getattr(getattr(torch_mod, "nn", None), "functional", None)
+    if func_mod is None:
+        return
+    half_dtypes = tuple(
+        dt for dt in (getattr(torch_mod, "float16", None), getattr(torch_mod, "bfloat16", None)) if dt is not None
+    )
+    if not half_dtypes:
+        return
+
+    orig_losses: dict[str, Any] = {}
+    for fn_name, promote_target in _FUNCTIONAL_LOSS_FP32_SPECS.items():
+        orig_fn = getattr(func_mod, fn_name, None)
+        if orig_fn is None or not callable(orig_fn):
+            continue
+
+        def _make_loss_wrapper(base_fn: Any, with_target: bool) -> Any:
+            @functools.wraps(base_fn)
+            def _fp32_loss_guard(*args: Any, **kwargs: Any) -> Any:
+                if (
+                    not rt.disabled_by_watchdog
+                    and not rt.user_amp_detected
+                    and not _is_autocast_active(torch_mod)
+                ):
+                    if args:
+                        args_list = list(args)
+                        args_list[0] = _promote_half_cuda_tensor(args_list[0], half_dtypes)
+                        if with_target and len(args_list) > 1:
+                            args_list[1] = _promote_half_cuda_tensor(args_list[1], half_dtypes)
+                        args = tuple(args_list)
+                    elif "input" in kwargs:
+                        kwargs = dict(kwargs)
+                        kwargs["input"] = _promote_half_cuda_tensor(kwargs["input"], half_dtypes)
+                    if with_target and "target" in kwargs:
+                        kwargs = dict(kwargs)
+                        kwargs["target"] = _promote_half_cuda_tensor(kwargs["target"], half_dtypes)
+                return base_fn(*args, **kwargs)
+
+            return _fp32_loss_guard
+
+        orig_losses[fn_name] = orig_fn
+        setattr(func_mod, fn_name, _make_loss_wrapper(orig_fn, promote_target))
+
+    if orig_losses:
+        func_mod._ptopt_amp_orig_losses = orig_losses
 
 
 class AutoAmpRuntime:
@@ -240,6 +301,9 @@ def install_auto_amp_hook(
             opt_cls._ptopt_amp_orig_step = orig_step
             opt_cls.step = _make_amp_step(orig_step)
 
+    # 5. Promote half-precision logits in functional losses invoked outside Module autocast
+    _install_functional_loss_fp32_guards(torch_mod, rt)
+
     _AUTO_AMP_INSTALLED = True
     torch_mod._ptopt_amp_runtime = rt
     return rt
@@ -268,6 +332,12 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
     if hasattr(torch_mod.Tensor, "_ptopt_amp_orig_backward"):
         torch_mod.Tensor.backward = torch_mod.Tensor._ptopt_amp_orig_backward
         delattr(torch_mod.Tensor, "_ptopt_amp_orig_backward")
+
+    func_mod = getattr(getattr(torch_mod, "nn", None), "functional", None)
+    if func_mod is not None and hasattr(func_mod, "_ptopt_amp_orig_losses"):
+        for fn_name, orig_fn in getattr(func_mod, "_ptopt_amp_orig_losses").items():
+            setattr(func_mod, fn_name, orig_fn)
+        delattr(func_mod, "_ptopt_amp_orig_losses")
 
     optim_mod = getattr(torch_mod, "optim", None)
     if optim_mod is not None:

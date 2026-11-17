@@ -203,6 +203,76 @@ class TestAutoAmpPass(unittest.TestCase):
             uninstall_auto_amp_hook(torch)
             mgr.reset()
 
+    def test_functional_loss_promotes_half_logits_to_fp32(self) -> None:
+        orig_ce_real = F.cross_entropy
+        orig_bce_real = F.binary_cross_entropy_with_logits
+        seen_ce_dtypes: list[torch.dtype] = []
+        seen_bce_dtypes: list[tuple[torch.dtype, torch.dtype]] = []
+
+        class _FakeCudaHalf:
+            def __init__(self, tensor: torch.Tensor) -> None:
+                self._tensor = tensor
+                self.is_cuda = True
+                self.dtype = tensor.dtype
+
+            def float(self) -> torch.Tensor:
+                return self._tensor.float()
+
+        def _spy_ce(inp: object, target: torch.Tensor, *args: object, **kwargs: object) -> torch.Tensor:
+            dtype = getattr(inp, "dtype")
+            seen_ce_dtypes.append(dtype)
+            if isinstance(inp, _FakeCudaHalf):
+                return torch.tensor(0.0, dtype=dtype)
+            return orig_ce_real(inp, target, *args, **kwargs)  # type: ignore[arg-type]
+
+        def _spy_bce(inp: object, target: object, *args: object, **kwargs: object) -> torch.Tensor:
+            in_dt = getattr(inp, "dtype")
+            tgt_dt = getattr(target, "dtype")
+            seen_bce_dtypes.append((in_dt, tgt_dt))
+            if isinstance(inp, _FakeCudaHalf) or isinstance(target, _FakeCudaHalf):
+                return torch.tensor(0.0, dtype=in_dt)
+            return orig_bce_real(inp, target, *args, **kwargs)  # type: ignore[arg-type]
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "fp16"
+        cfg.amp.grad_scaler = True
+        mgr = HookManager()
+
+        logits_fp16 = _FakeCudaHalf(torch.tensor([[12.0, -12.0]], dtype=torch.float16))
+        target_cls = torch.tensor([0], dtype=torch.long)
+        bce_logits_fp16 = _FakeCudaHalf(torch.tensor([[2.0, -2.0]], dtype=torch.float16))
+        bce_target_fp16 = _FakeCudaHalf(torch.tensor([[1.0, 0.0]], dtype=torch.float16))
+
+        with patch.object(F, "cross_entropy", new=_spy_ce), patch.object(
+            F, "binary_cross_entropy_with_logits", new=_spy_bce
+        ):
+            rt = install_auto_amp_hook(cfg, mgr, torch)
+            assert rt is not None
+            try:
+                loss_ce = F.cross_entropy(logits_fp16, target_cls)  # type: ignore[arg-type]
+                self.assertEqual(loss_ce.dtype, torch.float32)
+                self.assertTrue(torch.isfinite(loss_ce))
+
+                loss_bce = F.binary_cross_entropy_with_logits(
+                    bce_logits_fp16, bce_target_fp16  # type: ignore[arg-type]
+                )
+                self.assertEqual(loss_bce.dtype, torch.float32)
+                self.assertTrue(torch.isfinite(loss_bce))
+
+                # Inside an existing autocast region, wrapper must leave dtype untouched
+                with patch("src.passes.auto_amp._is_autocast_active", return_value=True):
+                    F.cross_entropy(logits_fp16, target_cls)  # type: ignore[arg-type]
+
+                self.assertEqual(seen_ce_dtypes, [torch.float32, torch.float16])
+                self.assertEqual(seen_bce_dtypes, [(torch.float32, torch.float32)])
+            finally:
+                uninstall_auto_amp_hook(torch)
+                mgr.reset()
+
+        self.assertIs(F.cross_entropy, orig_ce_real)
+        self.assertIs(F.binary_cross_entropy_with_logits, orig_bce_real)
+
 
 if __name__ == "__main__":
     unittest.main()

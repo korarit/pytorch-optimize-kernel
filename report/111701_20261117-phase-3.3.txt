@@ -1,0 +1,165 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.3 EXPERIMENT REPORT: OPTIMIZER FUSION & SAFE AUTO-AMP
+==============================================================================
+Timestamp          : 2026-11-17 11:17:01 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 72e35a7
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Steps per Workload : 20
+Unit Tests         : pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Overall Experiment : FAIL
+
+[FUSED OPTIMIZER & AUTO-AMP ABLATION]
+------------------------------------------------------------------------------
+Workload       | Variant                     | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d)     | MaxRelDiff | Status
+---------------+-----------------------------+---------+---------+----------+---------+---------------------+------------+-------
+transformer_lm | 3.3a_fused_only             | 10.74   | 10.69   | 10.81    | 1.00x   | 220.0/216.2 (-3.9)  | 2e-06      | PASS  
+transformer_lm | 3.3b_fused_plus_amp_auto    | 10.74   | 11.76   | 14.36    | 0.91x   | 220.0/166.7 (-53.4) | 0.001842   | PASS  
+transformer_lm | 3.3c_fused_plus_fp16_scaler | 10.74   | 12.36   | 12.88    | 0.87x   | 220.0/166.7 (-53.4) | 0.000317   | PASS  
+deep_mlp       | 3.3a_fused_only             | 8.22    | 7.62    | 7.94     | 1.08x   | 46.7/40.7 (-6.0)    | 0.000547   | PASS  
+deep_mlp       | 3.3b_fused_plus_amp_auto    | 8.22    | 11.41   | 11.59    | 0.72x   | 46.7/40.8 (-5.9)    | 0.012526   | PASS  
+deep_mlp       | 3.3c_fused_plus_fp16_scaler | 8.22    | 12.62   | 13.48    | 0.65x   | 46.7/40.8 (-5.9)    | 0.035034   | FAIL  
+cnn_vision     | 3.3a_fused_only             | 5.93    | 6.09    | 6.21     | 0.97x   | 95.8/95.8 (+0.0)    | 0.006702   | PASS  
+cnn_vision     | 3.3b_fused_plus_amp_auto    | 5.93    | 6.76    | 6.85     | 0.88x   | 95.8/58.8 (-37.1)   | 0.00664    | PASS  
+cnn_vision     | 3.3c_fused_plus_fp16_scaler | 5.93    | 6.00    | 7.12     | 0.99x   | 95.8/95.8 (+0.0)    | None       | FAIL  
+edge_cases     | 3.3a_fused_only             | 1.51    | 1.45    | 4.04     | 1.04x   | 16.9/16.9 (-0.1)    | 1.8e-05    | PASS  
+edge_cases     | 3.3b_fused_plus_amp_auto    | 1.51    | 1.45    | 4.04     | 1.04x   | 16.9/16.9 (-0.1)    | 1.8e-05    | PASS  
+edge_cases     | 3.3c_fused_plus_fp16_scaler | 1.51    | 1.61    | 4.34     | 0.94x   | 16.9/16.9 (-0.1)    | 1.8e-05    | PASS  
+
+[OPTIMIZER & AUTO-AMP HOOK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] transformer_lm (3.3a_fused_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.3a_fused_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] transformer_lm (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm (3.3a_fused_only) -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> amp.auto: Auto-AMP installed (dtype=fp16, grad_scaler=True)
+[APPLIED] transformer_lm (3.3c_fused_plus_fp16_scaler) -> optimizer.AdamW: fused=True
+[APPLIED] deep_mlp (3.3a_fused_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.3a_fused_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] deep_mlp (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp (3.3a_fused_only) -> optimizer.AdamW: fused=True
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: fused=True
+[APPLIED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> amp.auto: Auto-AMP installed (dtype=fp16, grad_scaler=True)
+[APPLIED] deep_mlp (3.3c_fused_plus_fp16_scaler) -> optimizer.AdamW: fused=True
+[APPLIED] cnn_vision (3.3a_fused_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.3a_fused_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision (3.3a_fused_only) -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> amp.auto: Auto-AMP installed (dtype=fp16, grad_scaler=True)
+[APPLIED] cnn_vision (3.3c_fused_plus_fp16_scaler) -> optimizer.SGD: fused=True
+[FALLBACK] cnn_vision (3.3c_fused_plus_fp16_scaler) -> amp.auto: Non-finite loss (nan) detected under fp16; falling back to fp32
+[APPLIED] edge_cases (3.3a_fused_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] edge_cases (3.3a_fused_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] edge_cases (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] edge_cases (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.AdamW: fused=True
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.Adam: fused=True
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.SGD: fused=True
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: fused=True
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.Adam: fused=True
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.SGD: fused=True
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] edge_cases (3.3c_fused_plus_fp16_scaler) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (3.3c_fused_plus_fp16_scaler) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> amp.auto: Auto-AMP installed (dtype=fp16, grad_scaler=True)
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> optimizer.AdamW: fused=True
+[SKIPPED] edge_cases (3.3c_fused_plus_fp16_scaler) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> optimizer.Adam: fused=True
+[APPLIED] edge_cases (3.3c_fused_plus_fp16_scaler) -> optimizer.SGD: fused=True
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 2 items
+
+tests/migrate/test_phase3_3_amp_fusion.py::TestPhase33Migration::test_auto_amp_checkpoint_cross_load_to_baseline PASSED [ 50%]
+tests/migrate/test_phase3_3_amp_fusion.py::TestPhase33Migration::test_preexisting_amp_edge_case_and_transformer_with_auto_amp PASSED [100%]
+
+============================== 2 passed in 32.83s ==============================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 7 items
+
+tests/unit/test_pass_optimizer_amp.py::TestOptimizerFusionPass::test_cpu_tensors_never_inject_fused_true PASSED [ 14%]
+tests/unit/test_pass_optimizer_amp.py::TestOptimizerFusionPass::test_mock_cuda_injects_fused_for_adamw_and_foreach_for_sgd PASSED [ 28%]
+tests/unit/test_pass_optimizer_amp.py::TestAutoAmpPass::test_cpu_skips_auto_amp PASSED [ 42%]
+tests/unit/test_pass_optimizer_amp.py::TestAutoAmpPass::test_module_call_actually_enters_autocast_when_cuda_context_present PASSED [ 57%]
+tests/unit/test_pass_optimizer_amp.py::TestAutoAmpPass::test_preexisting_user_autocast_and_grad_scaler_yield PASSED [ 71%]
+tests/unit/test_pass_optimizer_amp.py::TestAutoAmpPass::test_stability_watchdog_disables_amp_on_nan PASSED [ 85%]
+tests/unit/test_pass_optimizer_amp.py::TestAutoAmpPass::test_t4_selects_fp16_scaler_and_l4_selects_bf16 PASSED [100%]
+
+============================== 7 passed in 2.96s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Verify Fused Optimizer & Auto-AMP (bf16 + fp16) speedup, VRAM, and parity on Google Colab before Phase 3.4)
+==============================================================================
