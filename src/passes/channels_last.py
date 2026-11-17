@@ -64,7 +64,7 @@ def install_channels_last_hook(torch_mod: Any) -> bool:
         return False
 
     nn_module = torch_mod.nn.Module
-    attr_name = "_wrapped_call_impl" if hasattr(nn_module, "_wrapped_call_impl") else "__call__"
+    attr_name = "__call__"
     orig_call = getattr(nn_module, attr_name)
     depth = [0]
 

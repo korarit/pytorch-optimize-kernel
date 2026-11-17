@@ -152,9 +152,9 @@ def install_auto_amp_hook(
         s_cls._ptopt_orig_init = orig_s_init
         s_cls.__init__ = _detect_user_scaler
 
-    # 2. Wrap top-level Module forward in autocast when active and not already in user autocast
+    # 2. Wrap top-level Module.__call__ in autocast when active and not already in user autocast
     nn_mod = torch_mod.nn.Module
-    call_attr = "_wrapped_call_impl" if hasattr(nn_mod, "_wrapped_call_impl") else "__call__"
+    call_attr = "__call__"
     orig_mod_call = getattr(nn_mod, call_attr)
 
     @functools.wraps(orig_mod_call)
@@ -224,6 +224,7 @@ def install_auto_amp_hook(
                     if rt._in_internal_scaler_step or not rt._step_scaled or rt.user_amp_detected or rt.disabled_by_watchdog:
                         return base_step(opt_self, *args, **kwargs)
                     rt._in_internal_scaler_step = True
+                    opt_self._ptopt_in_scaler_step = True
                     try:
                         res = rt.scaler.step(opt_self, *args, **kwargs)
                         rt.scaler.update()
@@ -231,6 +232,7 @@ def install_auto_amp_hook(
                         rt._unscaled_this_step = False
                         return res
                     finally:
+                        opt_self._ptopt_in_scaler_step = False
                         rt._in_internal_scaler_step = False
 
                 return _amp_step

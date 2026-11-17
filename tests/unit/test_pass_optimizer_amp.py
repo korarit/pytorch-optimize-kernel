@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import sys
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import torch
 import torch.nn as nn
@@ -129,6 +131,32 @@ class TestAutoAmpPass(unittest.TestCase):
             uninstall_auto_amp_hook(torch)
             mgr.reset()
 
+    def test_module_call_actually_enters_autocast_when_cuda_context_present(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        mgr = HookManager()
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+
+        entered: list[tuple[str, object]] = []
+
+        def _fake_autocast(device_type: str = "cuda", dtype: object = None, **_kw: object):
+            entered.append((device_type, dtype))
+            return nullcontext()
+
+        model = nn.Linear(4, 2)
+        try:
+            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+                torch.amp, "autocast", side_effect=_fake_autocast
+            ):
+                out = model(torch.randn(2, 4))
+            self.assertEqual(out.shape, (2, 2))
+            self.assertEqual(entered, [("cuda", torch.bfloat16)])
+        finally:
+            uninstall_auto_amp_hook(torch)
+            mgr.reset()
+
     def test_stability_watchdog_disables_amp_on_nan(self) -> None:
         cfg = OptimizeConfig(profile="balanced")
         cfg.amp.enabled = True
@@ -145,6 +173,32 @@ class TestAutoAmpPass(unittest.TestCase):
             self.assertFalse(ok_nan)
             self.assertTrue(rt.disabled_by_watchdog)
             self.assertTrue(any(ev.status == "FALLBACK" and "Non-finite" in ev.reason for ev in mgr.events))
+        finally:
+            uninstall_auto_amp_hook(torch)
+            mgr.reset()
+
+    def test_module_call_actually_enters_autocast_when_cuda_context_present(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        mgr = HookManager()
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+
+        entered: list[tuple[str, object]] = []
+
+        def _fake_autocast(device_type: str = "cuda", dtype: object = None, **_kw: object):
+            entered.append((device_type, dtype))
+            return nullcontext()
+
+        model = nn.Linear(4, 2)
+        try:
+            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+                torch.amp, "autocast", side_effect=_fake_autocast
+            ):
+                out = model(torch.randn(2, 4))
+            self.assertEqual(out.shape, (2, 2))
+            self.assertEqual(entered, [("cuda", torch.bfloat16)])
         finally:
             uninstall_auto_amp_hook(torch)
             mgr.reset()

@@ -63,7 +63,9 @@ class TelemetryCollector:
             opt_mod = importlib.import_module("torch.optim.optimizer")
             reg_post_hook = getattr(opt_mod, "register_optimizer_step_post_hook", None)
             if callable(reg_post_hook):
-                def _opt_post_hook(_opt: Any, _args: Any, _kwargs: Any) -> None:
+                def _opt_post_hook(opt: Any, _args: Any, _kwargs: Any) -> None:
+                    if getattr(opt, "_ptopt_in_scaler_step", False):
+                        return
                     collector._optimizer_used = True
                     if collector._last_step_end is None:
                         collector._last_step_end = collector.t_start
@@ -78,7 +80,7 @@ class TelemetryCollector:
 
         # 3. Capture top-level inference step duration when Optimizer.step is unused
         nn_mod = torch_mod.nn.Module
-        attr_name = "_wrapped_call_impl" if hasattr(nn_mod, "_wrapped_call_impl") else "__call__"
+        attr_name = "__call__"
         self._mod_call_attr = attr_name
         self._orig_mod_call = getattr(nn_mod, attr_name)
         orig_mod_call = self._orig_mod_call
