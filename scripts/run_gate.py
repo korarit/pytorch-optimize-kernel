@@ -185,7 +185,6 @@ def _run_smoke_benchmark(
             return merge_summary_and_telemetry(
                 workload=wl,
                 mode="baseline" if is_base else profile,
-                device=device,
                 cache_state="warm" if cache_dir else "none",
                 exit_code=proc.returncode,
                 summary=summary,

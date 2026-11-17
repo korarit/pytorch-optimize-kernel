@@ -12,7 +12,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.run_gate import GateStepResult, build_gate_report, discover_migrate_files
+from unittest.mock import patch
+
+from scripts.run_gate import GateStepResult, _run_smoke_benchmark, build_gate_report, discover_migrate_files
 from src.cli.explain import build_mock_fingerprint
 
 
@@ -75,6 +77,23 @@ class TestRegressionGate(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertIn("--mode", proc.stdout)
         self.assertIn("--bench-steps", proc.stdout)
+
+    def test_smoke_benchmark_merges_telemetry_without_signature_error(self) -> None:
+        # Run a tiny 2-step CPU smoke benchmark to verify `merge_summary_and_telemetry` integration.
+        with patch.dict(
+            "scripts.run_gate.WORKLOAD_SPECS",
+            {"infer_runner_bs1": {"script": "infer_runner.py", "batch_size": 1, "extra": []}},
+            clear=False,
+        ):
+            # Force CPU workload list to run a fast single workload end-to-end
+            rows, bench_ok, traces = _run_smoke_benchmark(
+                device="cpu",
+                steps=2,
+                profiles=("safe",),
+            )
+        self.assertTrue(bench_ok, f"Smoke benchmark traces: {traces}")
+        self.assertGreaterEqual(len(rows), 1)
+        self.assertEqual(rows[0][-1], "PASS")
 
 
 if __name__ == "__main__":
