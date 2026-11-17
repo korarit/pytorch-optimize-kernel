@@ -93,6 +93,67 @@ def check_dynamic_quant_eligibility(torch_mod: Any) -> tuple[bool, str]:
     return True, "CPU INT8 dynamic quantization available"
 
 
+_TRITON_FP8_QUANTIZER: Any = None
+_TRITON_FP8_INIT_DONE = False
+
+
+def _get_triton_fp8_quantizer() -> Any:
+    """Lazily compile fused Triton FP8 activation amax + clamp/cast quantizer (zero top-level imports)."""
+    global _TRITON_FP8_QUANTIZER, _TRITON_FP8_INIT_DONE  # noqa: PLW0603
+    if _TRITON_FP8_INIT_DONE:
+        return _TRITON_FP8_QUANTIZER
+    _TRITON_FP8_INIT_DONE = True
+    try:
+        import importlib.util
+
+        if importlib.util.find_spec("triton") is None:
+            return None
+        import torch as _torch
+        import triton  # type: ignore[import-not-found]
+        import triton.language as tl  # type: ignore[import-not-found]
+
+        @triton.jit
+        def _fp8_partial_amax_kernel(X_ptr, Partial_ptr, N_elements, BLOCK_SIZE: tl.constexpr):
+            pid = tl.program_id(0)
+            offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+            mask = offs < N_elements
+            x = tl.load(X_ptr + offs, mask=mask, other=0.0).to(tl.float32)
+            tl.store(Partial_ptr + pid, tl.max(tl.abs(x), axis=0))
+
+        @triton.jit
+        def _fp8_quant_scale_kernel(X_ptr, InvScale_ptr, Out_ptr, N_elements, BLOCK_SIZE: tl.constexpr):
+            pid = tl.program_id(0)
+            offs = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+            mask = offs < N_elements
+            inv_scale = tl.load(InvScale_ptr).to(tl.float32)
+            x = tl.load(X_ptr + offs, mask=mask, other=0.0).to(tl.float32)
+            q = tl.minimum(tl.maximum(x * inv_scale, -448.0), 448.0)
+            tl.store(Out_ptr + offs, q.to(Out_ptr.dtype.element_ty), mask=mask)
+
+        def _quantize_fp8_2d(flat: Any, fp8_dtype: Any) -> tuple[Any, Any]:
+            flat_c = flat.contiguous()
+            n_elems = flat_c.numel()
+            block_size = 4096
+            n_blocks = triton.cdiv(n_elems, block_size)
+            partial = _torch.empty((n_blocks,), dtype=_torch.float32, device=flat_c.device)
+            _fp8_partial_amax_kernel[(n_blocks,)](
+                flat_c, partial, n_elems, BLOCK_SIZE=block_size, num_warps=8
+            )
+            amax = partial.max().clamp(min=1e-12)
+            x_scale = amax / 448.0
+            inv_scale = 448.0 / amax
+            x_q = _torch.empty(flat_c.shape, dtype=fp8_dtype, device=flat_c.device)
+            _fp8_quant_scale_kernel[(n_blocks,)](
+                flat_c, inv_scale, x_q, n_elems, BLOCK_SIZE=block_size, num_warps=8
+            )
+            return x_q, x_scale
+
+        _TRITON_FP8_QUANTIZER = _quantize_fp8_2d
+    except Exception:  # noqa: BLE001
+        _TRITON_FP8_QUANTIZER = None
+    return _TRITON_FP8_QUANTIZER
+
+
 def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
     """Wrap eligible `nn.Linear` submodules on CUDA sm>=89 to use FP8 `_scaled_mm` during `.eval()`."""
     nn_ns = getattr(torch_mod, "nn", None)
@@ -103,9 +164,23 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
 
     fp8_dtype = getattr(torch_mod, "float8_e4m3fn", None)
     bf16_dtype = getattr(torch_mod, "bfloat16", None)
+    fp16_dtype = getattr(torch_mod, "float16", bf16_dtype)
     fp32_dtype = getattr(torch_mod, "float32", None)
     if fp8_dtype is None or bf16_dtype is None or fp32_dtype is None:
         return 0
+
+    triton_quant = _get_triton_fp8_quantizer()
+
+    def _build_weight_cache(lin: Any) -> tuple[Any, ...]:
+        w_src = lin.weight.detach()
+        w_amax = w_src.abs().amax().clamp(min=1e-12)
+        w_scale = (w_amax / 448.0).to(dtype=fp32_dtype, device=w_src.device)
+        w_inv_scale = (448.0 / w_amax).to(dtype=fp32_dtype, device=w_src.device)
+        w_q = (w_src.to(fp32_dtype) * w_inv_scale).clamp(-448.0, 448.0).to(fp8_dtype)
+        w_t = w_q.t()
+        bias_bf16 = lin.bias.detach().to(bf16_dtype) if lin.bias is not None else None
+        bias_fp16 = lin.bias.detach().to(fp16_dtype) if (lin.bias is not None and fp16_dtype != bf16_dtype) else bias_bf16
+        return (lin.weight._version, w_t, w_scale, bias_bf16, bias_fp16)
 
     patched = 0
     for sub in module.modules():
@@ -115,6 +190,12 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
             continue
         if not getattr(sub.weight, "is_cuda", False):
             continue
+
+        # Pre-quantize FP8 weights at patch time while keeping `sub.weight` & `state_dict()` untouched
+        try:
+            sub._ptopt_fp8_w_cache = _build_weight_cache(sub)
+        except Exception:  # noqa: BLE001
+            pass
 
         orig_fwd = sub.forward
 
@@ -135,19 +216,27 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
                 try:
                     w_cache = getattr(lin, "_ptopt_fp8_w_cache", None)
                     if w_cache is None or w_cache[0] != lin.weight._version:
-                        w_fp32 = lin.weight.detach()
-                        w_amax = w_fp32.abs().max().clamp(min=1e-12)
-                        w_scale = (w_amax / 448.0).to(dtype=fp32_dtype, device=w_fp32.device)
-                        w_q = (w_fp32 / w_scale).clamp(-448.0, 448.0).to(fp8_dtype)
-                        w_t = w_q.t()
-                        lin._ptopt_fp8_w_cache = (lin.weight._version, w_t, w_scale)
-                    _, w_t, w_scale = lin._ptopt_fp8_w_cache
+                        w_cache = _build_weight_cache(lin)
+                        lin._ptopt_fp8_w_cache = w_cache
+                    _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
 
-                    x_amax = flat.abs().max().clamp(min=1e-12)
-                    x_scale = (x_amax / 448.0).to(dtype=fp32_dtype, device=flat.device)
-                    x_q = (flat / x_scale).clamp(-448.0, 448.0).to(fp8_dtype).contiguous()
-                    out_dtype = inp.dtype if inp.dtype in (bf16_dtype, getattr(torch_mod, "float16", bf16_dtype)) else bf16_dtype
-                    bias = lin.bias.to(out_dtype) if lin.bias is not None else None
+                    nonlocal triton_quant
+                    if triton_quant is not None:
+                        try:
+                            x_q, x_scale = triton_quant(flat, fp8_dtype)
+                        except Exception:  # noqa: BLE001
+                            triton_quant = None
+                            x_amax = flat.abs().amax().clamp(min=1e-12)
+                            x_scale = (x_amax / 448.0).to(dtype=fp32_dtype, device=flat.device)
+                            x_q = (flat * (448.0 / x_amax)).clamp(-448.0, 448.0).to(fp8_dtype).contiguous()
+                    else:
+                        x_amax = flat.abs().amax().clamp(min=1e-12)
+                        x_scale = (x_amax / 448.0).to(dtype=fp32_dtype, device=flat.device)
+                        x_q = (flat * (448.0 / x_amax)).clamp(-448.0, 448.0).to(fp8_dtype).contiguous()
+
+                    is_fp16 = inp.dtype == fp16_dtype and fp16_dtype != bf16_dtype
+                    out_dtype = fp16_dtype if is_fp16 else bf16_dtype
+                    bias = bias_fp16 if is_fp16 else bias_bf16
                     out_2d = torch_mod._scaled_mm(
                         x_q,
                         w_t,
@@ -156,7 +245,8 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
                         out_dtype=out_dtype,
                         bias=bias,
                     )
-                    return out_2d.reshape(*inp.shape[:-1], lin.out_features).to(inp.dtype)
+                    out = out_2d.reshape(*inp.shape[:-1], lin.out_features)
+                    return out if out.dtype == inp.dtype else out.to(inp.dtype)
                 except Exception:  # noqa: BLE001
                     return base_fwd(inp)
 

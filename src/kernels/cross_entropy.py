@@ -123,6 +123,7 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
         lse = torch.empty((M,), dtype=torch.float32, device=logits.device)
 
         block_v = min(4096, max(128, triton.next_power_of_2(V)))
+        warps = 8 if block_v >= 2048 else 4
         _cross_entropy_fwd_kernel[(M,)](
             logits_2d,
             targets_1d,
@@ -132,35 +133,37 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
             V,
             ignore_index,
             BLOCK_V=block_v,
+            num_warps=warps,
         )
 
-        valid_mask = (targets_1d != ignore_index) & (targets_1d >= 0) & (targets_1d < V)
-        valid_count = int(valid_mask.sum().item())
+        valid_count_t: torch.Tensor | None = None
+        if reduction == "mean":
+            valid_mask = (targets_1d != ignore_index) & (targets_1d >= 0) & (targets_1d < V)
+            valid_count_t = valid_mask.sum().to(torch.float32).clamp(min=1.0)
 
-        ctx.save_for_backward(logits_2d, targets_1d, lse)
+        ctx.save_for_backward(logits_2d, targets_1d, lse, valid_count_t)
         ctx.ignore_index = ignore_index
         ctx.reduction = reduction
-        ctx.valid_count = valid_count
         ctx.block_v = block_v
+        ctx.num_warps = warps
 
         if reduction == "none":
             return losses
         if reduction == "sum":
             return losses.sum()
-        if valid_count == 0:
-            return logits_2d.new_zeros((), dtype=torch.float32)
-        return losses.sum() / valid_count
+        assert valid_count_t is not None
+        return losses.sum() / valid_count_t
 
     @staticmethod
     def backward(ctx: Any, grad_out: torch.Tensor) -> tuple[torch.Tensor, None, None, None]:
-        logits_2d, targets_1d, lse = ctx.saved_tensors
+        logits_2d, targets_1d, lse, valid_count_t = ctx.saved_tensors
         M, V = logits_2d.shape
         dx = torch.empty_like(logits_2d)
 
         is_scalar = ctx.reduction in ("mean", "sum")
         if ctx.reduction == "mean":
-            scale = 1.0 / max(1, ctx.valid_count) if ctx.valid_count > 0 else 0.0
-            grad_in = grad_out.float().reshape(()) * scale
+            assert valid_count_t is not None
+            grad_in = grad_out.float().reshape(()) / valid_count_t
         elif ctx.reduction == "sum":
             grad_in = grad_out.float().reshape(())
         else:
@@ -178,6 +181,7 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
             ctx.ignore_index,
             IS_SCALAR_GRAD=is_scalar,
             BLOCK_V=ctx.block_v,
+            num_warps=ctx.num_warps,
         )
         return dx, None, None, None
 

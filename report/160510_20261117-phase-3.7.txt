@@ -1,0 +1,296 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.7 EXPERIMENT REPORT: CUSTOM TRITON KERNELS, SCALING & DEEP DEBUG
+==============================================================================
+Timestamp          : 2026-11-17 16:05:10 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 090e98c
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Triton Installed   : True
+Unit Tests (Parity): pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Overall Experiment : PASS
+
+[MULTI-SCALE KERNEL MICRO-BENCHMARK (EAGER VS COMPILE VS CUSTOM TRITON)]
+------------------------------------------------------------------------------
+Kernel [Tier] (Shape)             | Eager ms (GB/s) | Compile ms (GB/s) | Triton ms (GB/s) | MaxAbsDiff
+----------------------------------+-----------------+-------------------+------------------+-----------
+RMSNorm [small] (512x256)         | 0.817 (1.2)     | 0.623 (1.6)       | 0.574 (1.7)      | 0.0       
+LayerNorm [small] (512x256)       | 0.255 (3.8)     | 0.668 (1.5)       | 0.754 (1.3)      | 0.000977  
+CrossEntropy [small] (512x2048)   | 0.279 (14.0)    | 0.609 (6.4)       | 0.71 (5.5)       | 0.0       
+SwiGLU [small] (512x1024)         | 0.378 (15.5)    | 0.663 (8.8)       | 0.523 (11.2)     | 0.0625    
+RMSNorm [medium] (2048x768)       | 0.824 (14.2)    | 0.725 (16.2)      | 0.662 (17.7)     | 0.007812  
+LayerNorm [medium] (2048x768)     | 0.4 (29.3)      | 0.698 (16.8)      | 0.681 (17.2)     | 0.015625  
+CrossEntropy [medium] (2048x2048) | 0.328 (47.7)    | 0.567 (27.6)      | 0.65 (24.0)      | 1e-06     
+SwiGLU [medium] (2048x3072)       | 0.636 (110.6)   | 0.696 (101.0)     | 0.695 (101.1)    | 0.0625    
+RMSNorm [large] (8192x1025)       | 4.339 (14.4)    | 0.675 (92.7)      | 0.601 (104.1)    | 0.007812  
+LayerNorm [large] (8192x1025)     | 0.654 (95.6)    | 0.755 (82.8)      | 0.734 (85.3)     | 0.007812  
+CrossEntropy [large] (8192x8192)  | 11.936 (20.9)   | 3.374 (74.1)      | 3.751 (66.7)     | 0.0       
+SwiGLU [large] (8192x4100)        | 5.417 (69.3)    | 4.532 (82.8)      | 4.578 (82.0)     | 0.0625    
+
+[END-TO-END TRANSFORMER_LM SCALING (SMALL VS MEDIUM VS LARGE)]
+------------------------------------------------------------------------------
+Workload           | Variant              | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d)         | MaxRelDiff | Status
+-------------------+----------------------+---------+---------+----------+---------+-------------------------+------------+-------
+transformer:small  | 3.7a_kernels_eager   | 11.80   | 12.62   | 12.88    | 0.94x   | 355.3/199.3 (-156.0)    | 9e-06      | PASS  
+transformer:small  | 3.7b_compile_only    | 11.80   | 5.70    | 6.57     | 2.07x   | 355.3/233.4 (-121.9)    | 7e-06      | PASS  
+transformer:small  | 3.7c_aggressive_full | 11.80   | 6.67    | 6.92     | 1.77x   | 355.3/194.7 (-160.6)    | 8e-06      | PASS  
+transformer:medium | 3.7a_kernels_eager   | 99.62   | 26.46   | 26.91    | 3.77x   | 1734.8/992.9 (-742.0)   | 1e-05      | PASS  
+transformer:medium | 3.7b_compile_only    | 99.62   | 26.44   | 26.81    | 3.77x   | 1734.8/1033.4 (-701.5)  | 7e-06      | PASS  
+transformer:medium | 3.7c_aggressive_full | 99.62   | 27.12   | 27.51    | 3.67x   | 1734.8/972.2 (-762.6)   | 9e-06      | PASS  
+transformer:large  | 3.7a_kernels_eager   | 794.01  | 192.59  | 199.40   | 4.12x   | 9174.4/5048.9 (-4125.5) | 2.7e-05    | PASS  
+transformer:large  | 3.7b_compile_only    | 794.01  | 182.13  | 189.09   | 4.36x   | 9174.4/5006.9 (-4167.4) | 2.4e-05    | PASS  
+transformer:large  | 3.7c_aggressive_full | 794.01  | 194.39  | 201.12   | 4.08x   | 9174.4/4909.4 (-4265.0) | 2.2e-05    | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Scale | Mode              | Step0 ms | Steady ms | Data/Other  | Forward        | Loss/Clip   | Backward       | Optim       
+------+-------------------+----------+-----------+-------------+----------------+-------------+----------------+-------------
+small | baseline_dbg      | 1649.70  | 17.72     | 0.44 (2.5%) | 5.22 (29.5%)   | 0.38 (2.1%) | 10.13 (57.1%)  | 1.56 (8.8%) 
+small | kernels_eager_dbg | 3130.91  | 18.84     | 0.51 (2.7%) | 6.52 (34.6%)   | 0.80 (4.2%) | 10.05 (53.4%)  | 0.96 (5.1%) 
+small | compile_only_dbg  | 5902.63  | 10.75     | 0.52 (4.8%) | 3.55 (33.0%)   | 0.46 (4.2%) | 5.25 (48.8%)   | 0.97 (9.1%) 
+large | baseline_dbg      | 3257.08  | 791.76    | 0.79 (0.1%) | 262.47 (33.1%) | 1.09 (0.1%) | 486.73 (61.5%) | 40.68 (5.1%)
+large | kernels_eager_dbg | 4213.18  | 191.43    | 0.90 (0.5%) | 56.34 (29.4%)  | 1.30 (0.7%) | 117.87 (61.6%) | 15.01 (7.8%)
+large | compile_only_dbg  | 8883.07  | 179.63    | 0.92 (0.5%) | 51.96 (28.9%)  | 1.55 (0.9%) | 110.20 (61.3%) | 15.00 (8.3%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Scale | Mode              | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+------+-------------------+----------+---------+-----------+----------+--------+--------
+small | baseline_dbg      | 355.3    | 402.0   | 46.7      | 22161.1  | 1.8%   | 0      
+small | kernels_eager_dbg | 199.3    | 218.0   | 18.7      | 22345.1  | 1.0%   | 0      
+small | compile_only_dbg  | 233.4    | 256.0   | 22.6      | 22307.1  | 1.1%   | 0      
+large | baseline_dbg      | 9174.4   | 9348.0  | 173.6     | 13215.1  | 41.4%  | 0      
+large | kernels_eager_dbg | 5048.9   | 5128.0  | 79.1      | 17435.1  | 22.7%  | 0      
+large | compile_only_dbg  | 5006.9   | 5068.0  | 61.1      | 17495.1  | 22.5%  | 0      
+
+[AUTOMATED KERNEL VS COMPILE DIAGNOSIS]
+------------------------------------------------------------------------------
+- transformer_lm [large]: base=794.01ms | kernels_eager=192.59ms (4.12x) | compile_only=182.13ms (4.36x) | aggressive_full=194.39ms (4.08x) -> BEST=compile_only (4.36x)
+- transformer_lm [medium]: base=99.62ms | kernels_eager=26.46ms (3.77x) | compile_only=26.44ms (3.77x) | aggressive_full=27.12ms (3.67x) -> BEST=compile_only (3.77x)
+- transformer_lm [small]: base=11.80ms | kernels_eager=12.62ms (0.94x) | compile_only=5.70ms (2.07x) | aggressive_full=6.67ms (1.77x) -> BEST=compile_only (2.07x)
+- Micro-benchmark pairs evaluated: 12 across RMSNorm/LayerNorm/CrossEntropy/SwiGLU
+
+[TOP PYTORCH PROFILER OPS (BASELINE VS KERNELS VS COMPILE)]
+------------------------------------------------------------------------------
+[small | baseline_dbg] Profiler window=[2, 5] self_cuda=57.726ms self_cpu=55.812ms (top_cuda_ops):
+  aten::mm                                         calls=189   self= 15.119ms (26.2%) total= 15.119ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=63    self=  4.241ms ( 7.3%) total=  4.241ms
+  ampere_sgemm_128x64_tn                           calls=51    self=  3.975ms ( 6.9%) total=  3.975ms
+  ampere_sgemm_128x64_nn                           calls=39    self=  3.934ms ( 6.8%) total=  3.934ms
+  Optimizer.step#AdamW.step                        calls=3     self=  3.596ms ( 6.2%) total=  3.596ms
+  aten::mul                                        calls=318   self=  3.348ms ( 5.8%) total=  3.348ms
+  void at::native::vectorized_elementwise_kernel<4 calls=156   self=  2.638ms ( 4.6%) total=  2.638ms
+  ampere_sgemm_64x64_tn                            calls=12    self=  1.361ms ( 2.4%) total=  1.361ms
+[small | kernels_eager_dbg] Profiler window=[2, 5] self_cuda=20.946ms self_cpu=59.479ms (top_cuda_ops):
+  aten::mm                                         calls=189   self=  3.728ms (17.8%) total=  3.728ms
+  Optimizer.step#AdamW.step                        calls=3     self=  2.120ms (10.1%) total=  2.120ms
+  aten::_fused_adamw_                              calls=3     self=  1.866ms ( 8.9%) total=  1.866ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  1.866ms ( 8.9%) total=  1.866ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=51    self=  0.997ms ( 4.8%) total=  0.997ms
+  aten::copy_                                      calls=243   self=  0.960ms ( 4.6%) total=  0.960ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=27    self=  0.611ms ( 2.9%) total=  0.611ms
+  void at::native::vectorized_elementwise_kernel<4 calls=126   self=  0.571ms ( 2.7%) total=  0.571ms
+[small | compile_only_dbg] Profiler window=[2, 5] self_cuda=20.978ms self_cpu=41.932ms (top_cuda_ops):
+  aten::mm                                         calls=189   self=  3.788ms (18.1%) total=  3.788ms
+  Optimizer.step#AdamW.step                        calls=3     self=  2.059ms ( 9.8%) total=  2.059ms
+  aten::_fused_adamw_                              calls=3     self=  1.834ms ( 8.7%) total=  1.834ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  1.834ms ( 8.7%) total=  1.834ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=51    self=  1.000ms ( 4.8%) total=  1.000ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=12    self=  0.618ms ( 2.9%) total=  0.618ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=12    self=  0.618ms ( 2.9%) total=  0.618ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=27    self=  0.608ms ( 2.9%) total=  0.608ms
+[large | baseline_dbg] Profiler window=[2, 5] self_cuda=4853.21ms self_cpu=2354.934ms (top_cuda_ops):
+  aten::mm                                         calls=549   self=1577.924ms (32.5%) total=1577.924ms
+  ampere_sgemm_128x64_tn                           calls=183   self=622.374ms (12.8%) total=622.374ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_256x calls=147   self=465.054ms ( 9.6%) total=465.054ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=183   self=455.629ms ( 9.4%) total=455.629ms
+  aten::mul                                        calls=894   self=256.670ms ( 5.3%) total=256.670ms
+  void at::native::vectorized_elementwise_kernel<4 calls=444   self=209.113ms ( 4.3%) total=209.113ms
+  aten::_efficient_attention_backward              calls=36    self=133.057ms ( 2.7%) total=146.703ms
+  fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch calls=36    self=133.057ms ( 2.7%) total=133.057ms
+[large | kernels_eager_dbg] Profiler window=[2, 5] self_cuda=1165.0ms self_cpu=551.829ms (top_cuda_ops):
+  aten::mm                                         calls=549   self=296.908ms (25.5%) total=296.908ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=183   self=103.590ms ( 8.9%) total=103.590ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta calls=108   self= 73.102ms ( 6.3%) total= 73.102ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=147   self= 69.982ms ( 6.0%) total= 69.982ms
+  Optimizer.step#AdamW.step                        calls=3     self= 42.921ms ( 3.7%) total= 42.921ms
+  aten::_fused_adamw_                              calls=3     self= 42.469ms ( 3.6%) total= 42.469ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 42.469ms ( 3.6%) total= 42.469ms
+  aten::copy_                                      calls=675   self= 39.554ms ( 3.4%) total= 39.554ms
+[large | compile_only_dbg] Profiler window=[2, 5] self_cuda=1097.327ms self_cpu=540.478ms (top_cuda_ops):
+  aten::mm                                         calls=549   self=303.882ms (27.7%) total=303.882ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=183   self=106.089ms ( 9.7%) total=106.089ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta calls=108   self= 75.012ms ( 6.8%) total= 75.012ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=147   self= 71.254ms ( 6.5%) total= 71.254ms
+  Optimizer.step#AdamW.step                        calls=3     self= 42.739ms ( 3.9%) total= 42.739ms
+  aten::_fused_adamw_                              calls=3     self= 42.288ms ( 3.9%) total= 42.288ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 42.288ms ( 3.9%) total= 42.288ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=36    self= 38.855ms ( 3.5%) total= 38.855ms
+
+[KERNEL CAPABILITY GATE & HOOK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] small (3.7a_kernels_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] small (3.7a_kernels_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] small (3.7a_kernels_eager) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] small (3.7a_kernels_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] small (3.7a_kernels_eager) -> compile.auto: compile.enabled is False
+[APPLIED] small (3.7a_kernels_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] small (3.7a_kernels_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] small (3.7a_kernels_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] small (3.7a_kernels_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] small (3.7a_kernels_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] small (3.7a_kernels_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] small (3.7a_kernels_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] small (3.7a_kernels_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] small (3.7a_kernels_eager) -> optimizer.AdamW: fused=True
+[APPLIED] small (3.7a_kernels_eager) -> kernels.patch: Patched 13 submodules in TinyGPT with custom Triton kernels
+[APPLIED] small (3.7b_compile_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] small (3.7b_compile_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] small (3.7b_compile_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] small (3.7b_compile_only) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] small (3.7b_compile_only) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/small)
+[APPLIED] small (3.7b_compile_only) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] small (3.7b_compile_only) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] small (3.7b_compile_only) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] small (3.7b_compile_only) -> kernels.auto: kernels.enabled is False
+[APPLIED] small (3.7b_compile_only) -> optimizer.AdamW: fused=True
+[APPLIED] small (3.7b_compile_only) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] small (3.7c_aggressive_full) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] small (3.7c_aggressive_full) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] small (3.7c_aggressive_full) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] small (3.7c_aggressive_full) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] small (3.7c_aggressive_full) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/small)
+[APPLIED] small (3.7c_aggressive_full) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] small (3.7c_aggressive_full) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] small (3.7c_aggressive_full) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] small (3.7c_aggressive_full) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] small (3.7c_aggressive_full) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] small (3.7c_aggressive_full) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] small (3.7c_aggressive_full) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] small (3.7c_aggressive_full) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] small (3.7c_aggressive_full) -> optimizer.AdamW: fused=True
+[APPLIED] small (3.7c_aggressive_full) -> kernels.patch: Patched 13 submodules in TinyGPT with custom Triton kernels
+[APPLIED] small (3.7c_aggressive_full) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] medium (3.7a_kernels_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] medium (3.7a_kernels_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] medium (3.7a_kernels_eager) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] medium (3.7a_kernels_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] medium (3.7a_kernels_eager) -> compile.auto: compile.enabled is False
+[APPLIED] medium (3.7a_kernels_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] medium (3.7a_kernels_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] medium (3.7a_kernels_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] medium (3.7a_kernels_eager) -> optimizer.AdamW: fused=True
+[APPLIED] medium (3.7a_kernels_eager) -> kernels.patch: Patched 19 submodules in TinyGPT with custom Triton kernels
+[APPLIED] medium (3.7b_compile_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] medium (3.7b_compile_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] medium (3.7b_compile_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] medium (3.7b_compile_only) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] medium (3.7b_compile_only) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/medium)
+[APPLIED] medium (3.7b_compile_only) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] medium (3.7b_compile_only) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] medium (3.7b_compile_only) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] medium (3.7b_compile_only) -> kernels.auto: kernels.enabled is False
+[APPLIED] medium (3.7b_compile_only) -> optimizer.AdamW: fused=True
+[APPLIED] medium (3.7b_compile_only) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] medium (3.7c_aggressive_full) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] medium (3.7c_aggressive_full) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] medium (3.7c_aggressive_full) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] medium (3.7c_aggressive_full) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] medium (3.7c_aggressive_full) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/medium)
+[APPLIED] medium (3.7c_aggressive_full) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] medium (3.7c_aggressive_full) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] medium (3.7c_aggressive_full) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] medium (3.7c_aggressive_full) -> optimizer.AdamW: fused=True
+[APPLIED] medium (3.7c_aggressive_full) -> kernels.patch: Patched 19 submodules in TinyGPT with custom Triton kernels
+[APPLIED] medium (3.7c_aggressive_full) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] large (3.7a_kernels_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] large (3.7a_kernels_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] large (3.7a_kernels_eager) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] large (3.7a_kernels_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] large (3.7a_kernels_eager) -> compile.auto: compile.enabled is False
+[APPLIED] large (3.7a_kernels_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] large (3.7a_kernels_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] large (3.7a_kernels_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] large (3.7a_kernels_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] large (3.7a_kernels_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] large (3.7a_kernels_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] large (3.7a_kernels_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] large (3.7a_kernels_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] large (3.7a_kernels_eager) -> optimizer.AdamW: fused=True
+[APPLIED] large (3.7a_kernels_eager) -> kernels.patch: Patched 37 submodules in TinyGPT with custom Triton kernels
+[APPLIED] large (3.7b_compile_only) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] large (3.7b_compile_only) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] large (3.7b_compile_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] large (3.7b_compile_only) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] large (3.7b_compile_only) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/large)
+[APPLIED] large (3.7b_compile_only) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] large (3.7b_compile_only) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] large (3.7b_compile_only) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] large (3.7b_compile_only) -> kernels.auto: kernels.enabled is False
+[APPLIED] large (3.7b_compile_only) -> optimizer.AdamW: fused=True
+[APPLIED] large (3.7b_compile_only) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] large (3.7c_aggressive_full) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] large (3.7c_aggressive_full) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[SKIPPED] large (3.7c_aggressive_full) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] large (3.7c_aggressive_full) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] large (3.7c_aggressive_full) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpqu82xcrt/large)
+[APPLIED] large (3.7c_aggressive_full) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] large (3.7c_aggressive_full) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] large (3.7c_aggressive_full) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] large (3.7c_aggressive_full) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] large (3.7c_aggressive_full) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] large (3.7c_aggressive_full) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] large (3.7c_aggressive_full) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] large (3.7c_aggressive_full) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu
+[APPLIED] large (3.7c_aggressive_full) -> optimizer.AdamW: fused=True
+[APPLIED] large (3.7c_aggressive_full) -> kernels.patch: Patched 37 submodules in TinyGPT with custom Triton kernels
+[APPLIED] large (3.7c_aggressive_full) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 1 item
+
+tests/migrate/test_phase3_7_kernels.py::TestPhase37KernelsMigration::test_transformer_lm_aggressive_kernels_and_checkpoint_cross_load PASSED [100%]
+
+============================== 1 passed in 33.67s ==============================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 6 items
+
+tests/unit/test_kernels_parity.py::TestKernelCapabilityGate::test_cpu_t4_and_missing_triton_fall_back_cleanly PASSED [ 16%]
+tests/unit/test_kernels_parity.py::TestKernelCapabilityGate::test_install_fallback_registry_logs_skips_when_unsupported PASSED [ 33%]
+tests/unit/test_kernels_parity.py::TestKernelsForwardBackwardParity::test_cross_entropy_forward_backward_parity PASSED [ 50%]
+tests/unit/test_kernels_parity.py::TestKernelsForwardBackwardParity::test_layernorm_forward_backward_parity PASSED [ 66%]
+tests/unit/test_kernels_parity.py::TestKernelsForwardBackwardParity::test_rmsnorm_forward_backward_parity PASSED [ 83%]
+tests/unit/test_kernels_parity.py::TestKernelsForwardBackwardParity::test_swiglu_forward_backward_parity PASSED [100%]
+
+============================== 6 passed in 4.51s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Small/Medium/Large Triton kernel micro-benchmarks, phase breakdowns, and Top CUDA Ops on Google Colab before finalizing Phase 3)
+==============================================================================

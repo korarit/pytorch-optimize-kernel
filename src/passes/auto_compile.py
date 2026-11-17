@@ -66,9 +66,13 @@ def _configure_cache_and_dynamo(cfg: OptimizeConfig, torch_mod: Any, strict: boo
         try:
             cache_path = Path(cfg.compile.cache_dir).expanduser().resolve()
             cache_path.mkdir(parents=True, exist_ok=True)
+            triton_path = cache_path / "triton"
+            triton_path.mkdir(parents=True, exist_ok=True)
             cache_resolved = str(cache_path)
             os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", cache_resolved)
             os.environ.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
+            os.environ.setdefault("TORCHINDUCTOR_AUTOGRAD_CACHE", "1")
+            os.environ.setdefault("TRITON_CACHE_DIR", str(triton_path))
         except Exception:  # noqa: BLE001
             cache_resolved = None
 

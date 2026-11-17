@@ -181,6 +181,33 @@ class TestDataLoaderTuningPass(unittest.TestCase):
             uninstall_dataloader_hook(torch)
             mgr.reset()
 
+    def test_pinned_tensor_to_cuda_promotes_non_blocking_when_omitted(self) -> None:
+        from unittest.mock import patch
+
+        cfg = self._tuned_cfg(num_workers=2)
+        mgr = HookManager()
+        seen_calls: list[dict[str, object]] = []
+        orig_to = torch.Tensor.to
+
+        def _spy_to(self_t: torch.Tensor, *args: object, **kwargs: object) -> torch.Tensor:
+            seen_calls.append({"args": args, "kwargs": dict(kwargs)})
+            return self_t
+
+        with patch.object(torch.cuda, "is_available", return_value=True):
+            with patch.object(torch.Tensor, "to", _spy_to):
+                install_dataloader_hook(cfg, mgr, torch, shm_probe_fn=lambda: 16384.0)
+                try:
+                    t_pinned = torch.randn(4)
+                    with patch.object(torch.Tensor, "is_pinned", return_value=True):
+                        t_pinned.to("cuda")
+                        t_pinned.to("cuda", non_blocking=False)
+                finally:
+                    uninstall_dataloader_hook(torch)
+                    mgr.reset()
+        self.assertEqual(torch.Tensor.to, orig_to)
+        self.assertEqual(seen_calls[0]["kwargs"].get("non_blocking"), True)
+        self.assertEqual(seen_calls[1]["kwargs"].get("non_blocking"), False)
+
 
 if __name__ == "__main__":
     unittest.main()

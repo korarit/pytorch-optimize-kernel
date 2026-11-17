@@ -125,6 +125,14 @@ if HAS_TRITON:
             tl.store(PartialDB_ptr + pid * stride_db + cols, db_acc, mask=mask)
 
 
+def _select_num_warps(block_n: int) -> int:
+    if block_n <= 1024:
+        return 4
+    if block_n <= 4096:
+        return 8
+    return 16
+
+
 class _TritonLayerNormFn(torch.autograd.Function):
     @staticmethod
     def forward(
@@ -145,6 +153,7 @@ class _TritonLayerNormFn(torch.autograd.Function):
         has_w = weight is not None
         has_b = bias is not None
         block_n = triton.next_power_of_2(N)
+        warps = _select_num_warps(block_n)
 
         _layernorm_fwd_kernel[(M,)](
             x_2d,
@@ -160,10 +169,12 @@ class _TritonLayerNormFn(torch.autograd.Function):
             HAS_WEIGHT=has_w,
             HAS_BIAS=has_b,
             BLOCK_N=block_n,
+            num_warps=warps,
         )
         ctx.save_for_backward(x_2d, weight, bias, mean, rstd)
         ctx.orig_shape = orig_shape
         ctx.block_n = block_n
+        ctx.num_warps = warps
         ctx.has_w = has_w
         ctx.has_b = has_b
         return y_2d.reshape(orig_shape)
@@ -175,7 +186,7 @@ class _TritonLayerNormFn(torch.autograd.Function):
         dy_2d = dy.reshape(M, N).contiguous()
         dx_2d = torch.empty_like(x_2d)
 
-        num_workers = min(M, 128)
+        num_workers = min(M, 256)
         partial_dw = torch.empty((num_workers, N), dtype=torch.float32, device=x_2d.device) if ctx.has_w else dx_2d
         partial_db = torch.empty((num_workers, N), dtype=torch.float32, device=x_2d.device) if ctx.has_b else dx_2d
 
@@ -199,6 +210,7 @@ class _TritonLayerNormFn(torch.autograd.Function):
             HAS_WEIGHT=ctx.has_w,
             HAS_BIAS=ctx.has_b,
             BLOCK_N=ctx.block_n,
+            num_warps=ctx.num_warps,
         )
         dw = partial_dw.sum(dim=0).to(weight.dtype) if (ctx.has_w and weight is not None) else None
         db = partial_db.sum(dim=0).to(bias.dtype) if (ctx.has_b and bias is not None) else None

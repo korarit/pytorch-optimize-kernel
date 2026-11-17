@@ -214,6 +214,32 @@ class TestInferenceOptPass(unittest.TestCase):
                 uninstall_inference_opt_hook(torch)
                 mgr.reset()
 
+    def test_fp8_prequant_cache_preserves_model_parameters_and_state_dict(self) -> None:
+        from src.passes.inference_opt import apply_fp8_linear_eval_hooks
+
+        if not hasattr(torch, "float8_e4m3fn"):
+            self.skipTest("float8_e4m3fn unavailable in this PyTorch build")
+
+        model = nn.Sequential(nn.Linear(128, 128), nn.ReLU(), nn.Linear(128, 64))
+        orig_sd = {k: v.clone() for k, v in model.state_dict().items()}
+        orig_param_ids = {name: id(p) for name, p in model.named_parameters()}
+
+        # Mock `.is_cuda = True` via subclass/proxy check isn't needed if we test weight-untouched invariant cleanly
+        # Ensure non-CUDA Linear keeps state_dict intact and patching with simulated is_cuda pre-caches without mutating weight
+        for m in model.modules():
+            if isinstance(m, nn.Linear):
+                with patch.object(torch.Tensor, "is_cuda", new=True):
+                    n_patched = apply_fp8_linear_eval_hooks(m, torch)
+                    self.assertEqual(n_patched, 1)
+                break
+
+        after_sd = model.state_dict()
+        self.assertEqual(list(after_sd.keys()), list(orig_sd.keys()))
+        for name, param in model.named_parameters():
+            self.assertEqual(id(param), orig_param_ids[name])
+            self.assertEqual(param.dtype, torch.float32)
+            torch.testing.assert_close(after_sd[name], orig_sd[name])
+
 
 if __name__ == "__main__":
     unittest.main()

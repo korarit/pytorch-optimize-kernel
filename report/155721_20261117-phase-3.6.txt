@@ -1,0 +1,511 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.6 EXPERIMENT REPORT: INFERENCE / RUNNING OPTIMIZATION
+==============================================================================
+Timestamp          : 2026-11-17 15:57:21 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 090e98c
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Unit Tests         : pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Overall Experiment : PASS
+
+[INFERENCE LATENCY (BS=1) & THROUGHPUT (BS=64) ABLATION]
+------------------------------------------------------------------------------
+Case              | Variant                | Step0 ms | Med ms | P95 ms | P99 ms | Steady Samp/s | E2E s  | Speedup | VRAM MB (d)     | MaxRelDiff | Status
+------------------+------------------------+----------+--------+--------+--------+---------------+--------+---------+-----------------+------------+-------
+infer_bs1_small   | baseline               | 133.8    | 1.52   | 1.56   | 1.56   | 659.2         | 2.70s  | 1.00x   | 21.0 (+0.0)     | 0.0        | BASE  
+infer_bs1_small   | 3.6a_inference_mode    | 133.8    | 1.49   | 1.54   | 1.71   | 670.2         | 4.98s  | 1.02x   | 21.0 (+0.0)     | 0.0        | PASS  
+infer_bs1_small   | 3.6b_infer_amp_compile | 4793.6   | 1.59   | 1.64   | 2.06   | 628.1         | 14.74s | 0.95x   | 21.2 (+0.2)     | 0.004569   | PASS  
+infer_bs1_small   | 3.6c_cuda_graphs       | 4723.9   | 0.48   | 0.51   | 0.68   | 2087.7        | 15.13s | 3.17x   | 21.2 (+0.2)     | 0.004569   | PASS  
+infer_bs1_small   | 3.6d_fp8_sm89          | 220.4    | 2.81   | 3.60   | 3.78   | 355.5         | 5.19s  | 0.54x   | 21.3 (+0.3)     | 0.00429    | PASS  
+infer_bs1_medium  | baseline               | 136.1    | 2.96   | 3.13   | 3.16   | 338.4         | 2.82s  | 1.00x   | 108.6 (+0.0)    | 0.0        | BASE  
+infer_bs1_medium  | 3.6a_inference_mode    | 136.0    | 2.89   | 2.95   | 3.54   | 345.7         | 5.17s  | 1.02x   | 107.6 (-1.0)    | 0.0        | PASS  
+infer_bs1_medium  | 3.6b_infer_amp_compile | 5554.4   | 2.68   | 2.73   | 2.98   | 373.4         | 15.66s | 1.10x   | 108.5 (-0.1)    | 0.003911   | PASS  
+infer_bs1_medium  | 3.6c_cuda_graphs       | 5783.8   | 1.26   | 1.28   | 1.52   | 792.4         | 15.92s | 2.34x   | 108.5 (-0.1)    | 0.003911   | PASS  
+infer_bs1_medium  | 3.6d_fp8_sm89          | 221.1    | 5.36   | 5.41   | 5.65   | 186.7         | 5.27s  | 0.55x   | 108.9 (+0.2)    | 0.003647   | PASS  
+infer_bs1_large   | baseline               | 125.0    | 7.08   | 7.13   | 7.13   | 141.3         | 3.03s  | 1.00x   | 341.6 (+0.0)    | 0.0        | BASE  
+infer_bs1_large   | 3.6a_inference_mode    | 122.2    | 6.82   | 6.94   | 7.29   | 146.7         | 5.23s  | 1.04x   | 341.6 (+0.0)    | 0.0        | PASS  
+infer_bs1_large   | 3.6b_infer_amp_compile | 6526.4   | 3.96   | 5.35   | 5.83   | 252.5         | 16.69s | 1.79x   | 342.8 (+1.1)    | 0.002635   | PASS  
+infer_bs1_large   | 3.6c_cuda_graphs       | 6391.2   | 3.03   | 3.05   | 3.54   | 329.8         | 16.30s | 2.33x   | 342.8 (+1.1)    | 0.002635   | PASS  
+infer_bs1_large   | 3.6d_fp8_sm89          | 221.2    | 7.71   | 9.79   | 10.39  | 129.7         | 5.41s  | 0.92x   | 343.9 (+2.2)    | 0.002643   | PASS  
+infer_bs64_small  | baseline               | 141.3    | 4.30   | 4.51   | 4.52   | 14873.3       | 2.86s  | 1.00x   | 56.5 (+0.0)     | 0.0        | BASE  
+infer_bs64_small  | 3.6a_inference_mode    | 139.0    | 3.35   | 3.45   | 4.55   | 19098.8       | 4.98s  | 1.28x   | 56.5 (+0.0)     | 0.0        | PASS  
+infer_bs64_small  | 3.6b_infer_amp_compile | 4668.0   | 1.60   | 1.63   | 2.79   | 40100.3       | 14.61s | 2.70x   | 41.0 (-15.5)    | 0.000533   | PASS  
+infer_bs64_small  | 3.6c_cuda_graphs       | 4674.0   | 1.25   | 1.26   | 2.43   | 51282.1       | 14.53s | 3.45x   | 41.0 (-15.5)    | 0.000533   | PASS  
+infer_bs64_small  | 3.6d_fp8_sm89          | 252.3    | 4.73   | 4.79   | 5.93   | 13542.1       | 5.19s  | 0.91x   | 86.5 (+30.1)    | 0.003115   | PASS  
+infer_bs64_medium | baseline               | 159.9    | 44.71  | 46.52  | 47.90  | 1431.4        | 4.40s  | 1.00x   | 227.2 (+0.0)    | 0.0        | BASE  
+infer_bs64_medium | 3.6a_inference_mode    | 158.8    | 40.86  | 43.05  | 47.94  | 1566.5        | 6.56s  | 1.09x   | 225.3 (-1.9)    | 0.0        | PASS  
+infer_bs64_medium | 3.6b_infer_amp_compile | 5156.8   | 12.31  | 12.65  | 16.45  | 5199.0        | 15.22s | 3.63x   | 163.3 (-63.9)   | 0.000601   | PASS  
+infer_bs64_medium | 3.6c_cuda_graphs       | 5150.1   | 12.24  | 12.49  | 16.32  | 5229.2        | 15.31s | 3.65x   | 163.3 (-63.9)   | 0.000601   | PASS  
+infer_bs64_medium | 3.6d_fp8_sm89          | 276.4    | 30.41  | 30.66  | 34.55  | 2104.8        | 6.43s  | 1.47x   | 349.6 (+122.4)  | 0.003292   | PASS  
+infer_bs64_large  | baseline               | 472.9    | 373.97 | 376.48 | 376.87 | 171.1         | 12.03s | 1.00x   | 766.9 (+0.0)    | 0.0        | BASE  
+infer_bs64_large  | 3.6a_inference_mode    | 471.5    | 364.49 | 367.29 | 378.76 | 175.6         | 14.26s | 1.03x   | 766.9 (+0.0)    | 0.0        | PASS  
+infer_bs64_large  | 3.6b_infer_amp_compile | 6431.6   | 90.78  | 92.84  | 104.09 | 705.0         | 17.66s | 4.12x   | 579.4 (-187.5)  | 0.00041    | PASS  
+infer_bs64_large  | 3.6c_cuda_graphs       | 6413.4   | 90.87  | 93.19  | 104.40 | 704.3         | 17.70s | 4.12x   | 579.4 (-187.5)  | 0.00041    | PASS  
+infer_bs64_large  | 3.6d_fp8_sm89          | 478.5    | 227.88 | 228.43 | 239.51 | 280.9         | 11.66s | 1.64x   | 1157.5 (+390.6) | 0.006758   | PASS  
+
+[DEEP DEBUG: INFERENCE PHASE BREAKDOWN & LATENCY JITTER]
+------------------------------------------------------------------------------
+Case             | Mode            | Step0 ms | Steady ms | Min/Max/Std        | Host/Data (%) | Model Fwd (%) 
+-----------------+-----------------+----------+-----------+--------------------+---------------+---------------
+infer_bs1_small  | baseline_dbg    | 287.35   | 8.65      | 1.54/5.84/1.17     | 6.02 (69.6%)  | 2.63 (30.4%)  
+infer_bs1_small  | cuda_graphs_dbg | 5894.28  | 12.23     | 0.58/3.19/0.74     | 7.67 (62.7%)  | 4.56 (37.3%)  
+infer_bs1_small  | fp8_sm89_dbg    | 373.31   | 10.74     | 3.33/8.39/1.46     | 6.09 (56.8%)  | 4.64 (43.2%)  
+infer_bs1_large  | baseline_dbg    | 485.52   | 13.27     | 5.48/10.84/1.70    | 6.27 (47.2%)  | 7.00 (52.8%)  
+infer_bs1_large  | cuda_graphs_dbg | 7837.44  | 15.76     | 3.12/5.95/0.78     | 8.13 (51.6%)  | 7.63 (48.4%)  
+infer_bs1_large  | fp8_sm89_dbg    | 587.83   | 18.57     | 7.97/17.70/3.09    | 6.32 (34.0%)  | 12.25 (66.0%) 
+infer_bs64_large | baseline_dbg    | 1959.14  | 377.75    | 351.87/367.77/4.69 | 16.91 (4.5%)  | 360.83 (95.5%)
+infer_bs64_large | cuda_graphs_dbg | 8958.13  | 112.87    | 86.35/92.18/1.55   | 18.69 (16.6%) | 94.18 (83.4%) 
+infer_bs64_large | fp8_sm89_dbg    | 1961.43  | 244.98    | 227.54/229.92/0.69 | 17.00 (6.9%)  | 227.98 (93.1%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Case             | Mode            | Alloc MB | Resv MB | Ovhead MB | Headroom MB | Util % | Retries
+-----------------+-----------------+----------+---------+-----------+-------------+--------+--------
+infer_bs1_small  | baseline_dbg    | 21.0     | 34.0    | 13.0      | 22529.1     | 0.1%   | 0      
+infer_bs1_small  | cuda_graphs_dbg | 21.2     | 36.0    | 14.8      | 22527.1     | 0.2%   | 0      
+infer_bs1_small  | fp8_sm89_dbg    | 21.3     | 34.0    | 12.7      | 22529.1     | 0.1%   | 0      
+infer_bs1_large  | baseline_dbg    | 341.6    | 346.0   | 4.4       | 22217.1     | 1.5%   | 0      
+infer_bs1_large  | cuda_graphs_dbg | 342.8    | 366.0   | 23.2      | 22197.1     | 1.6%   | 0      
+infer_bs1_large  | fp8_sm89_dbg    | 343.9    | 366.0   | 22.1      | 22197.1     | 1.6%   | 0      
+infer_bs64_large | baseline_dbg    | 766.9    | 822.0   | 55.1      | 21741.1     | 3.6%   | 0      
+infer_bs64_large | cuda_graphs_dbg | 579.4    | 684.0   | 104.6     | 21879.1     | 3.0%   | 0      
+infer_bs64_large | fp8_sm89_dbg    | 1157.5   | 1442.0  | 284.5     | 21121.1     | 6.4%   | 0      
+
+[AUTOMATED INFERENCE DIAGNOSIS]
+------------------------------------------------------------------------------
+- infer_bs1_large: base=7.08ms | inference_mode=6.82ms (1.04x) | amp+compile=3.96ms (1.79x) | cuda_graphs=3.03ms (2.33x) | fp8_sm89=7.71ms (0.92x) -> LAUNCH_BOUND: CUDA Graphs eliminated Python/kernel dispatch overhead
+- infer_bs1_medium: base=2.96ms | inference_mode=2.89ms (1.02x) | amp+compile=2.68ms (1.10x) | cuda_graphs=1.26ms (2.34x) | fp8_sm89=5.36ms (0.55x) -> LAUNCH_BOUND: CUDA Graphs eliminated Python/kernel dispatch overhead
+- infer_bs1_small: base=1.52ms | inference_mode=1.49ms (1.02x) | amp+compile=1.59ms (0.95x) | cuda_graphs=0.48ms (3.17x) | fp8_sm89=2.81ms (0.54x) -> LAUNCH_BOUND: CUDA Graphs eliminated Python/kernel dispatch overhead
+- infer_bs64_large: base=373.97ms | inference_mode=364.49ms (1.03x) | amp+compile=90.78ms (4.12x) | cuda_graphs=90.87ms (4.12x) | fp8_sm89=227.88ms (1.64x) -> COMPUTE_BOUND: BF16 + Inductor compile dominated throughput & cut VRAM
+- infer_bs64_medium: base=44.71ms | inference_mode=40.86ms (1.09x) | amp+compile=12.31ms (3.63x) | cuda_graphs=12.24ms (3.65x) | fp8_sm89=30.41ms (1.47x) -> COMPUTE_BOUND: BF16 + Inductor compile dominated throughput & cut VRAM
+- infer_bs64_small: base=4.30ms | inference_mode=3.35ms (1.28x) | amp+compile=1.60ms (2.70x) | cuda_graphs=1.25ms (3.45x) | fp8_sm89=4.73ms (0.91x) -> COMPUTE_BOUND: BF16 + Inductor compile dominated throughput & cut VRAM
+
+[WARMUP VS STEADY-STATE STEP TRACE]
+------------------------------------------------------------------------------
+[infer_bs1_small | baseline_dbg] First steps trace (ms):
+  step  0: total= 287.35 (host_data=156.11, fwd=131.25)
+  step  1: total=  64.95 (host_data=62.93, fwd=2.03)
+  step  2: total=   1.89 (host_data=0.30, fwd=1.59)
+  step  3: total=   1.80 (host_data=0.26, fwd=1.54)
+  step  4: total=   6.06 (host_data=0.22, fwd=5.84)
+[infer_bs1_small | cuda_graphs_dbg] First steps trace (ms):
+  step  0: total=5894.28 (host_data=2429.77, fwd=3464.52)
+  step  1: total= 119.84 (host_data=79.55, fwd=40.29)
+  step  2: total=   1.31 (host_data=0.50, fwd=0.81)
+  step  3: total=   1.09 (host_data=0.38, fwd=0.71)
+  step  4: total=   3.52 (host_data=0.32, fwd=3.19)
+[infer_bs1_small | fp8_sm89_dbg] First steps trace (ms):
+  step  0: total= 373.31 (host_data=157.66, fwd=215.65)
+  step  1: total=  66.38 (host_data=62.46, fwd=3.92)
+  step  2: total=   3.83 (host_data=0.43, fwd=3.41)
+  step  3: total=   3.69 (host_data=0.36, fwd=3.33)
+  step  4: total=   8.73 (host_data=0.35, fwd=8.39)
+[infer_bs1_large | baseline_dbg] First steps trace (ms):
+  step  0: total= 485.52 (host_data=363.06, fwd=122.46)
+  step  1: total=  69.05 (host_data=63.29, fwd=5.76)
+  step  2: total=   6.03 (host_data=0.52, fwd=5.51)
+  step  3: total=   5.95 (host_data=0.47, fwd=5.48)
+  step  4: total=  11.30 (host_data=0.47, fwd=10.84)
+[infer_bs1_large | cuda_graphs_dbg] First steps trace (ms):
+  step  0: total=7837.44 (host_data=2623.27, fwd=5214.17)
+  step  1: total= 129.20 (host_data=81.85, fwd=47.36)
+  step  2: total=   4.30 (host_data=0.75, fwd=3.56)
+  step  3: total=   4.08 (host_data=0.68, fwd=3.40)
+  step  4: total=   6.56 (host_data=0.61, fwd=5.95)
+[infer_bs1_large | fp8_sm89_dbg] First steps trace (ms):
+  step  0: total= 587.83 (host_data=366.04, fwd=221.79)
+  step  1: total=  70.70 (host_data=62.26, fwd=8.44)
+  step  2: total=   8.63 (host_data=0.66, fwd=7.97)
+  step  3: total=   8.59 (host_data=0.62, fwd=7.97)
+  step  4: total=  18.32 (host_data=0.61, fwd=17.70)
+[infer_bs64_large | baseline_dbg] First steps trace (ms):
+  step  0: total=1959.14 (host_data=1499.02, fwd=460.12)
+  step  1: total= 425.70 (host_data=73.26, fwd=352.44)
+  step  2: total= 371.21 (host_data=11.15, fwd=360.06)
+  step  3: total= 375.68 (host_data=11.15, fwd=364.52)
+  step  4: total= 367.10 (host_data=11.13, fwd=355.97)
+[infer_bs64_large | cuda_graphs_dbg] First steps trace (ms):
+  step  0: total=8958.13 (host_data=3743.41, fwd=5214.73)
+  step  1: total= 221.85 (host_data=91.02, fwd=130.84)
+  step  2: total= 101.63 (host_data=11.33, fwd=90.30)
+  step  3: total= 101.83 (host_data=11.39, fwd=90.43)
+  step  4: total= 101.43 (host_data=11.38, fwd=90.05)
+[infer_bs64_large | fp8_sm89_dbg] First steps trace (ms):
+  step  0: total=1961.43 (host_data=1493.23, fwd=468.21)
+  step  1: total= 299.60 (host_data=72.46, fwd=227.14)
+  step  2: total= 239.10 (host_data=11.39, fwd=227.71)
+  step  3: total= 238.95 (host_data=11.25, fwd=227.70)
+  step  4: total= 241.23 (host_data=11.31, fwd=229.92)
+
+[TOP PYTORCH PROFILER OPS]
+------------------------------------------------------------------------------
+[infer_bs1_small | baseline_dbg] Profiler window=[4, 9] self_cuda=2.445ms self_cpu=15.055ms (top_cuda_ops):
+  aten::addmm                                      calls=70    self=  0.506ms (20.7%) total=  0.506ms
+  ampere_sgemm_32x32_sliced1x4_tn                  calls=40    self=  0.337ms (13.8%) total=  0.337ms
+  ampere_sgemm_64x32_sliced1x4_tn                  calls=45    self=  0.253ms (10.3%) total=  0.253ms
+  aten::_addmm_activation                          calls=20    self=  0.221ms ( 9.0%) total=  0.221ms
+  aten::_efficient_attention_forward               calls=20    self=  0.215ms ( 8.8%) total=  0.256ms
+  fmha_cutlassF_f32_aligned_64x64_rf_sm80(PyTorchM calls=20    self=  0.215ms ( 8.8%) total=  0.215ms
+  aten::native_layer_norm                          calls=45    self=  0.128ms ( 5.2%) total=  0.128ms
+  void at::native::(anonymous namespace)::vectoriz calls=45    self=  0.128ms ( 5.2%) total=  0.128ms
+[infer_bs1_small | cuda_graphs_dbg] Profiler window=[4, 9] self_cuda=1.989ms self_cpu=6.724ms (top_cuda_ops):
+  ## Call CompiledFxGraph fsbibmjhpi6jtozamgncwwc7 calls=5     self=  0.917ms (46.1%) total=  0.933ms
+  void cutlass::Kernel2<cutlass_80_wmma_tensorop_b calls=45    self=  0.223ms (11.2%) total=  0.223ms
+  void cutlass::Kernel2<cutlass_80_wmma_tensorop_b calls=40    self=  0.158ms ( 7.9%) total=  0.158ms
+  void pytorch_flash::flash_fwd_kernel<Flash_fwd_k calls=20    self=  0.129ms ( 6.5%) total=  0.129ms
+  triton_poi_fused__to_copy_10                     calls=40    self=  0.065ms ( 3.3%) total=  0.065ms
+  triton_poi_fused__to_copy_2                      calls=45    self=  0.046ms ( 2.3%) total=  0.046ms
+  triton_per_fused__to_copy_add_native_layer_norm_ calls=30    self=  0.045ms ( 2.2%) total=  0.045ms
+  aten::copy_                                      calls=12    self=  0.037ms ( 1.9%) total=  0.037ms
+[infer_bs1_small | fp8_sm89_dbg] Profiler window=[4, 9] self_cuda=2.559ms self_cpu=22.09ms (top_cuda_ops):
+  aten::addmm                                      calls=90    self=  0.424ms (16.6%) total=  0.424ms
+  aten::copy_                                      calls=262   self=  0.408ms (15.9%) total=  0.408ms
+  void at::native::vectorized_elementwise_kernel<4 calls=225   self=  0.309ms (12.1%) total=  0.309ms
+  void cutlass::Kernel2<cutlass_80_wmma_tensorop_b calls=45    self=  0.239ms ( 9.3%) total=  0.239ms
+  void cutlass::Kernel2<cutlass_80_wmma_tensorop_b calls=40    self=  0.173ms ( 6.7%) total=  0.173ms
+  aten::_flash_attention_forward                   calls=20    self=  0.148ms ( 5.8%) total=  0.148ms
+  void pytorch_flash::flash_fwd_kernel<Flash_fwd_k calls=20    self=  0.148ms ( 5.8%) total=  0.148ms
+  aten::native_layer_norm                          calls=45    self=  0.128ms ( 5.0%) total=  0.128ms
+[infer_bs1_large | baseline_dbg] Profiler window=[4, 9] self_cuda=50.737ms self_cpu=37.278ms (top_cuda_ops):
+  ampere_sgemm_128x64_tn                           calls=180   self= 18.584ms (36.6%) total= 18.584ms
+  aten::addmm                                      calls=190   self= 14.197ms (28.0%) total= 14.197ms
+  aten::_addmm_activation                          calls=60    self=  7.279ms (14.3%) total=  7.279ms
+  aten::_efficient_attention_forward               calls=60    self=  2.613ms ( 5.1%) total=  2.740ms
+  fmha_cutlassF_f32_aligned_32x128_gmem_sm80(PyTor calls=60    self=  2.613ms ( 5.1%) total=  2.613ms
+  ampere_sgemm_128x32_tn                           calls=65    self=  2.232ms ( 4.4%) total=  2.232ms
+  aten::native_layer_norm                          calls=125   self=  0.572ms ( 1.1%) total=  0.572ms
+  void at::native::(anonymous namespace)::vectoriz calls=125   self=  0.572ms ( 1.1%) total=  0.572ms
+[infer_bs1_large | cuda_graphs_dbg] Profiler window=[4, 9] self_cuda=26.714ms self_cpu=20.922ms (top_cuda_ops):
+  ## Call CompiledFxGraph f7dgaq3p5qper7vriitvsdsx calls=5     self= 12.974ms (48.6%) total= 13.022ms
+  triton_poi_fused__to_copy_10                     calls=120   self=  4.533ms (17.0%) total=  4.533ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_relu_f2 calls=120   self=  2.162ms ( 8.1%) total=  2.162ms
+  triton_poi_fused__to_copy_4                      calls=60    self=  1.694ms ( 6.3%) total=  1.694ms
+  ampere_bf16_s16816gemm_bf16_128x64_ldg8_relu_f2f calls=60    self=  1.186ms ( 4.4%) total=  1.186ms
+  void pytorch_flash::flash_fwd_splitkv_kernel<Fla calls=60    self=  0.789ms ( 3.0%) total=  0.789ms
+  triton_poi_fused__to_copy_1                      calls=65    self=  0.665ms ( 2.5%) total=  0.665ms
+  ampere_bf16_s16816gemm_bf16_64x64_ldg8_relu_f2f_ calls=65    self=  0.494ms ( 1.8%) total=  0.494ms
+[infer_bs1_large | fp8_sm89_dbg] Profiler window=[4, 9] self_cuda=29.031ms self_cpu=57.451ms (top_cuda_ops):
+  aten::copy_                                      calls=702   self=  8.247ms (28.4%) total=  8.247ms
+  void at::native::vectorized_elementwise_kernel<4 calls=625   self=  7.688ms (26.5%) total=  7.688ms
+  aten::addmm                                      calls=250   self=  3.950ms (13.6%) total=  3.950ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_relu_f2 calls=120   self=  2.206ms ( 7.6%) total=  2.206ms
+  ampere_bf16_s16816gemm_bf16_128x64_ldg8_relu_f2f calls=60    self=  1.203ms ( 4.1%) total=  1.203ms
+  aten::_flash_attention_forward                   calls=60    self=  1.138ms ( 3.9%) total=  1.138ms
+  void pytorch_flash::flash_fwd_splitkv_kernel<Fla calls=60    self=  0.841ms ( 2.9%) total=  0.841ms
+  aten::native_layer_norm                          calls=125   self=  0.526ms ( 1.8%) total=  0.526ms
+[infer_bs64_large | baseline_dbg] Profiler window=[4, 9] self_cuda=3699.576ms self_cpu=1847.179ms (top_cuda_ops):
+  ampere_sgemm_128x128_tn                          calls=180   self=1287.768ms (34.8%) total=1287.768ms
+  aten::addmm                                      calls=190   self=952.856ms (25.8%) total=952.856ms
+  aten::_addmm_activation                          calls=60    self=572.470ms (15.5%) total=572.470ms
+  aten::_efficient_attention_forward               calls=60    self=158.428ms ( 4.3%) total=158.711ms
+  fmha_cutlassF_f32_aligned_32x128_gmem_sm80(PyTor calls=60    self=158.428ms ( 4.3%) total=158.428ms
+  ampere_sgemm_128x64_tn                           calls=65    self=129.540ms ( 3.5%) total=129.540ms
+  void cublasLt::epilogue::impl::globalKernel<8, 3 calls=60    self=107.828ms ( 2.9%) total=107.828ms
+  aten::add_                                       calls=120   self= 71.302ms ( 1.9%) total= 71.302ms
+[infer_bs64_large | cuda_graphs_dbg] Profiler window=[4, 9] self_cuda=989.581ms self_cpu=498.74ms (top_cuda_ops):
+  ## Call CompiledFxGraph fxoagsuh6c5xk7zpa55o266p calls=5     self=445.660ms (45.0%) total=447.510ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f calls=125   self= 98.149ms ( 9.9%) total= 98.149ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 83.365ms ( 8.4%) total= 83.365ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 72.591ms ( 7.3%) total= 72.591ms
+  triton_poi_fused_gelu_view_11                    calls=60    self= 48.212ms ( 4.9%) total= 48.212ms
+  aten::copy_                                      calls=12    self= 41.988ms ( 4.2%) total= 41.988ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self= 41.961ms ( 4.2%) total= 41.961ms
+  triton_per_fused__to_copy_add_native_layer_norm_ calls=55    self= 31.932ms ( 3.2%) total= 31.932ms
+[infer_bs64_large | fp8_sm89_dbg] Profiler window=[4, 9] self_cuda=2358.192ms self_cpu=1152.288ms (top_cuda_ops):
+  aten::copy_                                      calls=767   self=269.776ms (11.4%) total=269.776ms
+  aten::clamp                                      calls=250   self=132.644ms ( 5.6%) total=132.644ms
+  void at::native::vectorized_elementwise_kernel<4 calls=250   self=132.644ms ( 5.6%) total=132.644ms
+  aten::abs                                        calls=250   self=131.960ms ( 5.6%) total=263.921ms
+  void at::native::vectorized_elementwise_kernel<4 calls=125   self=131.960ms ( 5.6%) total=131.960ms
+  aten::div                                        calls=250   self=118.191ms ( 5.0%) total=118.191ms
+  void at::native::elementwise_kernel<128, 2, at:: calls=125   self=117.977ms ( 5.0%) total=117.977ms
+  aten::gelu                                       calls=65    self=106.599ms ( 4.5%) total=106.599ms
+
+[INFERENCE HOOK & FALLBACK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_small (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_small)
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_small)
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs1_small (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_small (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs1_small (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_small (3.6d_fp8_sm89) -> inference.fp8: Patched 14 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_medium (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_medium)
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_medium)
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs1_medium (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_medium (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs1_medium (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_medium (3.6d_fp8_sm89) -> inference.fp8: Patched 26 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs1_large (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_large (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs1_large (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs1_large (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_large (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs1_large (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs1_large (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs1_large (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_large (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_large)
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs1_large (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_large (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs1_large)
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs1_large (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_large (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs1_large (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs1_large (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs1_large (3.6d_fp8_sm89) -> inference.fp8: Patched 38 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_small (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_small (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs64_small (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs64_small (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_small (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs64_small (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs64_small (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs64_small (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_small (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_small)
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_small (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_small (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_small)
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs64_small (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_small (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_small (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs64_small (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_small (3.6d_fp8_sm89) -> inference.fp8: Patched 14 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_medium (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_medium (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs64_medium (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs64_medium (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_medium (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs64_medium (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs64_medium (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs64_medium (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_medium (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_medium)
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_medium (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_medium (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_medium)
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs64_medium (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_medium (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_medium (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs64_medium (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_medium (3.6d_fp8_sm89) -> inference.fp8: Patched 20 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_large (3.6a_inference_mode) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (3.6a_inference_mode) -> runtime.flags: flash_sdp=True, mem_sdp=True
+[SKIPPED] infer_bs64_large (3.6a_inference_mode) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] infer_bs64_large (3.6a_inference_mode) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_large (3.6a_inference_mode) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_bs64_large (3.6a_inference_mode) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_bs64_large (3.6a_inference_mode) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] infer_bs64_large (3.6a_inference_mode) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_large (3.6a_inference_mode) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_large)
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] infer_bs64_large (3.6b_infer_amp_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_large (3.6b_infer_amp_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcu8hft4f/infer_bs64_large)
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[SKIPPED] infer_bs64_large (3.6c_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_large (3.6c_cuda_graphs) -> inference.cuda_graphs: Compiled eval InferenceBackbone with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] infer_bs64_large (3.6d_fp8_sm89) -> compile.auto: compile.enabled is False
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] infer_bs64_large (3.6d_fp8_sm89) -> kernels.auto: kernels.enabled is False
+[APPLIED] infer_bs64_large (3.6d_fp8_sm89) -> inference.fp8: Patched 38 Linear layers on InferenceBackbone with FP8 _scaled_mm
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 2 items
+
+tests/migrate/test_phase3_6_inference.py::TestPhase36InferenceMigration::test_cnn_vision_training_unaffected_by_inference_opt PASSED [ 50%]
+tests/migrate/test_phase3_6_inference.py::TestPhase36InferenceMigration::test_infer_runner_bs1_and_bs32_parity PASSED [100%]
+
+============================== 2 passed in 37.84s ==============================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 5 items
+
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_cpu_dynamic_quantization_opt_in PASSED [ 20%]
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_cuda_graphs_reduce_overhead_and_dynamic_shape_fallback PASSED [ 40%]
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_fp8_hardware_gate_t4_skips_and_l4_allows PASSED [ 60%]
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_requires_grad_and_enable_grad_guards_skip_inference_mode PASSED [ 80%]
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_train_eval_switching_preserves_backward_and_uses_inference_mode PASSED [100%]
+
+=============================== warnings summary ===============================
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_cpu_dynamic_quantization_opt_in
+  /usr/local/lib/python3.13/dist-packages/torch/ao/nn/quantized/modules/utils.py:72: UserWarning: torch.quantize_per_tensor, torch.quantize_per_channel and other quantized tensor creation functions that produce tensors with dtype torch.quint8, torch.qint8, and torch.qint32 are deprecated and will be removed in a future PyTorch release. Please see https://github.com/pytorch/pytorch/issues/184982 for more information. (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/quantized/Quantizer.cpp:111.)
+    qweight = torch.quantize_per_tensor(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 5 passed, 1 warning in 3.09s =========================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Inference Latency (bs=1), CUDA Graphs, Throughput (bs=64), Top Ops, and FP8 parity on Google Colab before Phase 3.7)
+==============================================================================

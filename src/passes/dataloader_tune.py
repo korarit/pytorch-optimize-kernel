@@ -247,12 +247,67 @@ def install_dataloader_hook(
     dl_cls.__iter__ = _safe_iter  # type: ignore[method-assign]
     dl_cls._ptopt_orig_init = orig_init  # type: ignore[attr-defined]
     dl_cls._ptopt_orig_iter = orig_iter  # type: ignore[attr-defined]
+
+    # Auto-promote pinned CPU -> CUDA `.to(device)` / `.cuda()` calls to non_blocking=True
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    cuda_avail = False
+    try:
+        cuda_avail = bool(getattr(torch_mod, "cuda", None) and torch_mod.cuda.is_available())
+    except Exception:  # noqa: BLE001
+        cuda_avail = False
+
+    if cuda_avail and cfg.dataloader.pin_memory and tensor_cls is not None and hasattr(tensor_cls, "to"):
+        orig_to = tensor_cls.to
+        compiler_ns = getattr(torch_mod, "compiler", None)
+        is_compiling_fn = getattr(compiler_ns, "is_compiling", None)
+
+        def _is_cuda_arg(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
+            dev = kwargs.get("device")
+            if dev is None and len(args) == 1:
+                dev = args[0]
+            if isinstance(dev, str):
+                return dev.startswith("cuda")
+            return getattr(dev, "type", None) == "cuda"
+
+        def _should_promote_non_blocking(t_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], cuda_target: bool) -> bool:
+            return (
+                cuda_target
+                and not getattr(t_self, "is_cuda", True)
+                and "non_blocking" not in kwargs
+                and len(args) <= 1
+                and (is_compiling_fn is None or not is_compiling_fn())
+                and getattr(t_self, "device", None) is not None
+                and t_self.device.type == "cpu"
+                and t_self.is_pinned()
+            )
+
+        @functools.wraps(orig_to)
+        def _pinned_async_to(t_self: Any, *args: Any, **kwargs: Any) -> Any:
+            if _should_promote_non_blocking(t_self, args, kwargs, _is_cuda_arg(args, kwargs)):
+                kwargs["non_blocking"] = True
+            return orig_to(t_self, *args, **kwargs)
+
+        tensor_cls._ptopt_orig_to = orig_to  # type: ignore[attr-defined]
+        tensor_cls.to = _pinned_async_to  # type: ignore[method-assign]
+
+        if hasattr(tensor_cls, "cuda"):
+            orig_cuda = tensor_cls.cuda
+
+            @functools.wraps(orig_cuda)
+            def _pinned_async_cuda(t_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _should_promote_non_blocking(t_self, args, kwargs, True):
+                    kwargs["non_blocking"] = True
+                return orig_cuda(t_self, *args, **kwargs)
+
+            tensor_cls._ptopt_orig_cuda = orig_cuda  # type: ignore[attr-defined]
+            tensor_cls.cuda = _pinned_async_cuda  # type: ignore[method-assign]
+
     _DATALOADER_HOOK_INSTALLED = True
     return True
 
 
 def uninstall_dataloader_hook(torch_mod: Any) -> None:
-    """Restore original DataLoader.__init__ and __iter__ (for unit tests)."""
+    """Restore original DataLoader.__init__/__iter__ and Tensor async transfer hooks (for unit tests)."""
     global _DATALOADER_HOOK_INSTALLED  # noqa: PLW0603
     if not _DATALOADER_HOOK_INSTALLED or torch_mod is None:
         return
@@ -264,6 +319,14 @@ def uninstall_dataloader_hook(torch_mod: Any) -> None:
         if hasattr(dl_cls, "_ptopt_orig_iter"):
             dl_cls.__iter__ = dl_cls._ptopt_orig_iter  # type: ignore[method-assign]
             delattr(dl_cls, "_ptopt_orig_iter")
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is not None:
+        if hasattr(tensor_cls, "_ptopt_orig_to"):
+            tensor_cls.to = tensor_cls._ptopt_orig_to  # type: ignore[method-assign]
+            delattr(tensor_cls, "_ptopt_orig_to")
+        if hasattr(tensor_cls, "_ptopt_orig_cuda"):
+            tensor_cls.cuda = tensor_cls._ptopt_orig_cuda  # type: ignore[method-assign]
+            delattr(tensor_cls, "_ptopt_orig_cuda")
     _DATALOADER_HOOK_INSTALLED = False
 
 

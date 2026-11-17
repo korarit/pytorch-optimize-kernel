@@ -156,6 +156,8 @@ def install_custom_kernels_hooks(
     reg = KernelRegistry()
     specs = _builtin_specs()
     eligible: dict[str, bool] = {}
+    force_all = os.environ.get("PTOPT_FORCE_ALL_KERNELS") == "1"
+    compile_active = bool(cfg.compile.enabled) and not force_all and not cfg.kernels.allow_list
 
     for name, spec in specs.items():
         reg.register(spec)
@@ -166,6 +168,11 @@ def install_custom_kernels_hooks(
             sm_override=sm_override,
             allow_list=cfg.kernels.allow_list,
         )
+        # When torch.compile is active, Inductor fuses pointwise SwiGLU and native LayerNorm
+        # without graph breaks; defer those unless explicitly requested via allow_list/env.
+        if ok and compile_active and name in ("layernorm", "swiglu"):
+            ok = False
+            reason = f"{reason}; deferred to torch.compile Inductor fusion"
         eligible[name] = ok
         status = "APPLIED" if ok else "SKIPPED"
         reg.fallback_registry.record(name, status, reason)
@@ -178,6 +185,7 @@ def install_custom_kernels_hooks(
     func_mod = getattr(torch_mod.nn, "functional", None)
     if eligible.get("cross_entropy") and func_mod is not None and hasattr(func_mod, "cross_entropy"):
         orig_ce = func_mod.cross_entropy
+        ce_min_elems = 8_388_608 if compile_active else 0
 
         @functools.wraps(orig_ce)
         def _custom_cross_entropy(
@@ -200,6 +208,7 @@ def install_custom_kernels_hooks(
                 and inp.dim() == 2
                 and target.dim() == 1
                 and _dtype_name(inp.dtype, torch_mod) in ("fp32", "fp16", "bf16")
+                and (not compile_active or inp.numel() >= ce_min_elems or int(inp.shape[-1]) >= 4096)
             ):
                 try:
                     return triton_cross_entropy(inp, target, ignore_index=ignore_index, reduction=reduction)

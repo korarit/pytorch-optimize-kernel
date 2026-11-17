@@ -172,6 +172,15 @@ class TestMemoryAllocatorPrelaunch(unittest.TestCase):
         self.assertEqual(env_user["PYTORCH_CUDA_ALLOC_CONF"], "max_split_size_mb:128")
         self.assertEqual(env_user["OMP_NUM_THREADS"], "2")
 
+        cfg.compile.enabled = True
+        cfg.compile.cache_dir = ".ptopt_test_cache"
+        env_cache: dict[str, str] = {}
+        apply_prelaunch_env(cfg, env_cache)
+        self.assertIn("TORCHINDUCTOR_CACHE_DIR", env_cache)
+        self.assertEqual(env_cache["TORCHINDUCTOR_FX_GRAPH_CACHE"], "1")
+        self.assertEqual(env_cache["TORCHINDUCTOR_AUTOGRAD_CACHE"], "1")
+        self.assertTrue(env_cache["TRITON_CACHE_DIR"].endswith("triton"))
+
 
 class TestChannelsLastPass(unittest.TestCase):
     """Tests for Conv2d-only channels_last conversion and contiguous state_dict export."""

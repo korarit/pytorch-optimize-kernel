@@ -55,11 +55,18 @@ def apply_prelaunch_env(cfg: OptimizeConfig, env: MutableMapping[str, str]) -> l
             env["LD_PRELOAD"] = lib_path
             notes.append(f"LD_PRELOAD={lib_path}")
 
-    if cfg.compile.enabled and cfg.compile.cache_dir and "TORCHINDUCTOR_CACHE_DIR" not in env:
-        cache_dir = str(Path(cfg.compile.cache_dir).expanduser().resolve())
-        env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
+    if (cfg.compile.enabled or cfg.kernels.enabled or cfg.inference.cuda_graphs) and cfg.compile.cache_dir:
+        cache_path = Path(cfg.compile.cache_dir).expanduser().resolve()
+        cache_dir = str(cache_path)
+        if "TORCHINDUCTOR_CACHE_DIR" not in env:
+            env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
+            notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
         env.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
-        notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
+        env.setdefault("TORCHINDUCTOR_AUTOGRAD_CACHE", "1")
+        triton_dir = str(cache_path / "triton")
+        if "TRITON_CACHE_DIR" not in env:
+            env["TRITON_CACHE_DIR"] = triton_dir
+            notes.append(f"TRITON_CACHE_DIR={triton_dir}")
 
     return notes
 

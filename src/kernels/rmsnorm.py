@@ -96,6 +96,14 @@ if HAS_TRITON:
         tl.store(PartialDW_ptr + pid * stride_dw + cols, dw_acc, mask=mask)
 
 
+def _select_num_warps(block_n: int) -> int:
+    if block_n <= 1024:
+        return 4
+    if block_n <= 4096:
+        return 8
+    return 16
+
+
 class _TritonRMSNormFn(torch.autograd.Function):
     @staticmethod
     def forward(ctx: Any, x: torch.Tensor, weight: torch.Tensor, eps: float) -> torch.Tensor:
@@ -107,6 +115,7 @@ class _TritonRMSNormFn(torch.autograd.Function):
         rstd = torch.empty((M,), dtype=torch.float32, device=x.device)
 
         block_n = triton.next_power_of_2(N)
+        warps = _select_num_warps(block_n)
         _rmsnorm_fwd_kernel[(M,)](
             x_2d,
             weight,
@@ -117,10 +126,12 @@ class _TritonRMSNormFn(torch.autograd.Function):
             N,
             eps,
             BLOCK_N=block_n,
+            num_warps=warps,
         )
         ctx.save_for_backward(x_2d, weight, rstd)
         ctx.orig_shape = orig_shape
         ctx.block_n = block_n
+        ctx.num_warps = warps
         return y_2d.reshape(orig_shape)
 
     @staticmethod
@@ -130,7 +141,7 @@ class _TritonRMSNormFn(torch.autograd.Function):
         dy_2d = dy.reshape(M, N).contiguous()
         dx_2d = torch.empty_like(x_2d)
 
-        num_workers = min(M, 128)
+        num_workers = min(M, 256)
         partial_dw = torch.empty((num_workers, N), dtype=torch.float32, device=x_2d.device)
         _rmsnorm_bwd_kernel[(num_workers,)](
             dx_2d,
@@ -147,6 +158,7 @@ class _TritonRMSNormFn(torch.autograd.Function):
             N,
             num_workers,
             BLOCK_N=ctx.block_n,
+            num_warps=ctx.num_warps,
         )
         dw = partial_dw.sum(dim=0).to(weight.dtype)
         return dx_2d.reshape(ctx.orig_shape), dw, None

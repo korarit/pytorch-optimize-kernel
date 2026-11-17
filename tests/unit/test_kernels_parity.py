@@ -88,6 +88,36 @@ class TestKernelCapabilityGate(unittest.TestCase):
         cfg_off.kernels.enabled = False
         self.assertTrue(apply_custom_kernels_pass(cfg_off, mgr, torch).startswith("SKIPPED:"))
 
+    def test_compile_aware_kernel_gate_defers_layernorm_and_swiglu(self) -> None:
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.kernels.enabled = True
+        cfg.compile.enabled = True
+        mgr = HookManager()
+
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("PTOPT_FORCE_ALL_KERNELS", None)
+            reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+            assert reg is not None
+            try:
+                entries = reg.fallback_registry.entries
+                self.assertEqual(entries["rmsnorm"].status, "APPLIED")
+                self.assertEqual(entries["cross_entropy"].status, "APPLIED")
+                self.assertEqual(entries["layernorm"].status, "SKIPPED")
+                self.assertEqual(entries["swiglu"].status, "SKIPPED")
+                self.assertIn("Inductor", entries["layernorm"].reason)
+            finally:
+                uninstall_custom_kernels_hooks(torch)
+                mgr.reset()
+
+        with patch.dict(os.environ, {"PTOPT_FORCE_ALL_KERNELS": "1"}):
+            reg_all = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+            assert reg_all is not None
+            try:
+                self.assertTrue(all(e.status == "APPLIED" for e in reg_all.fallback_registry.entries.values()))
+            finally:
+                uninstall_custom_kernels_hooks(torch)
+                mgr.reset()
+
 
 class TestKernelsForwardBackwardParity(unittest.TestCase):
     """Forward + Backward numerical parity across edge shapes (non-pow2, b=1, seq=1) & dtypes."""
@@ -167,6 +197,20 @@ class TestKernelsForwardBackwardParity(unittest.TestCase):
 
                 torch.testing.assert_close(loss.float(), loss_ref.float(), atol=atol, rtol=rtol)
                 torch.testing.assert_close(logits.grad.float(), logits_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+
+    def test_cross_entropy_all_ignored_targets_safe_without_item_sync(self) -> None:
+        logits = torch.randn(4, 32, device=self.device, dtype=torch.float32, requires_grad=True)
+        targets = torch.full((4,), -100, device=self.device, dtype=torch.long)
+        loss = triton_cross_entropy(logits, targets, ignore_index=-100, reduction="mean")
+        loss.backward()
+        assert logits.grad is not None
+        if self.device.type == "cuda":
+            self.assertEqual(float(loss.item()), 0.0)
+            self.assertTrue(bool((logits.grad == 0.0).all().item()))
+        else:
+            # CPU path delegates to F.cross_entropy reference (which produces NaN when 0 targets are valid)
+            ref = ref_cross_entropy(logits.detach(), targets, ignore_index=-100, reduction="mean")
+            torch.testing.assert_close(loss.float(), ref.float(), equal_nan=True)
 
     def test_swiglu_forward_backward_parity(self) -> None:
         torch.manual_seed(29)
