@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import functools
+import weakref
 from collections import OrderedDict
 from typing import Any, Mapping
 
 _ORIG_MOD_TOKEN = "_orig_mod."
 _COMPAT_INSTALLED = False
+_LIVE_OPTIMIZERS: weakref.WeakSet[Any] = weakref.WeakSet()
 
 
 def strip_orig_mod_prefix(state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
@@ -115,6 +117,67 @@ def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_s
     return out
 
 
+def sync_optimizer_state_memory_format(opt_self: Any, torch_mod: Any) -> int:
+    """Align 4D optimizer state buffers (exp_avg/exp_avg_sq/momentum) with parameter layouts."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    channels_last_fmt = getattr(torch_mod, "channels_last", None)
+    contiguous_fmt = getattr(torch_mod, "contiguous_format", None)
+    if tensor_cls is None or contiguous_fmt is None:
+        return 0
+
+    opt_state = getattr(opt_self, "state", None)
+    if not isinstance(opt_state, Mapping):
+        return 0
+
+    aligned = 0
+    for grp in getattr(opt_self, "param_groups", ()):
+        if not isinstance(grp, Mapping):
+            continue
+        for param in grp.get("params", ()):
+            if not isinstance(param, tensor_cls) or param.dim() != 4:
+                continue
+            target_fmt = (
+                channels_last_fmt
+                if (
+                    channels_last_fmt is not None
+                    and param.is_contiguous(memory_format=channels_last_fmt)
+                    and not param.is_contiguous()
+                )
+                else contiguous_fmt
+            )
+            p_grad = getattr(param, "grad", None)
+            if (
+                isinstance(p_grad, tensor_cls)
+                and p_grad.dim() == 4
+                and p_grad.shape == param.shape
+                and p_grad.stride() != param.stride()
+            ):
+                param.grad = p_grad.contiguous(memory_format=target_fmt)
+                aligned += 1
+
+            p_state = opt_state.get(param)
+            if not isinstance(p_state, dict):
+                continue
+            for sk, sv in list(p_state.items()):
+                if (
+                    isinstance(sv, tensor_cls)
+                    and sv.dim() == 4
+                    and sv.shape == param.shape
+                    and sv.stride() != param.stride()
+                ):
+                    p_state[sk] = sv.contiguous(memory_format=target_fmt)
+                    aligned += 1
+    return aligned
+
+
+def sync_all_live_optimizers(torch_mod: Any) -> int:
+    """Align 4D optimizer state buffers across all live tracked optimizers."""
+    total = 0
+    for opt in list(_LIVE_OPTIMIZERS):
+        total += sync_optimizer_state_memory_format(opt, torch_mod)
+    return total
+
+
 def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     """Install idempotent state_dict/load_state_dict compatibility hooks on `nn.Module` and `optim.Optimizer`."""
     global _COMPAT_INSTALLED  # noqa: PLW0603
@@ -146,14 +209,25 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
 
     opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
     if opt_cls is not None and hasattr(opt_cls, "state_dict"):
+        orig_opt_init = opt_cls.__init__
         orig_opt_sd = opt_cls.state_dict
         orig_opt_load_sd = getattr(opt_cls, "load_state_dict", None)
+
+        @functools.wraps(orig_opt_init)
+        def _compat_opt_init(opt_self: Any, *args: Any, **kwargs: Any) -> None:
+            orig_opt_init(opt_self, *args, **kwargs)
+            try:
+                _LIVE_OPTIMIZERS.add(opt_self)
+            except TypeError:
+                pass
 
         @functools.wraps(orig_opt_sd)
         def _compat_opt_state_dict(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
             sd = orig_opt_sd(opt_self, *args, **kwargs)
             return _ensure_contiguous_optimizer_state_dict(sd, opt_self)
 
+        opt_cls._ptopt_orig_init = orig_opt_init  # type: ignore[attr-defined]
+        opt_cls.__init__ = _compat_opt_init  # type: ignore[method-assign]
         opt_cls._ptopt_orig_state_dict = orig_opt_sd  # type: ignore[attr-defined]
         opt_cls.state_dict = _compat_opt_state_dict  # type: ignore[method-assign]
 
@@ -166,6 +240,10 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
                 **kwargs: Any,
             ) -> Any:
                 res = orig_opt_load_sd(opt_self, state_dict, *args, **kwargs)
+                try:
+                    _LIVE_OPTIMIZERS.add(opt_self)
+                except TypeError:
+                    pass
                 if getattr(opt_self, "_ptopt_injected_fused", False):
                     default_foreach = getattr(opt_self, "defaults", {}).get("foreach")
                     for grp in getattr(opt_self, "param_groups", ()):
@@ -177,6 +255,7 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
                     for grp in getattr(opt_self, "param_groups", ()):
                         if isinstance(grp, dict) and "foreach" in grp:
                             grp["foreach"] = True
+                sync_optimizer_state_memory_format(opt_self, torch_mod)
                 return res
 
             opt_cls._ptopt_orig_load_state_dict = orig_opt_load_sd  # type: ignore[attr-defined]
@@ -200,6 +279,9 @@ def uninstall_checkpoint_compat_hooks(torch_mod: Any) -> None:
         delattr(nn_module, "_ptopt_orig_load_state_dict")
     opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
     if opt_cls is not None:
+        if hasattr(opt_cls, "_ptopt_orig_init"):
+            opt_cls.__init__ = opt_cls._ptopt_orig_init  # type: ignore[method-assign]
+            delattr(opt_cls, "_ptopt_orig_init")
         if hasattr(opt_cls, "_ptopt_orig_state_dict"):
             opt_cls.state_dict = opt_cls._ptopt_orig_state_dict  # type: ignore[method-assign]
             delattr(opt_cls, "_ptopt_orig_state_dict")

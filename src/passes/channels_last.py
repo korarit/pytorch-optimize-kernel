@@ -47,6 +47,9 @@ def convert_module_channels_last(module: Any, torch_mod: Any) -> bool:
         return False
 
     module.to(memory_format=channels_last_fmt)
+    from src.hooks.checkpoint_compat import sync_all_live_optimizers  # noqa: PLC0415
+
+    sync_all_live_optimizers(torch_mod)
 
     def _input_pre_hook(_mod: Any, inputs: tuple[Any, ...]) -> tuple[Any, ...]:
         return tuple(_convert_tensor_channels_last(inp, torch_mod) for inp in inputs)

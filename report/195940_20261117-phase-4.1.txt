@@ -1,0 +1,105 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.1 REPORT: FULL 3-AXIS MIGRATE TEST MATRIX
+==============================================================================
+Timestamp          : 2026-11-17 19:59:40 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 38d8886
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+
+[3-Axis Migrate Matrix Verification Results]
+------------------------------------------------------------------------------
+Suite / Axis                  | Coverage                                                          | Target       | Duration | Status | Test Outcome                                
+------------------------------+-------------------------------------------------------------------+--------------+----------+--------+---------------------------------------------
+Unit: Config Migrator & Cache | v0->v1 schema, warnings, cache-key isolation, lazy torch          | cuda (sm_89) | 0.29s    | PASS   | Ran 8 tests in 0.144s -> OK                 
+Axis 1: Code Migration Matrix | legacy AMP, grad accum, multi-opt+LR, custom autograd, train/eval | cuda (sm_89) | 105.33s  | PASS   | Ran 1 test in 103.254s -> OK                
+Axis 2: Checkpoint Matrix     | 5x5 cross-load (baseline/supersafe/safe/balanced/aggressive)      | cuda (sm_89) | 56.49s   | FAIL   | Ran 1 test in 54.423s -> FAILED (failures=1)
+Axis 3: Config & Cache Matrix | end-to-end v0 CLI/hook upgrade + cross-arch stale cache isolation | cuda (sm_89) | 18.77s   | PASS   | Ran 2 tests in 16.641s -> OK                
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+--- FAILURE TRACE: Axis 2: Checkpoint Matrix (tests/migrate/test_checkpoint_migration_matrix.py, exit=1) ---
+intMigrationMatrix.test_full_5x5_checkpoint_optimizer_scaler_cross_load_matrix) ... FAIL
+
+======================================================================
+FAIL: test_full_5x5_checkpoint_optimizer_scaler_cross_load_matrix (__main__.TestCheckpointMigrationMatrix.test_full_5x5_checkpoint_optimizer_scaler_cross_load_matrix)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/content/pytorch-optimize-kernel/tests/migrate/test_checkpoint_migration_matrix.py", line 188, in test_full_5x5_checkpoint_optimizer_scaler_cross_load_matrix
+    load_out = _run_ckpt_worker(script, load_mode, "load", saved_paths)
+  File "/content/pytorch-optimize-kernel/tests/migrate/test_checkpoint_migration_matrix.py", line 160, in _run_ckpt_worker
+    raise AssertionError(
+    ...<2 lines>...
+    )
+AssertionError: Checkpoint worker failed (mode=supersafe, action=load, exit=1):
+STDOUT:
+
+STDERR:
+Traceback (most recent call last):
+  File "/tmp/tmpnalxxg_n/ckpt_matrix_worker.py", line 111, in <module>
+    main()
+    ~~~~^^
+  File "/tmp/tmpnalxxg_n/ckpt_matrix_worker.py", line 108, in main
+    _load_and_resume([Path(p) for p in args.ckpt], args.device)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/tmp/tmpnalxxg_n/ckpt_matrix_worker.py", line 80, in _load_and_resume
+    scaler.step(opt)
+    ~~~~~~~~~~~^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/torch/amp/grad_scaler.py", line 465, in step
+    retval = optimizer.step(*args, **kwargs_)
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/optimizer.py", line 549, in wrapper
+    out = func(*args, **kwargs)
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/optimizer.py", line 79, in _use_grad
+    ret = func(*args, **kwargs)
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/adam.py", line 248, in step
+    adam(
+    ~~~~^
+        params_with_grad,
+        ^^^^^^^^^^^^^^^^^
+    ...<19 lines>...
+        decoupled_weight_decay=group["decoupled_weight_decay"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/optimizer.py", line 157, in maybe_fallback
+    return func(*args, **kwargs)
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/adam.py", line 970, in adam
+    func(
+    ~~~~^
+        params,
+        ^^^^^^^
+    ...<17 lines>...
+        decoupled_weight_decay=decoupled_weight_decay,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/torch/optim/adam.py", line 879, in _fused_adam
+    func(
+    ~~~~^
+        device_params,
+        ^^^^^^^^^^^^^^
+    ...<13 lines>...
+        found_inf=device_found_inf,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+RuntimeError: params, grads, exp_avgs, and exp_avg_sqs must have same dtype, device, and layout
+
+
+----------------------------------------------------------------------
+Ran 1 test in 54.423s
+
+FAILED (failures=1)
+
+[Phase 4.1 Verdict]
+------------------------------------------------------------------------------
+Suites Passed         : 3/4
+Total Wall Time       : 180.89s
+Overall Phase 4.1     : FAIL
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : NEEDS_FIX (Run `python3 scripts/verify_phase4_1.py` on Google Colab GPU & verify manually before advancing to Phase 4.2)
+==============================================================================

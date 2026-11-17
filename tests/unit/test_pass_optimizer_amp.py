@@ -110,6 +110,34 @@ class TestOptimizerFusionPass(unittest.TestCase):
         finally:
             uninstall_checkpoint_compat_hooks(torch)
 
+    def test_channels_last_conversion_syncs_loaded_4d_optimizer_state(self) -> None:
+        from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
+        from src.passes.channels_last import convert_module_channels_last
+
+        install_checkpoint_compat_hooks(torch)
+        try:
+            conv = nn.Conv2d(3, 8, kernel_size=3, padding=1)
+            opt = torch.optim.AdamW(conv.parameters(), lr=1e-3)
+            # Run one contiguous step so exp_avg/exp_avg_sq are populated as contiguous NCHW
+            x = torch.randn(2, 3, 8, 8)
+            conv(x).sum().backward()
+            opt.step()
+            ckpt = {"model": conv.state_dict(), "optimizer": opt.state_dict()}
+
+            # Fresh contiguous model + optimizer loads checkpoint, THEN triggers channels_last on 1st forward
+            conv2 = nn.Conv2d(3, 8, kernel_size=3, padding=1)
+            opt2 = torch.optim.AdamW(conv2.parameters(), lr=1e-3)
+            conv2.load_state_dict(ckpt["model"])
+            opt2.load_state_dict(ckpt["optimizer"])
+
+            convert_module_channels_last(conv2, torch)
+            w_param = conv2.weight
+            self.assertTrue(w_param.is_contiguous(memory_format=torch.channels_last))
+            self.assertEqual(opt2.state[w_param]["exp_avg"].stride(), w_param.stride())
+            self.assertEqual(opt2.state[w_param]["exp_avg_sq"].stride(), w_param.stride())
+        finally:
+            uninstall_checkpoint_compat_hooks(torch)
+
 
 class TestAutoAmpPass(unittest.TestCase):
     """Tests for T4 vs L4 config selection, pre-existing AMP yielding, and NaN watchdog."""
