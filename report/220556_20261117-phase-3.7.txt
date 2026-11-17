@@ -1,0 +1,88 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.7 EXPERIMENT REPORT: CUSTOM TRITON KERNELS & CAPABILITY GATE
+==============================================================================
+Timestamp          : 2026-11-17 22:05:56 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 13ddf2c
+Google Colab       : False
+Backend / GPU      : cpu
+Triton Installed   : False
+Unit Tests (Parity): unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Overall Experiment : PASS
+
+[KERNEL MICRO-BENCHMARK (PYTORCH EAGER VS TORCH.COMPILE VS CUSTOM TRITON)]
+------------------------------------------------------------------------------
+Kernel (Shape)           | Eager ms (BW)    | Compile ms (BW)  | Triton ms (BW)   | MaxAbsDiff
+-------------------------+------------------+------------------+------------------+-----------
+RMSNorm (2048x768)       | 8.836 (2.7GB/s)  | 9.256 (2.5GB/s)  | 9.035 (2.6GB/s)  | 0.0       
+LayerNorm (2048x1024)    | 4.471 (7.0GB/s)  | 4.569 (6.8GB/s)  | 4.577 (6.8GB/s)  | 0.0       
+CrossEntropy (2048x2048) | 9.275 (3.4GB/s)  | 8.872 (3.5GB/s)  | 9.177 (3.4GB/s)  | 0.0       
+SwiGLU (2048x3072)       | 20.518 (6.9GB/s) | 19.584 (7.2GB/s) | 21.641 (6.5GB/s) | 0.0       
+
+[END-TO-END TRANSFORMER_LM ABLATION (KERNELS VS COMPILE)]
+------------------------------------------------------------------------------
+Workload          | Variant              | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+------------------+----------------------+---------+---------+----------+---------+-----------------+------------+-------
+transformer:small | 3.7a_kernels_eager   | 14.69   | 17.09   | 17.51    | 0.86x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer:small | 3.7b_compile_only    | 14.69   | 12.79   | 13.02    | 1.15x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer:small | 3.7c_aggressive_full | 14.69   | 17.39   | 17.71    | 0.84x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[KERNEL CAPABILITY GATE & FALLBACK LOGS]
+------------------------------------------------------------------------------
+[SKIPPED] small (3.7a_kernels_eager) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] small (3.7a_kernels_eager) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] small (3.7a_kernels_eager) -> compile.auto: compile.enabled is False
+[SKIPPED] small (3.7a_kernels_eager) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] small (3.7a_kernels_eager) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] small (3.7a_kernels_eager) -> kernels.rmsnorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7a_kernels_eager) -> kernels.layernorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7a_kernels_eager) -> kernels.cross_entropy: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7a_kernels_eager) -> kernels.swiglu: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7a_kernels_eager) -> kernels.auto: no kernels passed capability gate (fallback to PyTorch native)
+[SKIPPED] small (3.7b_compile_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] small (3.7b_compile_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] small (3.7b_compile_only) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] small (3.7b_compile_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] small (3.7b_compile_only) -> kernels.auto: kernels.enabled is False
+[SKIPPED] small (3.7c_aggressive_full) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] small (3.7c_aggressive_full) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] small (3.7c_aggressive_full) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] small (3.7c_aggressive_full) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] small (3.7c_aggressive_full) -> kernels.rmsnorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7c_aggressive_full) -> kernels.layernorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7c_aggressive_full) -> kernels.cross_entropy: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7c_aggressive_full) -> kernels.swiglu: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] small (3.7c_aggressive_full) -> kernels.auto: no kernels passed capability gate (fallback to PyTorch native)
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_transformer_lm_aggressive_kernels_and_checkpoint_cross_load (tests.migrate.test_phase3_7_kernels.TestPhase37KernelsMigration.test_transformer_lm_aggressive_kernels_and_checkpoint_cross_load) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 12.043s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cpu_t4_and_missing_triton_fall_back_cleanly (tests.unit.test_kernels_parity.TestKernelCapabilityGate.test_cpu_t4_and_missing_triton_fall_back_cleanly) ... ok
+test_install_fallback_registry_logs_skips_when_unsupported (tests.unit.test_kernels_parity.TestKernelCapabilityGate.test_install_fallback_registry_logs_skips_when_unsupported) ... ok
+test_cross_entropy_forward_backward_parity (tests.unit.test_kernels_parity.TestKernelsForwardBackwardParity.test_cross_entropy_forward_backward_parity) ... ok
+test_layernorm_forward_backward_parity (tests.unit.test_kernels_parity.TestKernelsForwardBackwardParity.test_layernorm_forward_backward_parity) ... ok
+test_rmsnorm_forward_backward_parity (tests.unit.test_kernels_parity.TestKernelsForwardBackwardParity.test_rmsnorm_forward_backward_parity) ... ok
+test_swiglu_forward_backward_parity (tests.unit.test_kernels_parity.TestKernelsForwardBackwardParity.test_swiglu_forward_backward_parity) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.526s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Triton kernel micro-benchmarks vs torch.compile and E2E parity on Google Colab before finalizing Phase 3 rules)
+==============================================================================

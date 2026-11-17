@@ -1,0 +1,196 @@
+"""Unit tests for Phase 3.7: Custom Triton kernels parity (fwd+bwd), edge shapes, and capability gates."""
+
+from __future__ import annotations
+
+import os
+import sys
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+import torch
+import torch.nn as nn
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from src.config import OptimizeConfig
+from src.hooks import HookManager
+from src.kernels import (
+    HAS_TRITON,
+    KernelSpec,
+    apply_custom_kernels_pass,
+    check_kernel_capability,
+    install_custom_kernels_hooks,
+    ref_cross_entropy,
+    ref_layernorm,
+    ref_rmsnorm,
+    ref_swiglu,
+    triton_cross_entropy,
+    triton_layernorm,
+    triton_rmsnorm,
+    triton_swiglu,
+    uninstall_custom_kernels_hooks,
+)
+
+
+def _tolerances(dtype: torch.dtype) -> tuple[float, float]:
+    if dtype == torch.float32:
+        return 1e-4, 1e-4
+    if dtype == torch.float16:
+        return 5e-3, 5e-3
+    return 2e-2, 2e-2  # bfloat16
+
+
+class TestKernelCapabilityGate(unittest.TestCase):
+    """Tests for hardware, Triton, dtype, and allow_list capability gating."""
+
+    def test_cpu_t4_and_missing_triton_fall_back_cleanly(self) -> None:
+        spec = KernelSpec(name="rmsnorm", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16"))
+
+        ok_triton, r_triton = check_kernel_capability(spec, torch, triton_available=False, sm_override=89)
+        self.assertFalse(ok_triton)
+        self.assertIn("Triton unavailable", r_triton)
+
+        ok_cpu, r_cpu = check_kernel_capability(spec, torch, triton_available=True, sm_override=0)
+        self.assertFalse(ok_cpu)
+        self.assertIn("CUDA unavailable", r_cpu)
+
+        ok_t4, r_t4 = check_kernel_capability(spec, torch, triton_available=True, sm_override=75)
+        self.assertFalse(ok_t4)
+        self.assertIn("sm_75 < min_sm 80", r_t4)
+
+        ok_fp64, r_fp64 = check_kernel_capability(spec, torch, triton_available=True, sm_override=89, dtype_name="fp64")
+        self.assertFalse(ok_fp64)
+        self.assertIn("dtype fp64", r_fp64)
+
+        ok_l4, _ = check_kernel_capability(spec, torch, triton_available=True, sm_override=89, dtype_name="bf16")
+        self.assertTrue(ok_l4)
+
+    def test_install_fallback_registry_logs_skips_when_unsupported(self) -> None:
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.kernels.enabled = True
+        mgr = HookManager()
+
+        with patch.dict(os.environ, {}, clear=False):
+            reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=75)
+            assert reg is not None
+            try:
+                self.assertEqual(len(reg.fallback_registry.entries), 4)
+                self.assertTrue(all(e.status == "SKIPPED" for e in reg.fallback_registry.entries.values()))
+                self.assertTrue(all(ev.status == "SKIPPED" for ev in mgr.events))
+            finally:
+                uninstall_custom_kernels_hooks(torch)
+                mgr.reset()
+
+        cfg_off = OptimizeConfig(profile="balanced")
+        cfg_off.kernels.enabled = False
+        self.assertTrue(apply_custom_kernels_pass(cfg_off, mgr, torch).startswith("SKIPPED:"))
+
+
+class TestKernelsForwardBackwardParity(unittest.TestCase):
+    """Forward + Backward numerical parity across edge shapes (non-pow2, b=1, seq=1) & dtypes."""
+
+    def setUp(self) -> None:
+        self.device = torch.device("cuda" if (HAS_TRITON and torch.cuda.is_available()) else "cpu")
+        self.dtypes = (torch.float32, torch.float16, torch.bfloat16) if self.device.type == "cuda" else (torch.float32,)
+        self.edge_shapes = ((1, 1, 384), (2, 5, 768), (3, 7, 1025))
+
+    def test_rmsnorm_forward_backward_parity(self) -> None:
+        torch.manual_seed(7)
+        for dtype in self.dtypes:
+            atol, rtol = _tolerances(dtype)
+            for shape in self.edge_shapes:
+                dim = shape[-1]
+                x_ref = torch.randn(shape, device=self.device, dtype=torch.float64, requires_grad=True)
+                w_ref = torch.randn(dim, device=self.device, dtype=torch.float64, requires_grad=True)
+                dy_ref = torch.randn(shape, device=self.device, dtype=torch.float64)
+
+                y_ref = ref_rmsnorm(x_ref, w_ref, eps=1e-6)
+                y_ref.backward(dy_ref)
+
+                x = x_ref.detach().to(dtype).requires_grad_(True)
+                w = w_ref.detach().to(dtype).requires_grad_(True)
+                dy = dy_ref.detach().to(dtype)
+
+                y = triton_rmsnorm(x, w, eps=1e-6)
+                y.backward(dy)
+
+                torch.testing.assert_close(y.float(), y_ref.float(), atol=atol, rtol=rtol)
+                torch.testing.assert_close(x.grad.float(), x_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+                torch.testing.assert_close(w.grad.float(), w_ref.grad.float(), atol=atol * 4, rtol=rtol * 4)
+
+    def test_layernorm_forward_backward_parity(self) -> None:
+        torch.manual_seed(11)
+        for dtype in self.dtypes:
+            atol, rtol = _tolerances(dtype)
+            for shape in self.edge_shapes:
+                dim = shape[-1]
+                x_ref = torch.randn(shape, device=self.device, dtype=torch.float64, requires_grad=True)
+                w_ref = torch.randn(dim, device=self.device, dtype=torch.float64, requires_grad=True)
+                b_ref = torch.randn(dim, device=self.device, dtype=torch.float64, requires_grad=True)
+                dy_ref = torch.randn(shape, device=self.device, dtype=torch.float64)
+
+                y_ref = torch.nn.functional.layer_norm(x_ref, (dim,), weight=w_ref, bias=b_ref, eps=1e-5)
+                y_ref.backward(dy_ref)
+
+                x = x_ref.detach().to(dtype).requires_grad_(True)
+                w = w_ref.detach().to(dtype).requires_grad_(True)
+                b = b_ref.detach().to(dtype).requires_grad_(True)
+                dy = dy_ref.detach().to(dtype)
+
+                y = triton_layernorm(x, w, b, eps=1e-5)
+                y.backward(dy)
+
+                torch.testing.assert_close(y.float(), y_ref.float(), atol=atol, rtol=rtol)
+                torch.testing.assert_close(x.grad.float(), x_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+                torch.testing.assert_close(w.grad.float(), w_ref.grad.float(), atol=atol * 4, rtol=rtol * 4)
+                torch.testing.assert_close(b.grad.float(), b_ref.grad.float(), atol=atol * 4, rtol=rtol * 4)
+
+    def test_cross_entropy_forward_backward_parity(self) -> None:
+        torch.manual_seed(19)
+        for dtype in self.dtypes:
+            atol, rtol = _tolerances(dtype)
+            for rows, vocab in ((1, 384), (16, 1025), (32, 2048)):
+                logits_ref = torch.randn(rows, vocab, device=self.device, dtype=torch.float64, requires_grad=True)
+                targets = torch.randint(0, vocab, (rows,), device=self.device)
+                if rows > 1:
+                    targets[0] = -100  # test ignore_index
+
+                loss_ref = torch.nn.functional.cross_entropy(logits_ref, targets, ignore_index=-100)
+                loss_ref.backward()
+
+                logits = logits_ref.detach().to(dtype).requires_grad_(True)
+                loss = triton_cross_entropy(logits, targets, ignore_index=-100, reduction="mean")
+                loss.backward()
+
+                torch.testing.assert_close(loss.float(), loss_ref.float(), atol=atol, rtol=rtol)
+                torch.testing.assert_close(logits.grad.float(), logits_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+
+    def test_swiglu_forward_backward_parity(self) -> None:
+        torch.manual_seed(29)
+        for dtype in self.dtypes:
+            atol, rtol = _tolerances(dtype)
+            for shape in self.edge_shapes:
+                g_ref = torch.randn(shape, device=self.device, dtype=torch.float64, requires_grad=True)
+                u_ref = torch.randn(shape, device=self.device, dtype=torch.float64, requires_grad=True)
+                dy_ref = torch.randn(shape, device=self.device, dtype=torch.float64)
+
+                y_ref = ref_swiglu(g_ref, u_ref)
+                y_ref.backward(dy_ref)
+
+                g = g_ref.detach().to(dtype).requires_grad_(True)
+                u = u_ref.detach().to(dtype).requires_grad_(True)
+                dy = dy_ref.detach().to(dtype)
+
+                y = triton_swiglu(g, u)
+                y.backward(dy)
+
+                torch.testing.assert_close(y.float(), y_ref.float(), atol=atol, rtol=rtol)
+                torch.testing.assert_close(g.grad.float(), g_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+                torch.testing.assert_close(u.grad.float(), u_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+
+
+if __name__ == "__main__":
+    unittest.main()

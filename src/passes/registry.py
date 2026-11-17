@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING
 
+from src.kernels.registry import apply_custom_kernels_pass
 from src.passes.auto_amp import apply_auto_amp_pass
 from src.passes.auto_compile import apply_auto_compile_pass
 from src.passes.channels_last import apply_channels_last_pass
@@ -31,3 +32,4 @@ def register_builtin_passes(manager: "HookManager") -> None:
     manager.register_pass("runtime.channels_last", apply_channels_last_pass)
     manager.register_pass("amp.auto", apply_auto_amp_pass)
     manager.register_pass("inference.opt", apply_inference_opt_pass)
+    manager.register_pass("kernels.auto", apply_custom_kernels_pass)
