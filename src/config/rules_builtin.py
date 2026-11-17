@@ -198,10 +198,9 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="gpu_cuda_ampere_sm80_86",
             layer="gpu_arch",
-            reason="CUDA Ampere sm_80-86 (e.g. A100/RTX 30xx): enable TF32, BF16, Flash SDPA",
+            reason="CUDA Ampere sm_80-86 (e.g. A100/RTX 30xx): BF16 & Flash SDPA capable",
             condition=lambda fp, _p: _is_cuda(fp) and 80 <= fp.sm_int <= 86,
             updates={
-                "runtime.tf32": True,
                 "amp.dtype": "bf16",
                 "amp.grad_scaler": False,
                 "attention.flash_sdp": True,
@@ -211,10 +210,9 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="gpu_cuda_ada_sm89",
             layer="gpu_arch",
-            reason="CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA",
+            reason="CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): BF16 & Flash SDPA capable",
             condition=lambda fp, _p: _is_cuda(fp) and fp.sm_int == 89,
             updates={
-                "runtime.tf32": True,
                 "amp.dtype": "bf16",
                 "amp.grad_scaler": False,
                 "attention.flash_sdp": True,
@@ -224,10 +222,9 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="gpu_cuda_hopper_sm90_plus",
             layer="gpu_arch",
-            reason="CUDA Hopper+ sm_90+ (e.g. H100): enable TF32, BF16, Flash SDPA",
+            reason="CUDA Hopper+ sm_90+ (e.g. H100): BF16 & Flash SDPA capable",
             condition=lambda fp, _p: _is_cuda(fp) and fp.sm_int >= 90,
             updates={
-                "runtime.tf32": True,
                 "amp.dtype": "bf16",
                 "amp.grad_scaler": False,
                 "attention.flash_sdp": True,
@@ -264,10 +261,11 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_safe_cuda",
             layer="user_profile",
-            reason="Safe profile on CUDA: low-risk runtime, fused optimizer, and inference_mode",
+            reason="Safe profile on CUDA: strict FP32 parity (no TF32/cudnn_benchmark workspace bloat), fused optimizer, inference_mode",
             condition=lambda fp, p: p == "safe" and _is_cuda(fp),
             updates={
-                "runtime.cudnn_benchmark": True,
+                "runtime.tf32": False,
+                "runtime.cudnn_benchmark": False,
                 "optimizer.fused": True,
                 "inference.inference_mode": True,
             },
@@ -282,9 +280,10 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_balanced_cuda",
             layer="user_profile",
-            reason="Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode",
+            reason="Balanced profile on CUDA: enable TF32 (sm>=80), cudnn_benchmark, AMP, fused optimizer, compile(default), inference_mode",
             condition=lambda fp, p: p == "balanced" and _is_cuda(fp),
-            updates={
+            updates=lambda fp, _p: {
+                "runtime.tf32": fp.sm_int >= 80,
                 "runtime.cudnn_benchmark": True,
                 "amp.enabled": True,
                 "optimizer.fused": True,
@@ -316,9 +315,10 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_aggressive_cuda",
             layer="user_profile",
-            reason="Aggressive profile on CUDA: enable AMP, fused optimizer, compile, inference_mode",
+            reason="Aggressive profile on CUDA: enable TF32 (sm>=80), cudnn_benchmark, AMP, fused optimizer, compile, inference_mode",
             condition=lambda fp, p: p == "aggressive" and _is_cuda(fp),
-            updates={
+            updates=lambda fp, _p: {
+                "runtime.tf32": fp.sm_int >= 80,
                 "runtime.cudnn_benchmark": True,
                 "amp.enabled": True,
                 "optimizer.fused": True,

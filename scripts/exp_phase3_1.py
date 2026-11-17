@@ -120,24 +120,36 @@ def main() -> int:
     mig_runner, mig_rc, mig_out = _run_test_file("tests/migrate/test_phase3_1_runtime_channels.py")
 
     workloads = ["cnn_vision", "transformer_lm", "deep_mlp", "infer_runner_bs1", "infer_runner_bs32"]
-    variants: list[tuple[str, bool, list[str], dict[str, str]]] = [
-        ("baseline", True, [], {}),
+    is_cuda = target_device == "cuda"
+    # (variant_name, is_base, parity_profile, overrides, extra_env)
+    variants: list[tuple[str, bool, str, list[str], dict[str, str]]] = [
+        ("baseline", True, "safe", [], {}),
         (
-            "3.1a_runtime_flags",
+            "3.1a_safe_alloc",
             False,
-            ["runtime.alloc_conf=null", "runtime.omp_threads=0"],
-            {"PTOPT_CHANNELS_LAST": "0"},
-        ),
-        (
-            "3.1b_flags_plus_alloc",
-            False,
+            "safe",
             [],
             {"PTOPT_CHANNELS_LAST": "0"},
         ),
         (
-            "3.1c_plus_channels_last",
+            "3.1b_tf32_only",
             False,
-            [],
+            "balanced",
+            ["runtime.tf32=true", "runtime.cudnn_benchmark=false"] if is_cuda else [],
+            {"PTOPT_CHANNELS_LAST": "0"},
+        ),
+        (
+            "3.1c_tf32_cudnn_bench",
+            False,
+            "balanced",
+            ["runtime.tf32=true", "runtime.cudnn_benchmark=true"] if is_cuda else [],
+            {"PTOPT_CHANNELS_LAST": "0"},
+        ),
+        (
+            "3.1d_plus_channels_last",
+            False,
+            "balanced",
+            ["runtime.tf32=true", "runtime.cudnn_benchmark=true"] if is_cuda else [],
             {"PTOPT_CHANNELS_LAST": "1"},
         ),
     ]
@@ -148,7 +160,7 @@ def main() -> int:
 
     for wl in workloads:
         base_rec: RunRecord | None = None
-        for var_name, is_base, overrides, extra_env in variants:
+        for var_name, is_base, parity_prof, overrides, extra_env in variants:
             rec = _run_variant(
                 wl_name=wl,
                 steps=steps,
@@ -167,7 +179,7 @@ def main() -> int:
                 comp_rows.append([wl, var_name, base_rec.step_stats.median, rec.step_stats.median, "0.00x", "N/A", "FAIL"])
                 fb_lines.append(f"[ERROR] {wl} ({var_name}): {rec.error or base_rec.error}")
             else:
-                parity = check_parity(base_rec.losses, rec.losses, profile="safe")
+                parity = check_parity(base_rec.losses, rec.losses, profile=parity_prof)
                 speedup = compute_speedup(base_rec.step_stats.median, rec.step_stats.median)
                 vram_d = compute_vram_delta(base_rec.peak_allocated_mb, rec.peak_allocated_mb)
                 status = "PASS" if parity.passed else "FAIL"

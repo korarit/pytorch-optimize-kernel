@@ -1,0 +1,141 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.1 EXPERIMENT REPORT: RUNTIME FLAGS, MEMORY & CHANNELS-LAST
+==============================================================================
+Timestamp          : 2026-11-17 17:16:40 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 5c9a30b
+Google Colab       : False
+Backend / GPU      : cpu
+Steps per Workload : 6
+Unit Tests         : unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Overall Experiment : PASS
+
+[SAFE PROFILE RESOLVED SETTINGS]
+------------------------------------------------------------------------------
+tf32                  : False
+cudnn_benchmark       : False
+alloc_conf            : None
+omp_threads           : 6
+flash_sdp             : False
+mem_efficient_sdp     : False
+
+[ABLATION COMPARISON (Baseline vs 3.1a / 3.1b / 3.1c)]
+------------------------------------------------------------------------------
+Workload          | Variant                 | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+------------------+-------------------------+---------+---------+----------+---------+-----------------+------------+-------
+cnn_vision        | 3.1a_safe_alloc         | 113.60  | 119.95  | 123.24   | 0.95x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision        | 3.1b_tf32_only          | 113.60  | 108.44  | 115.69   | 1.05x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision        | 3.1c_tf32_cudnn_bench   | 113.60  | 128.41  | 154.37   | 0.89x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision        | 3.1d_plus_channels_last | 113.60  | 79.38   | 85.26    | 1.43x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | 3.1a_safe_alloc         | 97.71   | 117.67  | 124.64   | 0.83x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | 3.1b_tf32_only          | 97.71   | 100.96  | 109.77   | 0.97x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | 3.1c_tf32_cudnn_bench   | 97.71   | 143.55  | 148.07   | 0.68x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | 3.1d_plus_channels_last | 97.71   | 107.03  | 110.25   | 0.91x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp          | 3.1a_safe_alloc         | 9.96    | 11.94   | 12.31    | 0.83x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp          | 3.1b_tf32_only          | 9.96    | 10.30   | 11.31    | 0.97x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp          | 3.1c_tf32_cudnn_bench   | 9.96    | 10.36   | 10.55    | 0.96x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp          | 3.1d_plus_channels_last | 9.96    | 9.87    | 10.39    | 1.01x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs1  | 3.1a_safe_alloc         | 1.79    | 3.05    | 3.18     | 0.59x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs1  | 3.1b_tf32_only          | 1.79    | 2.21    | 2.60     | 0.81x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs1  | 3.1c_tf32_cudnn_bench   | 1.79    | 2.85    | 2.89     | 0.63x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs1  | 3.1d_plus_channels_last | 1.79    | 1.73    | 1.93     | 1.04x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs32 | 3.1a_safe_alloc         | 35.87   | 40.23   | 42.75    | 0.89x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs32 | 3.1b_tf32_only          | 35.87   | 59.68   | 60.21    | 0.60x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs32 | 3.1c_tf32_cudnn_bench   | 35.87   | 44.32   | 45.01    | 0.81x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+infer_runner_bs32 | 3.1d_plus_channels_last | 35.87   | 59.85   | 60.61    | 0.60x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[PASS & FALLBACK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] cnn_vision (3.1a_safe_alloc) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.1a_safe_alloc) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1b_tf32_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.1b_tf32_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] cnn_vision (3.1d_plus_channels_last) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.1d_plus_channels_last) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[APPLIED] cnn_vision (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] transformer_lm (3.1a_safe_alloc) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.1a_safe_alloc) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1b_tf32_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.1b_tf32_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] transformer_lm (3.1d_plus_channels_last) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.1d_plus_channels_last) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[APPLIED] transformer_lm (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] deep_mlp (3.1a_safe_alloc) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.1a_safe_alloc) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1b_tf32_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.1b_tf32_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] deep_mlp (3.1d_plus_channels_last) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.1d_plus_channels_last) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[APPLIED] deep_mlp (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs1 (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs1 (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs1 (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[APPLIED] infer_runner_bs1 (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+[APPLIED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs32 (3.1a_safe_alloc) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs32 (3.1b_tf32_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] infer_runner_bs32 (3.1c_tf32_cudnn_bench) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[APPLIED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[APPLIED] infer_runner_bs32 (3.1d_plus_channels_last) -> runtime.channels_last: channels_last Conv2d hook installed
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cnn_and_transformer_with_runtime_flags_and_channels_last (tests.migrate.test_phase3_1_runtime_channels.TestPhase31Migration.test_cnn_and_transformer_with_runtime_flags_and_channels_last) ... ok
+test_cnn_channels_last_checkpoint_cross_load (tests.migrate.test_phase3_1_runtime_channels.TestPhase31Migration.test_cnn_channels_last_checkpoint_cross_load) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 18.426s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_conv2d_converted_and_mlp_skipped_and_state_dict_contiguous (tests.unit.test_pass_runtime_memory.TestChannelsLastPass.test_conv2d_converted_and_mlp_skipped_and_state_dict_contiguous) ... ok
+test_sets_env_without_overwriting_user_vars (tests.unit.test_pass_runtime_memory.TestMemoryAllocatorPrelaunch.test_sets_env_without_overwriting_user_vars) ... ok
+test_a100_sm80_enables_tf32_and_flash_sdp (tests.unit.test_pass_runtime_memory.TestRuntimeFlagsPass.test_a100_sm80_enables_tf32_and_flash_sdp) ... ok
+test_cpu_only_never_touches_cuda_backends (tests.unit.test_pass_runtime_memory.TestRuntimeFlagsPass.test_cpu_only_never_touches_cuda_backends) ... ok
+test_t4_sm75_does_not_enable_tf32_or_flash_sdp (tests.unit.test_pass_runtime_memory.TestRuntimeFlagsPass.test_t4_sm75_does_not_enable_tf32_or_flash_sdp) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.003s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect Phase 3.1 ablation gains & parity on Google Colab before promoting or starting Phase 3.2)
+==============================================================================

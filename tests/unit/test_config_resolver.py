@@ -99,13 +99,20 @@ class TestConfigResolverMatrix(unittest.TestCase):
         self.assertFalse(res_safe.config.amp.enabled)
         self.assertFalse(res_safe.config.amp.grad_scaler)
         self.assertFalse(res_safe.config.compile.enabled)
+        self.assertFalse(res_safe.config.runtime.tf32)
+        self.assertFalse(res_safe.config.runtime.cudnn_benchmark)
         self.assertTrue(res_safe.config.optimizer.fused)
 
-    def test_a100_sm80_balanced(self) -> None:
+    def test_a100_sm80_safe_keeps_strict_fp32_and_balanced_enables_tf32(self) -> None:
         fp = _make_fp(gpu_name="NVIDIA A100-SXM4-40GB", major=8, minor=0, vram_mb=40960.0)
+        res_safe = self.resolver.resolve(fp, profile="safe", env={})
+        self.assertFalse(res_safe.config.runtime.tf32)
+        self.assertFalse(res_safe.config.runtime.cudnn_benchmark)
+
         res = self.resolver.resolve(fp, profile="balanced", env={})
         cfg = res.config
         self.assertTrue(cfg.runtime.tf32)
+        self.assertTrue(cfg.runtime.cudnn_benchmark)
         self.assertTrue(cfg.amp.enabled)
         self.assertEqual(cfg.amp.dtype, "bf16")
         self.assertFalse(cfg.amp.grad_scaler)
