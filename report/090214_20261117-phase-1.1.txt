@@ -1,0 +1,74 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 1.1: HARDWARE & RUNTIME PROBE VERIFICATION
+==============================================================================
+Timestamp          : 2026-11-17 09:02:14 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ e5f501b
+Google Colab       : True
+Effective Backend  : cuda
+Test Runner        : pytest (exit_code=0)
+
+[HOST FINGERPRINT]
+------------------------------------------------------------------------------
+hostname              : 89ec58d452c0
+os_name               : Linux
+os_release            : 6.6.159+
+cpu_arch              : x86_64
+cpu_model             : Intel(R) Xeon(R) CPU @ 2.20GHz
+physical_cores        : 6
+logical_cores         : 12
+isa_flags             : ['avx2', 'avx512f']
+total_ram_mb          : 54229.1
+available_ram_mb      : 52436.3
+shm_total_mb          : 26155.0
+shm_free_mb           : 26155.0
+is_colab              : True
+colab_release_tag     : release-colab-external-images_20261113-060100_RC00
+python_version        : 3.13.16
+torch_version         : 2.14.1+cu130
+cuda_version          : 13.0
+hip_version           : None
+triton_version        : 3.8.0
+jemalloc_path         : None
+tcmalloc_path         : libtcmalloc.so.4
+
+[GPU PROBE SUMMARY]
+------------------------------------------------------------------------------
+backend               : cuda
+device_count          : 1
+selected_index        : 0
+driver_version        : 580.82.07
+cuda_visible_devices  : None
+probe_errors          : none
+
+[GPU DEVICES]
+------------------------------------------------------------------------------
+Idx | Name      | SM    | VRAM       | SMs | BF16 | TF32 | FP8  | FlashSDP
+----+-----------+-------+------------+-----+------+------+------+---------
+0   | NVIDIA L4 | sm_89 | 22563.1 MB | 58  | True | True | True | True    
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 9 items
+
+tests/unit/test_detect.py::TestHardwareDetection::test_apple_silicon_mps_arm64 PASSED [ 11%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_a100_sm80 PASSED [ 22%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_l4_sm89 PASSED [ 33%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_t4_sm75_low_shm PASSED [ 44%]
+tests/unit/test_detect.py::TestHardwareDetection::test_cpu_only_x86_and_aarch64 PASSED [ 55%]
+tests/unit/test_detect.py::TestHardwareDetection::test_fingerprint_json_roundtrip PASSED [ 66%]
+tests/unit/test_detect.py::TestHardwareDetection::test_hopper_h100_sm90_multigpu PASSED [ 77%]
+tests/unit/test_detect.py::TestHardwareDetection::test_low_shm_and_cuda_runtime_error_fallback PASSED [ 88%]
+tests/unit/test_detect.py::TestTextReportBuilder::test_report_filename_and_output PASSED [100%]
+
+============================== 9 passed in 0.06s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify detected Colab GPU/Host values & unit test results manually before Phase 1.2)
+==============================================================================

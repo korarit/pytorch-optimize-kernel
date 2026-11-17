@@ -1,0 +1,69 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 1.2: CONFIG SCHEMA V1 & LAYERED RULE ENGINE
+==============================================================================
+Timestamp          : 2026-11-17 16:05:06 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ e5f501b
+Live Backend       : cpu
+Live GPU           : None
+Test Runner        : unittest (exit_code=0)
+
+[LIVE HOST MATCHED RULES (balanced)]
+------------------------------------------------------------------------------
+base_safe_defaults
+host_linux_x86_64
+gpu_cpu_only
+profile_balanced_non_cuda
+
+[LIVE HOST RESOLUTION TRACE (balanced)]
+------------------------------------------------------------------------------
+[host_arch] host_linux_x86_64: runtime.omp_threads (0 -> 6) | Tune CPU threads and jemalloc for Linux x86_64
+[host_arch] host_linux_x86_64: runtime.jemalloc (False -> True) | Tune CPU threads and jemalloc for Linux x86_64
+[gpu_arch] gpu_cpu_only: runtime.alloc_conf ('expandable_segments:True' -> None) | CPU-only backend: disable CUDA/GPU flags
+[gpu_arch] gpu_cpu_only: attention.mem_efficient_sdp (True -> False) | CPU-only backend: disable CUDA/GPU flags
+[user_profile] profile_balanced_non_cuda: inference.inference_mode (False -> True) | Balanced profile on CPU/MPS: enable inference_mode safely
+
+[ARCHITECTURE x PROFILE RESOLUTION MATRIX]
+------------------------------------------------------------------------------
+Target                  | Profile    | TF32  | AMP        | Scaler | Compile           | FusedOpt | DL-Tune | Kernels
+------------------------+------------+-------+------------+--------+-------------------+----------+---------+--------
+Live Host               | safe       | False | False/fp32 | False  | False/default     | False    | False   | False  
+Live Host               | balanced   | False | False/fp32 | False  | False/default     | False    | False   | False  
+Live Host               | aggressive | False | False/fp32 | False  | False/default     | False    | False   | False  
+Mock Colab T4 (sm_75)   | safe       | False | False/fp16 | False  | False/default     | True     | False   | False  
+Mock Colab T4 (sm_75)   | balanced   | False | True/fp16  | True   | True/default      | True     | True    | False  
+Mock Colab T4 (sm_75)   | aggressive | False | True/fp16  | True   | True/default      | True     | True    | False  
+Mock Colab L4 (sm_89)   | safe       | True  | False/bf16 | False  | False/default     | True     | False   | False  
+Mock Colab L4 (sm_89)   | balanced   | True  | True/bf16  | False  | True/default      | True     | True    | False  
+Mock Colab L4 (sm_89)   | aggressive | True  | True/bf16  | False  | True/max-autotune | True     | True    | True   
+Mock Colab A100 (sm_80) | safe       | True  | False/bf16 | False  | False/default     | True     | False   | False  
+Mock Colab A100 (sm_80) | balanced   | True  | True/bf16  | False  | True/default      | True     | True    | False  
+Mock Colab A100 (sm_80) | aggressive | True  | True/bf16  | False  | True/max-autotune | True     | True    | True   
+Mock Low-SHM T4         | safe       | False | False/fp16 | False  | False/default     | True     | False   | False  
+Mock Low-SHM T4         | balanced   | False | True/fp16  | True   | True/default      | True     | False   | False  
+Mock Low-SHM T4         | aggressive | False | True/fp16  | True   | True/default      | True     | False   | False  
+Mock CPU-Only           | safe       | False | False/fp32 | False  | False/default     | False    | False   | False  
+Mock CPU-Only           | balanced   | False | False/fp32 | False  | False/default     | False    | False   | False  
+Mock CPU-Only           | aggressive | False | False/fp32 | False  | False/default     | False    | False   | False  
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+test_a100_sm80_balanced (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_a100_sm80_balanced) ... ok
+test_cpu_only_and_mps (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_cpu_only_and_mps) ... ok
+test_l4_sm89_aggressive (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_l4_sm89_aggressive) ... ok
+test_low_shm_disables_dataloader_autotune (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_low_shm_disables_dataloader_autotune) ... ok
+test_low_vram_disables_cuda_graphs_and_keeps_default_compile (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_low_vram_disables_cuda_graphs_and_keeps_default_compile) ... ok
+test_overrides_and_trace (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_overrides_and_trace) ... ok
+test_t4_sm75_balanced_and_safe (tests.unit.test_config_resolver.TestConfigResolverMatrix.test_t4_sm75_balanced_and_safe) ... ok
+test_invalid_profile_and_env (tests.unit.test_config_resolver.TestConfigValidation.test_invalid_profile_and_env) ... ok
+test_unknown_keys_and_invalid_constraints (tests.unit.test_config_resolver.TestConfigValidation.test_unknown_keys_and_invalid_constraints) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.002s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect resolved config matrix on Google Colab before starting Phase 1.3)
+==============================================================================
