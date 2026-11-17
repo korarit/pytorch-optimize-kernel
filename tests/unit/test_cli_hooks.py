@@ -72,18 +72,23 @@ class TestHookManagerLifecycle(unittest.TestCase):
         cfg_json = json.dumps(OptimizeConfig(profile="safe").to_dict())
         env = {"PTOPT_ACTIVE": "1", "PTOPT_CONFIG_JSON": cfg_json}
 
-        first = mgr.bootstrap(env=env)
-        second = mgr.bootstrap(env=env)
-        self.assertTrue(first)
-        self.assertFalse(second)
+        saved_torch = sys.modules.pop("torch", None)
+        try:
+            first = mgr.bootstrap(env=env)
+            second = mgr.bootstrap(env=env)
+            self.assertTrue(first)
+            self.assertFalse(second)
 
-        # Even if torch was not yet imported when bootstrap ran, calling apply_torch_hooks twice only runs pass once.
-        mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
-        mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
-        self.assertEqual(calls, ["safe"])
-        self.assertEqual(len(mgr.events), 1)
-        self.assertEqual(mgr.events[0].status, "APPLIED")
-        mgr.reset()
+            # Even if torch was not yet imported when bootstrap ran, calling apply_torch_hooks twice only runs pass once.
+            mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
+            mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
+            self.assertEqual(calls, ["safe"])
+            self.assertEqual(len(mgr.events), 1)
+            self.assertEqual(mgr.events[0].status, "APPLIED")
+        finally:
+            mgr.reset()
+            if saved_torch is not None:
+                sys.modules["torch"] = saved_torch
 
     def test_fallback_vs_strict_mode(self) -> None:
         mgr = HookManager()
@@ -91,20 +96,25 @@ class TestHookManagerLifecycle(unittest.TestCase):
         def _broken_pass(_cfg: OptimizeConfig, _m: HookManager) -> str:
             raise RuntimeError("boom")
 
-        mgr.register_pass("broken", _broken_pass)
-        mgr.bootstrap(env={"PTOPT_ACTIVE": "1", "PTOPT_STRICT": "0"})
-        mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
-        self.assertEqual(len(mgr.events), 1)
-        self.assertEqual(mgr.events[0].status, "FALLBACK")
-        self.assertIn("boom", mgr.events[0].error or "")
-        mgr.reset()
+        saved_torch = sys.modules.pop("torch", None)
+        try:
+            mgr.register_pass("broken", _broken_pass)
+            mgr.bootstrap(env={"PTOPT_ACTIVE": "1", "PTOPT_STRICT": "0"})
+            mgr.apply_torch_hooks(SimpleNamespace(__name__="torch"))
+            self.assertEqual(len(mgr.events), 1)
+            self.assertEqual(mgr.events[0].status, "FALLBACK")
+            self.assertIn("boom", mgr.events[0].error or "")
+            mgr.reset()
 
-        mgr_strict = HookManager()
-        mgr_strict.register_pass("broken", _broken_pass)
-        mgr_strict.bootstrap(env={"PTOPT_ACTIVE": "1", "PTOPT_STRICT": "1"})
-        with self.assertRaises(RuntimeError):
-            mgr_strict.apply_torch_hooks(SimpleNamespace(__name__="torch"))
-        mgr_strict.reset()
+            mgr_strict = HookManager()
+            mgr_strict.register_pass("broken", _broken_pass)
+            mgr_strict.bootstrap(env={"PTOPT_ACTIVE": "1", "PTOPT_STRICT": "1"})
+            with self.assertRaises(RuntimeError):
+                mgr_strict.apply_torch_hooks(SimpleNamespace(__name__="torch"))
+            mgr_strict.reset()
+        finally:
+            if saved_torch is not None:
+                sys.modules["torch"] = saved_torch
 
 
 class TestSubprocessAndColabPlumbing(unittest.TestCase):

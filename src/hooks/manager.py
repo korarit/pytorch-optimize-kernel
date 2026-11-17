@@ -169,6 +169,12 @@ class HookManager:
         if torch_mod is None:
             torch_mod = sys.modules.get("torch")
 
+        from src.hooks.telemetry_hook import maybe_install_telemetry_hook  # noqa: PLC0415
+
+        telemetry_collector = maybe_install_telemetry_hook(torch_mod, self)
+        if telemetry_collector is not None:
+            self._telemetry_collector = telemetry_collector
+
         for pass_name, pass_fn in self._passes:
             try:
                 msg = pass_fn(cfg, self)
