@@ -17,7 +17,7 @@
 ---
 
 ## Exit Criteria รวมของ Phase 2
-- [x] Sub-Phase 2.1 – 2.4 ผ่านครบทุกข้อ (ส่วน implementation & dev tests)
-- [x] รันทุก workload ใน `pipline-for-test/` ผ่าน wrapper โดยไม่แก้โค้ด workload
-- [x] Unit tests + Migrate tests (Script + Checkpoint cross-load) ผ่าน 100% บนเครื่อง dev
-- [ ] **[WAIT FOR USER]** ผู้ใช้ตรวจสอบ **Detailed Text Report (`report/HHMMSS_YYYYMMDD-phase-2.txt`)** บน Google Colab และยืนยันผลด้วยตนเองก่อนเริ่ม Phase 3
+- [x] Sub-Phase 2.1 – 2.4 ผ่านครบทุกข้อ
+- [x] รันทุก workload ใน `pipline-for-test/` ผ่าน wrapper บน Google Colab โดยไม่แก้โค้ด workload
+- [x] Unit tests + Migrate tests (Script + Checkpoint cross-load) ผ่าน 100%
+- [x] **[VERIFIED BY USER]** ผู้ใช้ตรวจสอบ **Detailed Text Report (`report/100005_20261117-phase-2.txt`)** บน Google Colab และยืนยันผลแล้ว

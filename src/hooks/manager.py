@@ -180,7 +180,10 @@ class HookManager:
         for pass_name, pass_fn in self._passes:
             try:
                 msg = pass_fn(cfg, self)
-                self.record_event(pass_name, "APPLIED", msg or "Applied successfully")
+                if isinstance(msg, str) and msg.startswith("SKIPPED:"):
+                    self.record_event(pass_name, "SKIPPED", msg.removeprefix("SKIPPED:").strip())
+                else:
+                    self.record_event(pass_name, "APPLIED", msg or "Applied successfully")
             except Exception as exc:  # noqa: BLE001
                 if self.strict:
                     raise
@@ -213,6 +216,9 @@ def get_hook_manager() -> HookManager:
 
 def bootstrap_from_env(env: Mapping[str, str] | None = None) -> bool:
     """Convenience entrypoint called by sitecustomize bootstrap."""
+    from src.passes import register_builtin_passes  # noqa: PLC0415
+
+    register_builtin_passes(_GLOBAL_MANAGER)
     return _GLOBAL_MANAGER.bootstrap(env=env)
 
 

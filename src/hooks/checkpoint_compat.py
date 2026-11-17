@@ -52,6 +52,20 @@ def normalize_state_dict_for_module(state_dict: Mapping[str, Any], target_module
     return state_dict
 
 
+def _ensure_contiguous_state_dict(state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
+    """Ensure 4D channels_last tensors in state_dict are serialized in standard contiguous layout."""
+    out: OrderedDict[str, Any] = OrderedDict()
+    for key, val in state_dict.items():
+        if hasattr(val, "dim") and hasattr(val, "is_contiguous") and val.dim() == 4 and not val.is_contiguous():
+            out[key] = val.contiguous()
+        else:
+            out[key] = val
+    metadata = getattr(state_dict, "_metadata", None)
+    if isinstance(metadata, dict):
+        out._metadata = dict(metadata)  # type: ignore[attr-defined]
+    return out
+
+
 def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     """Install idempotent state_dict/load_state_dict compatibility hooks on `torch.nn.Module`."""
     global _COMPAT_INSTALLED  # noqa: PLW0603
@@ -66,7 +80,9 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     def _compat_state_dict(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
         sd = orig_state_dict(mod_self, *args, **kwargs)
         if hasattr(mod_self, "_orig_mod") or any(isinstance(k, str) and _ORIG_MOD_TOKEN in k for k in sd.keys()):
-            return strip_orig_mod_prefix(sd)
+            sd = strip_orig_mod_prefix(sd)
+        if getattr(mod_self, "_ptopt_channels_last_done", False):
+            sd = _ensure_contiguous_state_dict(sd)
         return sd
 
     @functools.wraps(orig_load_state_dict)

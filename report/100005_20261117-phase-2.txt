@@ -1,0 +1,104 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 2 CONSOLIDATED REPORT: WRAPPER CORE, BENCHMARK & MIGRATE TESTS
+==============================================================================
+Timestamp          : 2026-11-17 10:00:05 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ ae2ceab
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Unit Tests         : pytest (exit_code=0)
+Migrate Tests      : pytest (exit_code=0)
+Benchmark Smoke    : PASS
+
+[SAFE PROFILE CONFIG]
+------------------------------------------------------------------------------
+tf32                  : True
+amp                   : False (bf16)
+compile               : False
+fused_optimizer       : True
+dataloader_auto_tune  : False
+
+[SMOKE BENCHMARK COMPARISON (Baseline vs safe)]
+------------------------------------------------------------------------------
+Workload          | Mode | Base ms | Wrap ms | Wrap P95 | Speedup | E2E (B/W)     | VRAM MB (B/W/d)      | MaxRelDiff | Status
+------------------+------+---------+---------+----------+---------+---------------+----------------------+------------+-------
+cnn_vision        | safe | 6.06    | 6.12    | 7.47     | 0.99x   | 4.28s / 6.41s | 95.8 / 95.8 (+0.0)   | 0.00021    | PASS  
+transformer_lm    | safe | 10.89   | 11.13   | 11.41    | 0.98x   | 4.14s / 6.26s | 220.0 / 220.0 (+0.0) | 0.0        | PASS  
+deep_mlp          | safe | 8.35    | 8.27    | 8.43     | 1.01x   | 4.00s / 6.06s | 46.7 / 46.7 (+0.0)   | 0.0        | PASS  
+infer_runner_bs1  | safe | 1.56    | 1.54    | 1.59     | 1.01x   | 2.46s / 4.67s | 21.0 / 21.0 (+0.0)   | 0.0        | PASS  
+infer_runner_bs32 | safe | 2.36    | 2.37    | 2.41     | 0.99x   | 2.50s / 4.69s | 38.5 / 38.5 (+0.0)   | 0.0        | PASS  
+edge_cases        | safe | 1.49    | 1.61    | 33.83    | 0.93x   | 4.22s / 6.33s | 16.9 / 16.9 (+0.0)   | 0.0        | PASS  
+
+[MIGRATE TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 3 items
+
+tests/migrate/test_checkpoint_compat.py::TestCheckpointCrossCompatibility::test_baseline_save_wrapped_resume_and_wrapped_save_baseline_resume PASSED [ 33%]
+tests/migrate/test_checkpoint_compat.py::TestCheckpointCrossCompatibility::test_orig_mod_prefix_transparency_hooks PASSED [ 66%]
+tests/migrate/test_script_migration.py::TestUnmodifiedScriptMigration::test_unmodified_workloads_under_ptopt_safe PASSED [100%]
+
+========================= 3 passed in 75.63s (0:01:15) =========================
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 40 items
+
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_module_invocation_prepends_python_executable PASSED [  2%]
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_split_with_separator_preserves_duplicate_user_flags PASSED [  5%]
+tests/unit/test_cli_hooks.py::TestCLIArgParsing::test_split_without_separator_stops_at_script_or_executable PASSED [  7%]
+tests/unit/test_cli_hooks.py::TestHookManagerLifecycle::test_bootstrap_idempotency_and_pass_execution PASSED [ 10%]
+tests/unit/test_cli_hooks.py::TestHookManagerLifecycle::test_fallback_vs_strict_mode PASSED [ 12%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_chain_load_helper_directly PASSED [ 15%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_exit_code_propagation PASSED [ 17%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_lazy_torch_import_hook_and_spawn_worker_propagation PASSED [ 20%]
+tests/unit/test_cli_hooks.py::TestSubprocessAndColabPlumbing::test_sitecustomize_chain_loading_and_bootstrapped_marker PASSED [ 22%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_a100_sm80_balanced PASSED [ 25%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_cpu_only_and_mps PASSED [ 27%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_l4_sm89_aggressive PASSED [ 30%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_shm_disables_dataloader_autotune PASSED [ 32%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_vram_disables_cuda_graphs_and_keeps_default_compile PASSED [ 35%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_overrides_and_trace PASSED [ 37%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_t4_sm75_balanced_and_safe PASSED [ 40%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_invalid_profile_and_env PASSED [ 42%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_unknown_keys_and_invalid_constraints PASSED [ 45%]
+tests/unit/test_detect.py::TestHardwareDetection::test_apple_silicon_mps_arm64 PASSED [ 47%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_a100_sm80 PASSED [ 50%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_l4_sm89 PASSED [ 52%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_t4_sm75_low_shm PASSED [ 55%]
+tests/unit/test_detect.py::TestHardwareDetection::test_cpu_only_x86_and_aarch64 PASSED [ 57%]
+tests/unit/test_detect.py::TestHardwareDetection::test_fingerprint_json_roundtrip PASSED [ 60%]
+tests/unit/test_detect.py::TestHardwareDetection::test_hopper_h100_sm90_multigpu PASSED [ 62%]
+tests/unit/test_detect.py::TestHardwareDetection::test_low_shm_and_cuda_runtime_error_fallback PASSED [ 65%]
+tests/unit/test_detect.py::TestTextReportBuilder::test_report_filename_and_output PASSED [ 67%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_dump_config_roundtrip_and_validation PASSED [ 70%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_explain_contains_all_sections PASSED [ 72%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_invalid_target_arch_raises PASSED [ 75%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_snapshot_dict_helper PASSED [ 77%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_target_arch_presets_and_overrides PASSED [ 80%]
+tests/unit/test_telemetry_and_bench.py::TestTelemetryMathAndParity::test_parity_pass_fail_and_nan PASSED [ 82%]
+tests/unit/test_telemetry_and_bench.py::TestTelemetryMathAndParity::test_percentile_and_step_stats PASSED [ 85%]
+tests/unit/test_telemetry_and_bench.py::TestTelemetryMathAndParity::test_speedup_and_vram_delta PASSED [ 87%]
+tests/unit/test_telemetry_and_bench.py::TestTelemetryHookDummyLoop::test_collector_captures_steps_and_losses PASSED [ 90%]
+tests/unit/test_telemetry_and_bench.py::TestBenchmarkReportFormatter::test_report_generation_handles_pass_and_fail PASSED [ 92%]
+tests/unit/test_workloads.py::TestWorkloadsPureAndDeterministic::test_all_workloads_cpu_smoke_and_determinism PASSED [ 95%]
+tests/unit/test_workloads.py::TestWorkloadsPureAndDeterministic::test_checkpoint_save_and_resume_roundtrip PASSED [ 97%]
+tests/unit/test_workloads.py::TestWorkloadsPureAndDeterministic::test_workloads_do_not_import_src_wrapper PASSED [100%]
+
+============================= 40 passed in 47.95s ==============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Phase 2 consolidated report on Google Colab before entering Phase 3 Optimization Lab)
+==============================================================================
