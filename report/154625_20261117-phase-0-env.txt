@@ -1,0 +1,44 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 0: ENVIRONMENT & HARDWARE DISCOVERY REPORT
+==============================================================================
+Timestamp          : 2026-11-17 15:46:25 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 153367c
+Google Colab       : False (tag=None, COLAB_GPU=None)
+
+[HOST & MACHINE ARCHITECTURE]
+------------------------------------------------------------------------------
+Hostname           : sandbox
+OS / Kernel        : Linux 7.0.0-43-generic
+CPU Arch           : x86_64
+CPU Model          : 11th Gen Intel(R) Core(TM) i5-11400H @ 2.70GHz
+CPU Cores          : physical=6, logical=12
+CPU ISA Flags      : avx2, avx512f
+System RAM (MB)    : total=31793.2, available=18793.8
+/dev/shm (MB)      : total=15896.6, free=15896.6
+Allocator Libs     : jemalloc=libjemalloc.so.2, tcmalloc=None
+
+[PYTHON & PYTORCH STACK]
+------------------------------------------------------------------------------
+Python             : 3.12.3 (/usr/bin/python3)
+PyTorch            : 2.15.0+cpu
+Torch CUDA / HIP   : cuda=None, hip=None
+Triton             : NOT INSTALLED
+pytest             : NOT INSTALLED
+Selected Backend   : cpu (cuda_avail=False, mps_avail=False)
+
+[GPU ARCHITECTURE & CAPABILITIES]
+------------------------------------------------------------------------------
+PyTorch CUDA GPUs  : None detected
+nvidia-smi         : available=False, driver=None
+
+[PHASE 0 OBSERVATIONS & ARCHITECTURE NOTES]
+------------------------------------------------------------------------------
+[INFO] CPU-only environment detected: GPU CUDA passes will be skipped; CPU thread/allocator rules apply.
+[WARN] Triton not installed: Phase 3.6 custom Triton kernels will fallback to PyTorch native ops.
+[WARN] pytest not installed: install pytest before running Phase 1+ test suites.
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Run on Google Colab & verify manually)
+==============================================================================
