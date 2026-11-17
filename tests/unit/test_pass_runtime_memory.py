@@ -206,6 +206,18 @@ class TestChannelsLastPass(unittest.TestCase):
             for val in sd.values():
                 if val.dim() == 4:
                     self.assertTrue(val.is_contiguous())
+
+            # Optimizer 4D buffers (e.g. SGD momentum_buffer) & injected fused flag must also normalize cleanly
+            opt = torch.optim.SGD(cnn.parameters(), lr=0.05, momentum=0.9)
+            opt._ptopt_injected_fused = True  # type: ignore[attr-defined]
+            cnn(torch.randn(2, 3, 16, 16)).sum().backward()
+            opt.step()
+            osd = opt.state_dict()
+            self.assertFalse(osd["param_groups"][0]["fused"])
+            for st in osd["state"].values():
+                buf = st.get("momentum_buffer")
+                if buf is not None and buf.dim() == 4:
+                    self.assertTrue(buf.is_contiguous())
         finally:
             uninstall_channels_last_hook(torch)
             uninstall_checkpoint_compat_hooks(torch)

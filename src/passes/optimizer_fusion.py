@@ -123,6 +123,10 @@ def install_optimizer_fusion_hook(
 
                 try:
                     base_init(opt_self, mat_params, *args, **injected_kwargs)
+                    if applied_mode == "fused=True":
+                        opt_self._ptopt_injected_fused = True
+                    elif applied_mode == "foreach=True":
+                        opt_self._ptopt_injected_foreach = True
                     if applied_mode is not None:
                         manager.record_event(f"optimizer.{target_cls_name}", "APPLIED", applied_mode)
                 except Exception as exc:  # noqa: BLE001

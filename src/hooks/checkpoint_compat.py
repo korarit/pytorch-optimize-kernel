@@ -76,8 +76,47 @@ def _ensure_contiguous_state_dict(state_dict: Mapping[str, Any]) -> OrderedDict[
     return out
 
 
+def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_self: Any) -> dict[str, Any]:
+    """Normalize 4D optimizer state buffers (e.g. SGD momentum_buffer) to contiguous and strip injected fused flag."""
+    out = dict(state_dict)
+    raw_state = state_dict.get("state")
+    if isinstance(raw_state, Mapping):
+        clean_state: dict[Any, Any] = {}
+        for param_id, p_state in raw_state.items():
+            if isinstance(p_state, Mapping):
+                clean_p_state: dict[Any, Any] = {}
+                for sk, sv in p_state.items():
+                    if hasattr(sv, "dim") and hasattr(sv, "is_contiguous") and sv.dim() == 4 and not sv.is_contiguous():
+                        clean_p_state[sk] = sv.contiguous()
+                    else:
+                        clean_p_state[sk] = sv
+                clean_state[param_id] = clean_p_state
+            else:
+                clean_state[param_id] = p_state
+        out["state"] = clean_state
+
+    raw_groups = state_dict.get("param_groups")
+    if isinstance(raw_groups, list):
+        injected_fused = bool(getattr(opt_self, "_ptopt_injected_fused", False))
+        injected_foreach = bool(getattr(opt_self, "_ptopt_injected_foreach", False))
+        if injected_fused or injected_foreach:
+            clean_groups: list[Any] = []
+            for grp in raw_groups:
+                if isinstance(grp, Mapping):
+                    grp_copy = dict(grp)
+                    if injected_fused and "fused" in grp_copy:
+                        grp_copy["fused"] = False
+                    if injected_foreach and "foreach" in grp_copy:
+                        grp_copy["foreach"] = None
+                    clean_groups.append(grp_copy)
+                else:
+                    clean_groups.append(grp)
+            out["param_groups"] = clean_groups
+    return out
+
+
 def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
-    """Install idempotent state_dict/load_state_dict compatibility hooks on `torch.nn.Module`."""
+    """Install idempotent state_dict/load_state_dict compatibility hooks on `nn.Module` and `optim.Optimizer`."""
     global _COMPAT_INSTALLED  # noqa: PLW0603
     if _COMPAT_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return False
@@ -104,12 +143,25 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     nn_module.load_state_dict = _compat_load_state_dict  # type: ignore[method-assign]
     nn_module._ptopt_orig_state_dict = orig_state_dict  # type: ignore[attr-defined]
     nn_module._ptopt_orig_load_state_dict = orig_load_state_dict  # type: ignore[attr-defined]
+
+    opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
+    if opt_cls is not None and hasattr(opt_cls, "state_dict"):
+        orig_opt_sd = opt_cls.state_dict
+
+        @functools.wraps(orig_opt_sd)
+        def _compat_opt_state_dict(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
+            sd = orig_opt_sd(opt_self, *args, **kwargs)
+            return _ensure_contiguous_optimizer_state_dict(sd, opt_self)
+
+        opt_cls._ptopt_orig_state_dict = orig_opt_sd  # type: ignore[attr-defined]
+        opt_cls.state_dict = _compat_opt_state_dict  # type: ignore[method-assign]
+
     _COMPAT_INSTALLED = True
     return True
 
 
 def uninstall_checkpoint_compat_hooks(torch_mod: Any) -> None:
-    """Restore original `nn.Module.state_dict` and `load_state_dict` (for unit tests)."""
+    """Restore original `nn.Module` and `optim.Optimizer` state_dict hooks (for unit tests)."""
     global _COMPAT_INSTALLED  # noqa: PLW0603
     if not _COMPAT_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return
@@ -120,4 +172,8 @@ def uninstall_checkpoint_compat_hooks(torch_mod: Any) -> None:
     if hasattr(nn_module, "_ptopt_orig_load_state_dict"):
         nn_module.load_state_dict = nn_module._ptopt_orig_load_state_dict  # type: ignore[method-assign]
         delattr(nn_module, "_ptopt_orig_load_state_dict")
+    opt_cls = getattr(getattr(torch_mod, "optim", None), "Optimizer", None)
+    if opt_cls is not None and hasattr(opt_cls, "_ptopt_orig_state_dict"):
+        opt_cls.state_dict = opt_cls._ptopt_orig_state_dict  # type: ignore[method-assign]
+        delattr(opt_cls, "_ptopt_orig_state_dict")
     _COMPAT_INSTALLED = False

@@ -1,0 +1,147 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3 FULL CONSOLIDATION REPORT: BASELINE VS SAFE / BALANCED / AGGRESSIVE
+==============================================================================
+Timestamp          : 2026-11-17 18:29:49 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ aa4d1c6
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+Unit Suite         : pytest (exit_code=0)
+Migrate Suite      : pytest (exit_code=1)
+Overall Phase 3    : FAIL
+
+[PHASE 3 CONSOLIDATED PROFILE MATRIX]
+------------------------------------------------------------------------------
+Workload          | Profile    | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d)        | MaxRelDiff | Status
+------------------+------------+---------+---------+----------+---------+------------------------+------------+-------
+transformer_lm    | safe       | 99.19   | 94.43   | 97.44    | 1.05x   | 1734.8/1730.9 (-4.0)   | 0.0        | PASS  
+transformer_lm    | balanced   | 99.19   | 26.27   | 26.57    | 3.77x   | 1734.8/1033.4 (-701.5) | 9e-06      | PASS  
+transformer_lm    | aggressive | 99.19   | 25.77   | 26.14    | 3.85x   | 1734.8/955.4 (-779.5)  | 7e-06      | PASS  
+cnn_vision        | safe       | 65.46   | 66.31   | 66.64    | 0.99x   | 839.4/837.8 (-1.6)     | 0.0        | PASS  
+cnn_vision        | balanced   | 65.46   | 21.21   | 21.43    | 3.09x   | 839.4/450.2 (-389.2)   | 0.000965   | PASS  
+cnn_vision        | aggressive | 65.46   | 20.05   | 20.39    | 3.26x   | 839.4/592.1 (-247.2)   | 0.000729   | PASS  
+deep_mlp          | safe       | 16.08   | 10.72   | 11.52    | 1.50x   | 498.5/402.7 (-95.8)    | 0.0        | PASS  
+deep_mlp          | balanced   | 16.08   | 9.49    | 9.93     | 1.69x   | 498.5/404.2 (-94.3)    | 0.002193   | PASS  
+deep_mlp          | aggressive | 16.08   | 9.22    | 9.45     | 1.74x   | 498.5/404.2 (-94.3)    | 0.002193   | PASS  
+infer_runner_bs1  | safe       | 1.55    | 1.54    | 1.56     | 1.01x   | 21.0/21.0 (+0.0)       | 0.0        | PASS  
+infer_runner_bs1  | balanced   | 1.55    | 1.55    | 1.57     | 1.00x   | 21.0/69.2 (+48.2)      | 0.003214   | PASS  
+infer_runner_bs1  | aggressive | 1.55    | 0.49    | 0.50     | 3.13x   | 21.0/21.2 (+0.2)       | 0.003214   | PASS  
+infer_runner_bs32 | safe       | 2.40    | 1.82    | 1.84     | 1.31x   | 38.5/38.5 (+0.0)       | 0.0        | PASS  
+infer_runner_bs32 | balanced   | 2.40    | 1.59    | 1.63     | 1.51x   | 38.5/80.4 (+42.0)      | 0.000576   | PASS  
+infer_runner_bs32 | aggressive | 2.40    | 0.87    | 0.97     | 2.76x   | 38.5/30.9 (-7.5)       | 0.000576   | PASS  
+edge_cases        | safe       | 1.71    | 1.43    | 8.03     | 1.20x   | 16.9/16.9 (-0.1)       | 0.0        | PASS  
+edge_cases        | balanced   | 1.71    | 1.99    | 1277.90  | 0.86x   | 16.9/64.8 (+47.8)      | 1.8e-05    | PASS  
+edge_cases        | aggressive | 1.71    | 1.88    | 348.38   | 0.91x   | 16.9/16.9 (-0.1)       | 1.8e-05    | PASS  
+
+[SKIP & FALLBACK AUDIT SUMMARY]
+------------------------------------------------------------------------------
+[SKIPPED] transformer_lm (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] transformer_lm (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] transformer_lm (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] transformer_lm (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] transformer_lm (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] transformer_lm (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] transformer_lm (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] cnn_vision (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] cnn_vision (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] cnn_vision (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] cnn_vision (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] cnn_vision (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] cnn_vision (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] cnn_vision (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] cnn_vision (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] deep_mlp (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] deep_mlp (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] deep_mlp (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] deep_mlp (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] deep_mlp (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] deep_mlp (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] deep_mlp (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] deep_mlp (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs1 (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] infer_runner_bs1 (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_runner_bs1 (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_runner_bs1 (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] infer_runner_bs1 (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] infer_runner_bs1 (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] infer_runner_bs1 (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs1 (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs1 (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs32 (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] infer_runner_bs32 (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] infer_runner_bs32 (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] infer_runner_bs32 (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] infer_runner_bs32 (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] infer_runner_bs32 (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] infer_runner_bs32 (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs32 (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] infer_runner_bs32 (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] edge_cases (safe) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[SKIPPED] edge_cases (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_cases (safe) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[SKIPPED] edge_cases (safe) -> kernels.auto: kernels.enabled is False
+[SKIPPED] edge_cases (balanced) -> kernels.auto: kernels.enabled is False
+[SKIPPED] edge_cases (balanced) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[FALLBACK] edge_cases (balanced) -> compile.auto: Dynamic input shapes detected on Sequential; switching to dynamic=True
+[FALLBACK] edge_cases (balanced) -> dataloader.auto_tune: Unpicklable dataset (AttributeError: Can't get local object '_LambdaDataset.__init__.<locals>.<lambda>'); keeping num_workers=0
+[SKIPPED] edge_cases (aggressive) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] edge_cases (aggressive) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] edge_cases (aggressive) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] edge_cases (aggressive) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[FALLBACK] edge_cases (aggressive) -> compile.auto: Dynamic input shapes detected on Sequential; switching to dynamic=True
+[FALLBACK] edge_cases (aggressive) -> dataloader.auto_tune: Unpicklable dataset (AttributeError: Can't get local object '_LambdaDataset.__init__.<locals>.<lambda>'); keeping num_workers=0
+
+[UNIT SUITE (pytest)]
+------------------------------------------------------------------------------
+........................................................................ [ 86%]
+...........                                                              [100%]
+=============================== warnings summary ===============================
+tests/unit/test_pass_inference.py::TestInferenceOptPass::test_cpu_dynamic_quantization_opt_in
+  /usr/local/lib/python3.13/dist-packages/torch/ao/nn/quantized/modules/utils.py:72: UserWarning: torch.quantize_per_tensor, torch.quantize_per_channel and other quantized tensor creation functions that produce tensors with dtype torch.quint8, torch.qint8, and torch.qint32 are deprecated and will be removed in a future PyTorch release. Please see https://github.com/pytorch/pytorch/issues/184982 for more information. (Triggered internally at /__w/pytorch/pytorch/aten/src/ATen/quantized/Quantizer.cpp:111.)
+    qweight = torch.quantize_per_tensor(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+83 passed, 1 warning in 50.52s
+
+[MIGRATE SUITE (pytest)]
+------------------------------------------------------------------------------
+            try:
+                stdout, stderr = process.communicate(input, timeout=timeout)
+            except TimeoutExpired as exc:
+                process.kill()
+                if _mswindows:
+                    # Windows accumulates the output in a single blocking
+                    # read() call run on child threads, with the timeout
+                    # being done in a join() on those threads.  communicate()
+                    # _after_ kill() is required to collect that and add it
+                    # to the exception.
+                    exc.stdout, exc.stderr = process.communicate()
+                else:
+                    # POSIX _communicate already populated the output so
+                    # far into the TimeoutExpired exception.
+                    process.wait()
+                raise
+            except:  # Including KeyboardInterrupt, communicate handled that.
+                process.kill()
+                # We don't call process.wait() as .__exit__ does that for us.
+                raise
+            retcode = process.poll()
+            if check and retcode:
+>               raise CalledProcessError(retcode, process.args,
+                                         output=stdout, stderr=stderr)
+E               subprocess.CalledProcessError: Command '['/usr/bin/python3', '/content/pytorch-optimize-kernel/pipline-for-test/workloads/cnn_vision.py', '--steps', '4', '--load-ckpt', '/tmp/tmpip1z2p_c/cnn_cl.pt', '--batch-size', '8', '--seed', '55', '--device', 'cuda']' returned non-zero exit status 1.
+
+/usr/lib/python3.13/subprocess.py:578: CalledProcessError
+=========================== short test summary info ============================
+FAILED tests/migrate/test_phase3_1_runtime_channels.py::TestPhase31Migration::test_cnn_channels_last_checkpoint_cross_load
+1 failed, 12 passed in 282.49s (0:04:42)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Inspect Phase 3 consolidated profile matrix on Google Colab before starting Phase 4)
+==============================================================================
