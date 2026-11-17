@@ -112,7 +112,7 @@ class TestConfigResolverMatrix(unittest.TestCase):
         res = self.resolver.resolve(fp, profile="balanced", env={})
         cfg = res.config
         self.assertTrue(cfg.runtime.tf32)
-        self.assertTrue(cfg.runtime.cudnn_benchmark)
+        self.assertFalse(cfg.runtime.cudnn_benchmark)
         self.assertTrue(cfg.amp.enabled)
         self.assertEqual(cfg.amp.dtype, "bf16")
         self.assertFalse(cfg.amp.grad_scaler)

@@ -280,11 +280,11 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_balanced_cuda",
             layer="user_profile",
-            reason="Balanced profile on CUDA: enable TF32 (sm>=80), cudnn_benchmark, AMP, fused optimizer, compile(default), inference_mode",
+            reason="Balanced profile on CUDA: enable TF32 (sm>=80), AMP, fused optimizer, compile(default), inference_mode (keep cudnn_benchmark off to avoid +125MB workspace bloat)",
             condition=lambda fp, p: p == "balanced" and _is_cuda(fp),
             updates=lambda fp, _p: {
                 "runtime.tf32": fp.sm_int >= 80,
-                "runtime.cudnn_benchmark": True,
+                "runtime.cudnn_benchmark": False,
                 "amp.enabled": True,
                 "optimizer.fused": True,
                 "compile.enabled": True,

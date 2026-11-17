@@ -13,7 +13,7 @@
 
 | Profile | Non-finite (`NaN`/`Inf`) | Training Loss Relative Diff (Mean / Max) | Eval / Inference Output Max Abs Diff |
 | :--- | :--- | :--- | :--- |
-| **`safe`** | ห้ามเกิด (0 tolerance) | `<= 1e-3` (เผื่อ TF32/non-deterministic kernel เล็กน้อย) | `<= 1e-3` |
+| **`safe`** | ห้ามเกิด (0 tolerance) | `<= 5e-3` (เผื่อ CUDA cuDNN backward atomicAdd non-determinism ข้าม 20+ steps) | `<= 5e-3` |
 | **`balanced`** | ห้ามเกิด (0 tolerance) | `<= 2e-2` (เผื่อ `bf16` / `fp16` mixed precision) | `<= 2e-2` |
 | **`aggressive`** | ห้ามเกิด (0 tolerance) | `<= 3e-2` (รวม Custom Kernels / FP8 / `max-autotune`) | `<= 3e-2` |
 
