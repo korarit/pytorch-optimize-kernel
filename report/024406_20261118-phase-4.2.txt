@@ -1,0 +1,63 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.2 REPORT: DIAGNOSTICS (--doctor), FALLBACK REPORTER & DOCS
+==============================================================================
+Timestamp          : 2026-11-18 02:44:06 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 4476274
+GPU / Backend      : CPU-only | cpu
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+
+[Phase 4.2 Verification Checks]
+------------------------------------------------------------------------------
+Check                                | Scope                                         | Duration | Status | Details                                    
+-------------------------------------+-----------------------------------------------+----------+--------+--------------------------------------------
+Unit: Doctor & Fallback              | tests/unit/test_doctor_and_fallback.py        | 2.51s    | PASS   | Ran 7 tests in 2.400s                      
+CLI: ptopt --doctor (live)           | cpu                                           | 1.19s    | PASS   | Checks + recommendation printed            
+CLI: --target-arch low_shm_t4        | Colab T4 512MB /dev/shm simulation            | 0.09s    | PASS   | Recommended balanced + WARN low /dev/shm   
+CLI: --fallback-report --save-report | End-to-end audit stderr + run-*.txt file      | 2.34s    | PASS   | saved=024406_20261118-run-phase42_probe.txt
+Docs: ai-docs-dev/USER-GUIDE.md      | CLI, Profiles, Colab, GPU rule, Pass & Kernel | 0.00s    | PASS   | 7037 bytes                                 
+
+[Live `ptopt --doctor` Snapshot]
+------------------------------------------------------------------------------
+==============================================================================
+ptopt --doctor | ENVIRONMENT DIAGNOSTICS & PROFILE RECOMMENDATION
+==============================================================================
+Backend            : cpu
+Host               : Linux x86_64 (Colab=False)
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+
+[Diagnostic Checks]
+------------------------------------------------------------------------------
+[MISSING] CUDA Driver & GPU: No CUDA GPU detected (backend=cpu).
+          Fix -> In Google Colab: Runtime -> Change runtime type -> T4/L4/A100 GPU; or install CUDA-enabled PyTorch.
+[OK     ] PyTorch & torch.compile: PyTorch 2.15.0+cpu (Python 3.12.3; Inductor/SDPA supported).
+[WARN   ] Triton Compiler: Triton not installed (optional outside Linux CUDA).
+[OK     ] /dev/shm Shared Memory: Healthy /dev/shm (total=15897 MB, free=15897 MB).
+[OK     ] Host Memory Allocator: Found jemalloc=libjemalloc.so.2.
+[OK     ] TORCHINDUCTOR_CACHE_DIR: /home/korarit/Desktop/kernel-pytouch-optimize/.torch_inductor_cache (exists & writable).
+[OK     ] Report Output Directory: /home/korarit/Desktop/kernel-pytouch-optimize/report (exists & writable).
+
+[Recommended Profile]
+------------------------------------------------------------------------------
+Profile : supersafe
+Advice  : CPU-only environment detected -> recommended: supersafe (strict FP32 parity; CUDA passes skipped safely)
+
+[Summary]
+------------------------------------------------------------------------------
+OK: 5 | WARN: 1 | MISSING: 1
+==============================================================================
+
+[Failure Diagnostics]
+------------------------------------------------------------------------------
+None — all Phase 4.2 diagnostics, fallback reporting, and docs passed cleanly.
+
+[Phase 4.2 Verdict]
+------------------------------------------------------------------------------
+Checks Passed         : 5/5
+Overall Phase 4.2     : PASS
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify `ptopt --doctor`, `--fallback-report`, and USER-GUIDE.md on Google Colab before advancing to Phase 4.3)
+==============================================================================

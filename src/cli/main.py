@@ -8,10 +8,12 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from src.cli.doctor import format_doctor_text, run_doctor
 from src.cli.explain import (
     available_mock_targets,
     build_config_snapshot_dict,
@@ -21,6 +23,7 @@ from src.cli.explain import (
 )
 from src.config import ConfigResolver, ConfigValidationError, OptimizeConfig, migrate_config_dict
 from src.detect import collect_fingerprint
+from src.hooks.fallback_reporter import build_run_text_report, read_events_json
 from src.passes.memory_allocator import apply_prelaunch_env
 
 _VALUE_FLAGS = frozenset({
@@ -28,6 +31,8 @@ _VALUE_FLAGS = frozenset({
     "--amp-dtype",
     "--compile-mode",
     "--dump-config",
+    "--save-report",
+    "--run-name",
     "--target-arch",
     "--mock-profile",
     "--override",
@@ -42,6 +47,7 @@ _BOOL_FLAGS = frozenset({
     "--fallback-report",
     "--explain",
     "--show-config",
+    "--doctor",
     "-h",
     "--help",
 })
@@ -101,8 +107,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--strict", action="store_true", help="Fail fast instead of falling back on hook errors")
     parser.add_argument("--verbose", action="store_true", help="Print runtime hook warnings")
     parser.add_argument("--fallback-report", action="store_true", help="Print pass/fallback summary on exit")
+    parser.add_argument("--save-report", type=Path, default=None, help="Directory to write report/HHMMSS_YYYYMMDD-run-<name>.txt")
+    parser.add_argument("--run-name", default=None, help="Name suffix used with --save-report")
     parser.add_argument("--explain", action="store_true", help="Print hardware detection, rule trace, and config")
     parser.add_argument("--show-config", action="store_true", help="Print resolved JSON config only")
+    parser.add_argument("--doctor", action="store_true", help="Diagnose GPU/PyTorch/Triton/shm readiness and recommend profile")
     parser.add_argument("--dump-config", type=Path, default=None, help="Save config snapshot JSON to path")
     parser.add_argument("--target-arch", default=None, help=f"Mock arch ({', '.join(available_mock_targets())})")
     parser.add_argument("--mock-profile", default=None, help="Alias for --target-arch")
@@ -164,6 +173,7 @@ def build_child_env(
     strict: bool = False,
     verbose: bool = False,
     fallback_report: bool = False,
+    events_out: str | Path | None = None,
     base_env: Mapping[str, str] | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, str]:
@@ -185,6 +195,8 @@ def build_child_env(
     env["PTOPT_STRICT"] = "1" if strict else "0"
     env["PTOPT_VERBOSE"] = "1" if verbose else "0"
     env["PTOPT_FALLBACK_REPORT"] = "1" if fallback_report else "0"
+    if events_out is not None:
+        env["PTOPT_EVENTS_OUT"] = str(events_out)
     apply_prelaunch_env(migrated_cfg, env)
     return env
 
@@ -223,6 +235,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             encoding="utf-8",
         )
 
+    if args.doctor:
+        doc_report = run_doctor(fp=fp, cache_dir=result.config.compile.cache_dir, report_dir=args.save_report)
+        print(format_doctor_text(doc_report), end="")
+        if not parsed.command:
+            return 0
+
     if args.explain or args.show_config:
         if args.show_config and not args.explain:
             print(format_show_config_text(result), end="")
@@ -235,13 +253,45 @@ def main(argv: Sequence[str] | None = None) -> int:
         _build_parser().print_help()
         return 2
 
-    child_env = build_child_env(
-        result.config.to_dict(),
-        strict=args.strict,
-        verbose=args.verbose,
-        fallback_report=args.fallback_report,
-    )
-    return _launch_subprocess(parsed.command, child_env)
+    events_tmp: Path | None = None
+    if args.save_report is not None:
+        fd, raw_tmp = tempfile.mkstemp(prefix="ptopt_events_", suffix=".json")
+        os.close(fd)
+        events_tmp = Path(raw_tmp)
+
+    try:
+        child_env = build_child_env(
+            result.config.to_dict(),
+            strict=args.strict,
+            verbose=args.verbose,
+            fallback_report=args.fallback_report,
+            events_out=events_tmp,
+        )
+        rc = _launch_subprocess(parsed.command, child_env)
+        if args.save_report is not None and events_tmp is not None:
+            events = read_events_json(events_tmp)
+            default_name = (
+                Path(parsed.command[1]).stem
+                if len(parsed.command) > 1 and parsed.command[1].endswith(".py")
+                else "ptopt"
+            )
+            saved_path = build_run_text_report(
+                events,
+                run_name=args.run_name or default_name,
+                fp=fp,
+                profile=result.config.profile,
+                command=parsed.command,
+                exit_code=rc,
+                report_dir=args.save_report,
+            )
+            print(f"[ptopt] Saved fallback report: {saved_path}", file=sys.stderr)
+        return rc
+    finally:
+        if events_tmp is not None and events_tmp.exists():
+            try:
+                events_tmp.unlink()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

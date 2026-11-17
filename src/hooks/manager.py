@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from src.config import OptimizeConfig, migrate_config_dict
+from src.hooks.fallback_reporter import format_fallback_report, write_events_json
 
 PassCallable = Callable[[OptimizeConfig, "HookManager"], str | None]
 
@@ -151,7 +152,7 @@ class HookManager:
         self.bootstrapped = True
         os.environ["_PTOPT_BOOTSTRAPPED"] = "1"
 
-        if self.fallback_report and not self._atexit_registered:
+        if (self.fallback_report or self.verbose or env_map.get("PTOPT_EVENTS_OUT")) and not self._atexit_registered:
             atexit.register(self._emit_fallback_summary)
             self._atexit_registered = True
 
@@ -201,17 +202,19 @@ class HookManager:
                     warnings.warn(f"[ptopt] Pass '{pass_name}' fell back: {exc}", RuntimeWarning, stacklevel=2)
 
     def format_events_summary(self) -> str:
-        lines = ["[ptopt fallback/hook summary]"]
-        if not self._events:
-            lines.append("  (no pass events recorded)")
-        else:
-            for ev in self._events:
-                err_part = f" | error={ev.error}" if ev.error else ""
-                lines.append(f"  - [{ev.status}] {ev.pass_name}: {ev.reason}{err_part}")
-        return "\n".join(lines)
+        return format_fallback_report(
+            self._events,
+            profile=(self.config.profile if self.config is not None else None),
+        )
 
     def _emit_fallback_summary(self) -> None:
-        if self.fallback_report:
+        events_out = os.environ.get("PTOPT_EVENTS_OUT")
+        if events_out:
+            try:
+                write_events_json(self._events, events_out)
+            except Exception:  # noqa: BLE001
+                pass
+        if self.fallback_report or self.verbose:
             print(self.format_events_summary(), file=sys.stderr)
 
 
