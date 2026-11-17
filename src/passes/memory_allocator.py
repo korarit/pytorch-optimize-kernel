@@ -55,6 +55,12 @@ def apply_prelaunch_env(cfg: OptimizeConfig, env: MutableMapping[str, str]) -> l
             env["LD_PRELOAD"] = lib_path
             notes.append(f"LD_PRELOAD={lib_path}")
 
+    if cfg.compile.enabled and cfg.compile.cache_dir and "TORCHINDUCTOR_CACHE_DIR" not in env:
+        cache_dir = str(Path(cfg.compile.cache_dir).expanduser().resolve())
+        env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
+        env.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
+        notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
+
     return notes
 
 

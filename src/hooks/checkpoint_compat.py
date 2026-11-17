@@ -33,6 +33,16 @@ def add_orig_mod_prefix(state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
             prefixed[_ORIG_MOD_TOKEN + key] = value
         else:
             prefixed[key] = value
+    metadata = getattr(state_dict, "_metadata", None)
+    if isinstance(metadata, dict):
+        prefixed._metadata = {  # type: ignore[attr-defined]
+            (
+                _ORIG_MOD_TOKEN + k
+                if isinstance(k, str) and k and not k.startswith(_ORIG_MOD_TOKEN)
+                else k
+            ): v
+            for k, v in metadata.items()
+        }
     return prefixed
 
 

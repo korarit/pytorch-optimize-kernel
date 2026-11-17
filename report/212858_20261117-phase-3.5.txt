@@ -1,0 +1,98 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.5 EXPERIMENT REPORT: AUTO TORCH.COMPILE, CACHE & CHECKPOINT TRANSPARENCY
+==============================================================================
+Timestamp          : 2026-11-17 21:28:58 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ d65f59f
+Google Colab       : False
+Backend / GPU      : cpu
+Steps per Workload : 5
+Unit Tests         : unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Overall Experiment : PASS
+
+[COMPILE ABLATION (BASELINE VS EAGER VS COLD CACHE VS WARM CACHE)]
+------------------------------------------------------------------------------
+Workload:Scale           | Variant           | Base ms | Wrap ms | Wrap P95 | Speedup | E2E s (B/W) | VRAM MB (B/W/d) | MaxRelDiff | Status
+-------------------------+-------------------+---------+---------+----------+---------+-------------+-----------------+------------+-------
+transformer_lm:small     | 3.4_eager         | 15.40   | 17.44   | 18.25    | 0.88x   | 2.22/3.40   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm:small     | 3.5a_compile_cold | 15.40   | 15.21   | 17.10    | 1.01x   | 2.22/15.53  | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm:small     | 3.5b_compile_warm | 15.40   | 15.19   | 16.59    | 1.01x   | 2.22/5.42   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp:small           | 3.4_eager         | 2.13    | 2.31    | 2.59     | 0.92x   | 2.16/3.29   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp:small           | 3.5a_compile_cold | 2.13    | 1.83    | 2.46     | 1.16x   | 2.16/14.35  | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp:small           | 3.5b_compile_warm | 2.13    | 1.74    | 1.98     | 1.22x   | 2.16/5.64   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_cases:dynamic_shape | 3.4_eager         | 0.56    | 0.73    | 0.79     | 0.76x   | 2.13/3.27   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_cases:dynamic_shape | 3.5a_compile_cold | 0.56    | 1.11    | 1494.09  | 0.50x   | 2.13/14.21  | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_cases:dynamic_shape | 3.5b_compile_warm | 0.56    | 0.86    | 197.52   | 0.64x   | 2.13/5.50   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[COLD VS WARM COMPILE BREAKDOWN & BREAK-EVEN STEPS]
+------------------------------------------------------------------------------
+Workload:Scale           | Base Step0 | Cold Step0 | Warm Step0 | Eager ms | Warm ms | vs Base | vs Eager | BreakEven Steps
+-------------------------+------------+------------+------------+----------+---------+---------+----------+----------------
+transformer_lm:small     | 20.4       | 11812.7    | 1876.0     | 17.44    | 15.19   | 1.01x   | 1.15x    | 56719          
+deep_mlp:small           | 4.6        | 10701.1    | 1855.2     | 2.31     | 1.74    | 1.22x   | 1.32x    | 27505          
+edge_cases:dynamic_shape | 2.1        | 8809.3     | 1709.8     | 0.73     | 0.86    | 0.64x   | 0.85x    | N/A (slower)   
+
+[COMPILE & FALLBACK LOGS (COLD RUN)]
+------------------------------------------------------------------------------
+[APPLIED] transformer_lm:small (cold) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm:small (cold) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm:small (cold) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm:small (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:small (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpuy3681u7/transformer_lm_small)
+[SKIPPED] transformer_lm:small (cold) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm:small (cold) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm:small (cold) -> optimizer.AdamW: foreach=True
+[APPLIED] transformer_lm:small (cold) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] deep_mlp:small (cold) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp:small (cold) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp:small (cold) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp:small (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:small (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpuy3681u7/deep_mlp_small)
+[SKIPPED] deep_mlp:small (cold) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp:small (cold) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp:small (cold) -> optimizer.AdamW: foreach=True
+[APPLIED] deep_mlp:small (cold) -> compile.auto: Compiled DeepNarrowMLP (mode=default, dynamic=False)
+[APPLIED] edge_cases:dynamic_shape (cold) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] edge_cases:dynamic_shape (cold) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] edge_cases:dynamic_shape (cold) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases:dynamic_shape (cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpuy3681u7/edge_cases_dynamic_shape)
+[SKIPPED] edge_cases:dynamic_shape (cold) -> runtime.channels_last: opt-in only on CPU/safe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases:dynamic_shape (cold) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_cases:dynamic_shape (cold) -> optimizer.Adam: foreach=True
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_cases:dynamic_shape (cold) -> compile.auto: Dynamic input shapes detected on Sequential; switching to dynamic=True
+[APPLIED] edge_cases:dynamic_shape (cold) -> compile.auto: Recompiled(dynamic) Sequential (mode=default, dynamic=True)
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_compile_checkpoint_cross_load_and_keys_match (tests.migrate.test_phase3_5_compile.TestPhase35CompileMigration.test_compile_checkpoint_cross_load_and_keys_match) ... ok
+test_dynamic_shapes_edge_case_under_compile (tests.migrate.test_phase3_5_compile.TestPhase35CompileMigration.test_dynamic_shapes_edge_case_under_compile) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 41.209s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cache_dir_env_and_orig_mod_checkpoint_normalization (tests.unit.test_pass_compile.TestAutoCompilePass.test_cache_dir_env_and_orig_mod_checkpoint_normalization) ... ok
+test_compile_error_fallback_keeps_script_running (tests.unit.test_pass_compile.TestAutoCompilePass.test_compile_error_fallback_keeps_script_running) ... ok
+test_compile_idempotency_and_precompiled_yield (tests.unit.test_pass_compile.TestAutoCompilePass.test_compile_idempotency_and_precompiled_yield) ... ok
+test_compiled_runtime_execution_error_reverts_to_eager (tests.unit.test_pass_compile.TestAutoCompilePass.test_compiled_runtime_execution_error_reverts_to_eager) ... ok
+test_dynamic_shape_switches_once_to_dynamic_true (tests.unit.test_pass_compile.TestAutoCompilePass.test_dynamic_shape_switches_once_to_dynamic_true) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.792s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Cold vs Warm torch.compile speedup, break-even steps, dynamic-shape guard, and checkpoint parity on Google Colab before Phase 3.6)
+==============================================================================

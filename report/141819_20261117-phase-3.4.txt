@@ -1,0 +1,362 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.4 EXPERIMENT REPORT: SCALE-UP BOTTLENECK PROFILING & DEEP DEBUG
+==============================================================================
+Timestamp          : 2026-11-17 14:18:19 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ d65f59f
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+A/B Steps / Debug Steps: 15 / 8
+Unit Tests (Debug Prof): pytest (exit_code=0)
+Overall Experiment : FAIL
+
+[SCALE-UP CLEAN A/B BENCHMARK (SMALL VS MEDIUM VS LARGE)]
+------------------------------------------------------------------------------
+Workload       | Scale  | Variant        | Base ms | Wrap ms | Wrap P95 | Speedup | E2E s (B/W) | VRAM MB (B/W/d)         | MaxRelDiff | Status
+---------------+--------+----------------+---------+---------+----------+---------+-------------+-------------------------+------------+-------
+transformer_lm | small  | 3.1_3.3_no_amp | 11.71   | 10.69   | 11.21    | 1.09x   | 4.23/6.27   | 355.3/355.3 (+0.0)      | 1e-06      | PASS  
+transformer_lm | small  | 3.1_3.3_full   | 11.71   | 12.24   | 13.39    | 0.96x   | 4.23/6.36   | 355.3/271.3 (-84.0)     | 9e-06      | PASS  
+transformer_lm | medium | 3.1_3.3_no_amp | 98.61   | 52.15   | 52.77    | 1.89x   | 5.64/7.13   | 1734.8/1730.9 (-4.0)    | 1e-06      | PASS  
+transformer_lm | medium | 3.1_3.3_full   | 98.61   | 32.42   | 32.84    | 3.04x   | 5.64/6.84   | 1734.8/1256.9 (-478.0)  | 8e-06      | PASS  
+transformer_lm | large  | 3.1_3.3_no_amp | 777.62  | 428.94  | 431.00   | 1.81x   | 16.58/13.35 | 9174.4/9174.4 (+0.1)    | 4e-06      | PASS  
+transformer_lm | large  | 3.1_3.3_full   | 777.62  | 252.56  | 254.14   | 3.08x   | 16.58/10.86 | 9174.4/6325.4 (-2848.9) | 2e-05      | PASS  
+cnn_vision     | small  | 3.1_3.3_no_amp | 8.10    | 6.97    | 7.21     | 1.16x   | 4.36/6.55   | 161.4/161.1 (-0.4)      | 0.000763   | PASS  
+cnn_vision     | small  | 3.1_3.3_full   | 8.10    | 6.76    | 9.17     | 1.20x   | 4.36/6.66   | 161.4/99.6 (-61.8)      | 0.001661   | PASS  
+cnn_vision     | medium | 3.1_3.3_no_amp | 65.75   | 56.81   | 57.29    | 1.16x   | 5.36/7.48   | 839.4/842.5 (+3.2)      | 0.000237   | PASS  
+cnn_vision     | medium | 3.1_3.3_full   | 65.75   | 21.66   | 22.11    | 3.04x   | 5.36/6.95   | 839.4/453.8 (-385.6)    | 0.001086   | PASS  
+cnn_vision     | large  | 3.1_3.3_no_amp | 279.59  | 245.84  | 250.56   | 1.14x   | 8.93/10.79  | 3300.9/3316.4 (+15.5)   | 0.000285   | PASS  
+cnn_vision     | large  | 3.1_3.3_full   | 279.59  | 107.92  | 109.20   | 2.59x   | 8.93/8.86   | 3300.9/1642.9 (-1658.0) | 0.002668   | PASS  
+deep_mlp       | small  | 3.1_3.3_no_amp | 8.04    | 8.53    | 8.79     | 0.94x   | 3.98/6.05   | 46.8/40.8 (-6.0)        | 0.000258   | PASS  
+deep_mlp       | small  | 3.1_3.3_full   | 8.04    | 7.71    | 7.91     | 1.04x   | 3.98/6.03   | 46.8/40.8 (-6.0)        | 0.000258   | PASS  
+deep_mlp       | medium | 3.1_3.3_no_amp | 16.35   | 10.53   | 10.70    | 1.55x   | 4.31/6.31   | 498.5/402.7 (-95.8)     | 0.000311   | PASS  
+deep_mlp       | medium | 3.1_3.3_full   | 16.35   | 10.57   | 10.71    | 1.55x   | 4.31/6.27   | 498.5/402.7 (-95.8)     | 0.000311   | PASS  
+deep_mlp       | large  | 3.1_3.3_no_amp | 50.45   | 22.10   | 22.45    | 2.28x   | 5.49/7.13   | 1941.7/1559.1 (-382.6)  | 0.021711   | FAIL  
+deep_mlp       | large  | 3.1_3.3_full   | 50.45   | 22.14   | 22.52    | 2.28x   | 5.49/7.18   | 1941.7/1559.1 (-382.6)  | 0.021711   | FAIL  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY-STATE MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Workload       | Scale | Mode         | Step0 ms | Steady ms | Data/Other   | Forward        | Loss/Clip   | Backward       | Optim        
+---------------+-------+--------------+----------+-----------+--------------+----------------+-------------+----------------+--------------
+transformer_lm | small | baseline_dbg | 1622.53  | 17.72     | 0.47 (2.6%)  | 5.37 (30.3%)   | 0.36 (2.1%) | 9.95 (56.2%)   | 1.56 (8.8%)  
+transformer_lm | small | wrapped_dbg  | 1643.26  | 21.09     | 0.52 (2.5%)  | 6.50 (30.8%)   | 0.50 (2.4%) | 12.60 (59.7%)  | 0.97 (4.6%)  
+transformer_lm | large | baseline_dbg | 3229.89  | 784.62    | 0.81 (0.1%)  | 258.45 (32.9%) | 1.09 (0.1%) | 483.62 (61.6%) | 40.64 (5.2%) 
+transformer_lm | large | wrapped_dbg  | 2811.63  | 252.03    | 0.83 (0.3%)  | 64.49 (25.6%)  | 1.56 (0.6%) | 170.11 (67.5%) | 15.03 (6.0%) 
+cnn_vision     | small | baseline_dbg | 1754.78  | 14.61     | 3.73 (25.5%) | 3.54 (24.3%)   | 0.30 (2.1%) | 5.00 (34.2%)   | 2.02 (13.9%) 
+cnn_vision     | small | wrapped_dbg  | 1853.99  | 10.33     | 0.74 (7.2%)  | 4.07 (39.4%)   | 0.41 (4.0%) | 4.85 (47.0%)   | 0.25 (2.4%)  
+cnn_vision     | large | baseline_dbg | 2287.98  | 284.58    | 16.77 (5.9%) | 81.41 (28.6%)  | 0.57 (0.2%) | 183.43 (64.5%) | 2.39 (0.8%)  
+cnn_vision     | large | wrapped_dbg  | 2324.60  | 107.21    | 2.40 (2.2%)  | 35.24 (32.9%)  | 0.75 (0.7%) | 68.32 (63.7%)  | 0.50 (0.5%)  
+deep_mlp       | small | baseline_dbg | 1477.66  | 14.69     | 0.57 (3.9%)  | 3.87 (26.4%)   | 0.32 (2.2%) | 7.46 (50.7%)   | 2.48 (16.9%) 
+deep_mlp       | small | wrapped_dbg  | 1411.25  | 13.18     | 0.57 (4.4%)  | 4.09 (31.0%)   | 0.34 (2.6%) | 7.54 (57.2%)   | 0.63 (4.8%)  
+deep_mlp       | large | baseline_dbg | 2358.68  | 53.00     | 1.26 (2.4%)  | 5.62 (10.6%)   | 0.40 (0.8%) | 10.70 (20.2%)  | 35.02 (66.1%)
+deep_mlp       | large | wrapped_dbg  | 2282.22  | 27.02     | 1.24 (4.6%)  | 4.63 (17.1%)   | 0.37 (1.4%) | 7.98 (29.5%)   | 12.80 (47.4%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Workload       | Scale | Mode         | Alloc MB | Resv MB | Ovhead MB | Total MB | Headroom | Util % | Retries | OOMs
+---------------+-------+--------------+----------+---------+-----------+----------+----------+--------+---------+-----
+transformer_lm | small | baseline_dbg | 355.3    | 402.0   | 46.7      | 22563.1  | 22161.1  | 1.8%   | 0       | 0   
+transformer_lm | small | wrapped_dbg  | 271.3    | 298.0   | 26.7      | 22563.1  | 22265.1  | 1.3%   | 0       | 0   
+transformer_lm | large | baseline_dbg | 9174.4   | 9348.0  | 173.6     | 22563.1  | 13215.1  | 41.4%  | 0       | 0   
+transformer_lm | large | wrapped_dbg  | 6325.4   | 6388.0  | 62.6      | 22563.1  | 16175.1  | 28.3%  | 0       | 0   
+cnn_vision     | small | baseline_dbg | 161.1    | 170.0   | 8.9       | 22563.1  | 22393.1  | 0.8%   | 0       | 0   
+cnn_vision     | small | wrapped_dbg  | 99.6     | 112.0   | 12.4      | 22563.1  | 22451.1  | 0.5%   | 0       | 0   
+cnn_vision     | large | baseline_dbg | 3300.2   | 3508.0  | 207.8     | 22563.1  | 19055.1  | 15.6%  | 0       | 0   
+cnn_vision     | large | wrapped_dbg  | 1642.9   | 1750.0  | 107.1     | 22563.1  | 20813.1  | 7.8%   | 0       | 0   
+deep_mlp       | small | baseline_dbg | 46.8     | 54.0    | 7.2       | 22563.1  | 22509.1  | 0.2%   | 0       | 0   
+deep_mlp       | small | wrapped_dbg  | 40.8     | 48.0    | 7.2       | 22563.1  | 22515.1  | 0.2%   | 0       | 0   
+deep_mlp       | large | baseline_dbg | 1941.7   | 1964.0  | 22.3      | 22563.1  | 20599.1  | 8.7%   | 0       | 0   
+deep_mlp       | large | wrapped_dbg  | 1559.1   | 1584.0  | 24.9      | 22563.1  | 20979.1  | 7.0%   | 0       | 0   
+
+[AUTOMATED BOTTLENECK DIAGNOSIS & RECOMMENDATIONS]
+------------------------------------------------------------------------------
+- cnn_vision [large]: base=279.59ms | no_amp=245.84ms (1.14x) | full=107.92ms (2.59x, VRAM -1658.0MB) -> COMPUTE_AMP_WIN (2.59x total, no_amp=1.14x -> TensorCore scaling works)
+- cnn_vision [medium]: base=65.75ms | no_amp=56.81ms (1.16x) | full=21.66ms (3.04x, VRAM -385.6MB) -> COMPUTE_AMP_WIN (3.04x total, no_amp=1.16x -> TensorCore scaling works)
+- cnn_vision [small]: base=8.10ms | no_amp=6.97ms (1.16x) | full=6.76ms (1.20x, VRAM -61.8MB) -> COMPUTE_AMP_WIN (1.20x total, no_amp=1.16x -> TensorCore scaling works)
+- deep_mlp [large]: base=50.45ms | no_amp=22.10ms (2.28x) | full=22.14ms (2.28x, VRAM -382.6MB) -> COMPUTE_AMP_WIN (2.28x total, no_amp=2.28x -> TensorCore scaling works) ; OPTIMIZER_STEP_HEAVY (optim=47.4%)
+- deep_mlp [medium]: base=16.35ms | no_amp=10.53ms (1.55x) | full=10.57ms (1.55x, VRAM -95.8MB) -> COMPUTE_AMP_WIN (1.55x total, no_amp=1.55x -> TensorCore scaling works)
+- deep_mlp [small]: base=8.04ms | no_amp=8.53ms (0.94x) | full=7.71ms (1.04x, VRAM -6.0MB) -> KERNEL_LAUNCH_OR_FWD_BWD_BOUND (fwd+bwd=88.2% -> fuse ops via Phase 3.5 torch.compile / 3.7 Triton)
+- transformer_lm [large]: base=777.62ms | no_amp=428.94ms (1.81x) | full=252.56ms (3.08x, VRAM -2848.9MB) -> COMPUTE_AMP_WIN (3.08x total, no_amp=1.81x -> TensorCore scaling works)
+- transformer_lm [medium]: base=98.61ms | no_amp=52.15ms (1.89x) | full=32.42ms (3.04x, VRAM -478.0MB) -> COMPUTE_AMP_WIN (3.04x total, no_amp=1.89x -> TensorCore scaling works)
+- transformer_lm [small]: base=11.71ms | no_amp=10.69ms (1.09x) | full=12.24ms (0.96x, VRAM -84.0MB) -> EAGER_AMP_OVERHEAD (no_amp=1.09x -> +amp=0.96x; eager autocast/cast slower than compute -> target for torch.compile 3.5 or size gate) ; KERNEL_LAUNCH_OR_FWD_BWD_BOUND (fwd+bwd=90.5% -> fuse ops via Phase 3.5 torch.compile / 3.7 Triton)
+
+[WARMUP VS STEADY-STATE STEP TRACE]
+------------------------------------------------------------------------------
+[transformer_lm:small | baseline_dbg] First steps breakdown (ms):
+  step  0: total=1622.53 (data=1259.24, fwd=179.69, loss=25.31, bwd=69.40, opt=88.89)
+  step  1: total=  13.29 (data=0.53, fwd=3.95, loss=0.39, bwd=6.93, opt=1.48)
+  step  2: total=  24.92 (data=0.33, fwd=8.18, loss=0.43, bwd=14.33, opt=1.64)
+  step  3: total=  19.97 (data=0.43, fwd=5.43, loss=0.38, bwd=12.20, opt=1.52)
+  step  4: total=  22.61 (data=0.59, fwd=7.30, loss=0.42, bwd=12.29, opt=2.00)
+[transformer_lm:small | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=1643.26 (data=1264.54, fwd=269.95, loss=25.65, bwd=64.30, opt=18.80)
+  step  1: total=  16.09 (data=0.58, fwd=5.84, loss=0.51, bwd=8.21, opt=0.95)
+  step  2: total=  29.13 (data=0.42, fwd=10.17, loss=0.68, bwd=16.84, opt=1.01)
+  step  3: total=  23.24 (data=0.54, fwd=6.97, loss=0.52, bwd=14.24, opt=0.97)
+  step  4: total=  22.81 (data=0.48, fwd=6.82, loss=0.49, bwd=14.09, opt=0.93)
+[transformer_lm:large | baseline_dbg] First steps breakdown (ms):
+  step  0: total=3229.89 (data=2196.62, fwd=403.17, loss=25.89, bwd=499.42, opt=104.78)
+  step  1: total= 767.58 (data=0.76, fwd=247.89, loss=1.01, bwd=477.24, opt=40.67)
+  step  2: total= 780.15 (data=0.74, fwd=258.02, loss=1.10, bwd=479.56, opt=40.71)
+  step  3: total= 794.04 (data=0.84, fwd=265.43, loss=1.23, bwd=485.96, opt=40.58)
+  step  4: total= 792.38 (data=0.83, fwd=260.59, loss=1.24, bwd=489.13, opt=40.59)
+[transformer_lm:large | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=2811.63 (data=2222.27, fwd=322.73, loss=25.88, bwd=208.02, opt=32.73)
+  step  1: total= 249.34 (data=0.78, fwd=62.65, loss=1.82, bwd=168.99, opt=15.10)
+  step  2: total= 251.36 (data=0.81, fwd=64.68, loss=1.59, bwd=169.19, opt=15.07)
+  step  3: total= 255.55 (data=0.83, fwd=65.55, loss=1.71, bwd=172.58, opt=14.89)
+  step  4: total= 257.00 (data=0.86, fwd=66.00, loss=1.60, bwd=173.54, opt=14.99)
+[cnn_vision:small | baseline_dbg] First steps breakdown (ms):
+  step  0: total=1754.78 (data=1274.48, fwd=358.38, loss=25.30, bwd=63.74, opt=32.87)
+  step  1: total=  23.51 (data=4.53, fwd=2.59, loss=0.28, bwd=4.21, opt=11.90)
+  step  2: total=  19.14 (data=4.17, fwd=6.40, loss=0.42, bwd=7.67, opt=0.47)
+  step  3: total=  14.64 (data=5.35, fwd=3.58, loss=0.33, bwd=4.98, opt=0.39)
+  step  4: total=  12.28 (data=3.23, fwd=3.52, loss=0.30, bwd=4.86, opt=0.36)
+[cnn_vision:small | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=1853.99 (data=1309.78, fwd=425.92, loss=25.71, bwd=90.26, opt=2.31)
+  step  1: total=   8.71 (data=1.07, fwd=3.06, loss=0.42, bwd=3.90, opt=0.26)
+  step  2: total=  16.28 (data=0.62, fwd=6.95, loss=0.55, bwd=7.89, opt=0.27)
+  step  3: total=  11.07 (data=0.74, fwd=4.24, loss=0.46, bwd=5.36, opt=0.26)
+  step  4: total=  10.67 (data=0.66, fwd=4.08, loss=0.43, bwd=5.27, opt=0.23)
+[cnn_vision:large | baseline_dbg] First steps breakdown (ms):
+  step  0: total=2287.98 (data=1582.45, fwd=409.54, loss=25.31, bwd=237.50, opt=33.17)
+  step  1: total= 293.65 (data=16.62, fwd=81.03, loss=0.51, bwd=182.01, opt=13.48)
+  step  2: total= 286.08 (data=16.48, fwd=83.09, loss=0.66, bwd=185.27, opt=0.58)
+  step  3: total= 282.01 (data=17.02, fwd=81.12, loss=0.61, bwd=182.61, opt=0.64)
+  step  4: total= 283.61 (data=17.97, fwd=81.33, loss=0.66, bwd=183.10, opt=0.55)
+[cnn_vision:large | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=2324.60 (data=1738.51, fwd=453.80, loss=26.06, bwd=103.73, opt=2.48)
+  step  1: total= 108.10 (data=2.55, fwd=34.29, loss=0.71, bwd=70.07, opt=0.48)
+  step  2: total= 108.09 (data=2.25, fwd=36.07, loss=0.77, bwd=68.50, opt=0.49)
+  step  3: total= 108.49 (data=2.40, fwd=35.58, loss=1.10, bwd=68.68, opt=0.73)
+  step  4: total= 108.22 (data=2.76, fwd=35.81, loss=0.90, bwd=68.28, opt=0.48)
+[deep_mlp:small | baseline_dbg] First steps breakdown (ms):
+  step  0: total=1477.66 (data=1238.00, fwd=95.76, loss=26.44, bwd=26.41, opt=91.05)
+  step  1: total=  10.45 (data=0.67, fwd=2.72, loss=0.34, bwd=4.59, opt=2.12)
+  step  2: total=  23.54 (data=0.48, fwd=6.86, loss=0.43, bwd=11.63, opt=4.14)
+  step  3: total=  17.18 (data=0.55, fwd=4.16, loss=0.32, bwd=9.41, opt=2.74)
+  step  4: total=  16.94 (data=0.53, fwd=4.15, loss=0.32, bwd=9.20, opt=2.74)
+[deep_mlp:small | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=1411.25 (data=1245.94, fwd=92.83, loss=26.44, bwd=26.39, opt=19.64)
+  step  1: total=   9.22 (data=0.60, fwd=2.80, loss=0.32, bwd=4.85, opt=0.65)
+  step  2: total=  20.43 (data=0.46, fwd=7.08, loss=0.46, bwd=11.75, opt=0.69)
+  step  3: total=  15.35 (data=0.59, fwd=4.43, loss=0.36, bwd=9.36, opt=0.60)
+  step  4: total=  15.10 (data=0.54, fwd=4.40, loss=0.33, bwd=9.25, opt=0.58)
+[deep_mlp:large | baseline_dbg] First steps breakdown (ms):
+  step  0: total=2358.68 (data=2095.67, fwd=95.50, loss=26.52, bwd=31.85, opt=109.13)
+  step  1: total=  52.28 (data=1.33, fwd=5.33, loss=0.38, bwd=10.26, opt=34.97)
+  step  2: total=  56.72 (data=1.07, fwd=7.52, loss=0.46, bwd=12.68, opt=34.98)
+  step  3: total=  52.39 (data=1.23, fwd=5.25, loss=0.37, bwd=10.48, opt=35.06)
+  step  4: total=  52.50 (data=1.17, fwd=5.42, loss=0.39, bwd=10.52, opt=35.00)
+[deep_mlp:large | wrapped_dbg] First steps breakdown (ms):
+  step  0: total=2282.22 (data=2096.40, fwd=93.20, loss=26.47, bwd=30.23, opt=35.90)
+  step  1: total=  23.90 (data=1.48, fwd=3.68, loss=0.39, bwd=5.61, opt=12.74)
+  step  2: total=  33.47 (data=1.06, fwd=7.11, loss=0.43, bwd=12.05, opt=12.82)
+  step  3: total=  30.27 (data=1.31, fwd=5.90, loss=0.43, bwd=9.77, opt=12.87)
+  step  4: total=  29.88 (data=1.24, fwd=5.69, loss=0.41, bwd=9.65, opt=12.88)
+
+[TOP PYTORCH PROFILER OPS (BASELINE VS WRAPPED)]
+------------------------------------------------------------------------------
+[transformer_lm:small | baseline_dbg] Profiler window=[2, 5] total_self_cuda=57.409ms total_self_cpu=56.599ms (top_cuda_ops):
+  aten::mm                                         calls=189   self= 14.951ms (26.0%) total= 14.951ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=63    self=  4.204ms ( 7.3%) total=  4.204ms
+  ampere_sgemm_128x64_tn                           calls=51    self=  3.920ms ( 6.8%) total=  3.920ms
+  ampere_sgemm_128x64_nn                           calls=39    self=  3.898ms ( 6.8%) total=  3.898ms
+  Optimizer.step#AdamW.step                        calls=3     self=  3.613ms ( 6.3%) total=  3.613ms
+  aten::mul                                        calls=318   self=  3.338ms ( 5.8%) total=  3.338ms
+  void at::native::vectorized_elementwise_kernel<4 calls=156   self=  2.627ms ( 4.6%) total=  2.627ms
+  ampere_sgemm_64x64_tn                            calls=12    self=  1.335ms ( 2.3%) total=  1.335ms
+[transformer_lm:small | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=26.132ms total_self_cpu=62.783ms (top_cuda_ops):
+  aten::mm                                         calls=189   self=  3.801ms (14.5%) total=  3.801ms
+  Optimizer.step#AdamW.step                        calls=3     self=  2.099ms ( 8.0%) total=  2.099ms
+  aten::mul                                        calls=306   self=  2.089ms ( 8.0%) total=  2.089ms
+  aten::_fused_adamw_                              calls=3     self=  1.858ms ( 7.1%) total=  1.858ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  1.858ms ( 7.1%) total=  1.858ms
+  aten::copy_                                      calls=273   self=  1.373ms ( 5.3%) total=  1.373ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=51    self=  1.009ms ( 3.9%) total=  1.009ms
+  void at::native::vectorized_elementwise_kernel<4 calls=108   self=  0.754ms ( 2.9%) total=  0.754ms
+[transformer_lm:large | baseline_dbg] Profiler window=[2, 5] total_self_cuda=4812.513ms total_self_cpu=2334.143ms (top_cuda_ops):
+  aten::mm                                         calls=549   self=1559.440ms (32.4%) total=1559.440ms
+  ampere_sgemm_128x64_tn                           calls=183   self=609.848ms (12.7%) total=609.848ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_256x calls=147   self=462.380ms ( 9.6%) total=462.380ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=183   self=452.625ms ( 9.4%) total=452.625ms
+  aten::mul                                        calls=894   self=256.864ms ( 5.3%) total=256.864ms
+  void at::native::vectorized_elementwise_kernel<4 calls=444   self=209.179ms ( 4.3%) total=209.179ms
+  aten::_efficient_attention_backward              calls=36    self=131.947ms ( 2.7%) total=145.545ms
+  fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch calls=36    self=131.947ms ( 2.7%) total=131.947ms
+[transformer_lm:large | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=1533.898ms total_self_cpu=729.193ms (top_cuda_ops):
+  aten::mm                                         calls=549   self=276.028ms (18.0%) total=276.028ms
+  aten::mul                                        calls=858   self=180.343ms (11.8%) total=180.343ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=183   self= 94.813ms ( 6.2%) total= 94.813ms
+  void at::native::vectorized_elementwise_kernel<4 calls=108   self= 68.197ms ( 4.4%) total= 68.197ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=147   self= 66.976ms ( 4.4%) total= 66.976ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta calls=108   self= 66.889ms ( 4.4%) total= 66.889ms
+  void at::native::vectorized_elementwise_kernel<4 calls=300   self= 64.097ms ( 4.2%) total= 64.097ms
+  aten::copy_                                      calls=753   self= 59.727ms ( 3.9%) total= 59.727ms
+[cnn_vision:small | baseline_dbg] Profiler window=[2, 5] total_self_cuda=29.045ms total_self_cpu=37.026ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self=  7.655ms (26.4%) total=  7.655ms
+  aten::cudnn_convolution                          calls=30    self=  2.907ms (10.0%) total=  2.907ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_tf32f32_tf calls=15    self=  1.806ms ( 6.2%) total=  1.806ms
+  void cudnn::engines_precompiled::nchwToNhwcKerne calls=144   self=  1.739ms ( 6.0%) total=  1.739ms
+  _ZN17cutlass__5x_cudnn6KernelINS_4conv6kernel23I calls=15    self=  1.559ms ( 5.4%) total=  1.559ms
+  _5x_cudnn_ampere_scudnn_winograd_128x128_ldg1_ld calls=12    self=  1.393ms ( 4.8%) total=  1.393ms
+  aten::cudnn_batch_norm_backward                  calls=30    self=  1.359ms ( 4.7%) total=  1.359ms
+  sm80_xmma_fprop_implicit_gemm_tf32f32_tf32f32_f3 calls=15    self=  1.128ms ( 3.9%) total=  1.128ms
+[cnn_vision:small | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=17.258ms total_self_cpu=32.259ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self=  4.141ms (24.0%) total=  4.141ms
+  aten::cudnn_convolution                          calls=30    self=  1.644ms ( 9.5%) total=  1.644ms
+  void cudnn::engines_precompiled::nchwToNhwcKerne calls=156   self=  0.990ms ( 5.7%) total=  0.990ms
+  aten::native_batch_norm_backward                 calls=30    self=  0.948ms ( 5.5%) total=  0.948ms
+  void at::native::batch_norm_backward_kernel<c10: calls=30    self=  0.948ms ( 5.5%) total=  0.948ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=15    self=  0.906ms ( 5.3%) total=  0.906ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=12    self=  0.657ms ( 3.8%) total=  0.657ms
+  aten::native_batch_norm                          calls=30    self=  0.646ms ( 3.7%) total=  0.646ms
+[cnn_vision:large | baseline_dbg] Profiler window=[2, 5] total_self_cuda=1593.76ms total_self_cpu=825.097ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self=369.069ms (23.2%) total=369.069ms
+  void cudnn::engines_precompiled::nchwToNhwcKerne calls=162   self=148.243ms ( 9.3%) total=148.243ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_tf32f32_tf calls=27    self=127.684ms ( 8.0%) total=127.684ms
+  aten::cudnn_convolution                          calls=30    self=120.559ms ( 7.6%) total=120.559ms
+  aten::cudnn_batch_norm_backward                  calls=30    self= 95.519ms ( 6.0%) total= 95.519ms
+  sm80_xmma_dgrad_implicit_gemm_tf32f32_tf32f32_f3 calls=24    self= 79.698ms ( 5.0%) total= 79.698ms
+  sm80_xmma_fprop_implicit_gemm_tf32f32_tf32f32_f3 calls=27    self= 78.444ms ( 4.9%) total= 78.444ms
+  void cudnn::bn_bw_1C11_kernel_new<float, float,  calls=15    self= 63.648ms ( 4.0%) total= 63.648ms
+[cnn_vision:large | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=613.025ms total_self_cpu=314.936ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self=103.925ms (17.0%) total=103.925ms
+  aten::native_batch_norm_backward                 calls=30    self= 55.946ms ( 9.1%) total= 56.023ms
+  aten::cudnn_convolution                          calls=30    self= 43.934ms ( 7.2%) total= 43.934ms
+  sm80_xmma_fprop_implicit_gemm_bf16bf16_bf16f32_f calls=27    self= 42.547ms ( 6.9%) total= 42.547ms
+  void at::native::batch_norm_backward_elemt_chann calls=30    self= 31.462ms ( 5.1%) total= 31.462ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=12    self= 30.682ms ( 5.0%) total= 30.682ms
+  aten::native_batch_norm                          calls=30    self= 29.907ms ( 4.9%) total= 29.961ms
+  aten::threshold_backward                         calls=30    self= 28.066ms ( 4.6%) total= 28.066ms
+[deep_mlp:small | baseline_dbg] Profiler window=[2, 5] total_self_cuda=11.887ms total_self_cpu=48.388ms (top_cuda_ops):
+  Optimizer.step#AdamW.step                        calls=3     self=  6.755ms (56.8%) total=  6.755ms
+  aten::mm                                         calls=147   self=  0.755ms ( 6.3%) total=  0.755ms
+  aten::addmm                                      calls=75    self=  0.479ms ( 4.0%) total=  0.479ms
+  ampere_sgemm_64x32_sliced1x4_tn                  calls=72    self=  0.331ms ( 2.8%) total=  0.331ms
+  ampere_sgemm_64x32_sliced1x4_nn                  calls=72    self=  0.320ms ( 2.7%) total=  0.320ms
+  ampere_sgemm_64x32_sliced1x4_nt                  calls=72    self=  0.309ms ( 2.6%) total=  0.309ms
+  aten::sum                                        calls=75    self=  0.309ms ( 2.6%) total=  0.309ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=75    self=  0.309ms ( 2.6%) total=  0.309ms
+[deep_mlp:small | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=4.673ms total_self_cpu=42.102ms (top_cuda_ops):
+  aten::mm                                         calls=147   self=  0.586ms (12.5%) total=  0.586ms
+  Optimizer.step#AdamW.step                        calls=3     self=  0.425ms ( 9.1%) total=  0.425ms
+  aten::addmm                                      calls=75    self=  0.377ms ( 8.1%) total=  0.377ms
+  aten::sum                                        calls=75    self=  0.312ms ( 6.7%) total=  0.312ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=75    self=  0.312ms ( 6.7%) total=  0.312ms
+  aten::native_layer_norm_backward                 calls=72    self=  0.291ms ( 6.2%) total=  0.291ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=72    self=  0.233ms ( 5.0%) total=  0.233ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=72    self=  0.230ms ( 4.9%) total=  0.230ms
+[deep_mlp:large | baseline_dbg] Profiler window=[2, 5] total_self_cuda=395.534ms total_self_cpu=151.603ms (top_cuda_ops):
+  Optimizer.step#AdamW.step                        calls=3     self=102.404ms (25.9%) total=102.404ms
+  aten::mm                                         calls=147   self= 24.928ms ( 6.3%) total= 24.928ms
+  aten::_foreach_mul_                              calls=6     self= 20.871ms ( 5.3%) total= 20.871ms
+  void at::native::(anonymous namespace)::multi_te calls=6     self= 20.871ms ( 5.3%) total= 20.871ms
+  aten::_foreach_addcdiv_                          calls=3     self= 19.589ms ( 5.0%) total= 19.589ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 19.589ms ( 5.0%) total= 19.589ms
+  aten::_foreach_lerp_                             calls=3     self= 15.391ms ( 3.9%) total= 15.391ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 15.391ms ( 3.9%) total= 15.391ms
+[deep_mlp:large | wrapped_dbg] Profiler window=[2, 5] total_self_cuda=156.203ms total_self_cpu=82.807ms (top_cuda_ops):
+  Optimizer.step#AdamW.step                        calls=3     self= 36.949ms (23.7%) total= 36.949ms
+  aten::_fused_adamw_                              calls=3     self= 36.533ms (23.4%) total= 36.533ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 36.533ms (23.4%) total= 36.533ms
+  aten::mm                                         calls=147   self= 10.816ms ( 6.9%) total= 10.816ms
+  aten::addmm                                      calls=75    self=  7.739ms ( 5.0%) total=  7.739ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=72    self=  7.677ms ( 4.9%) total=  7.677ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=69    self=  5.758ms ( 3.7%) total=  5.758ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=72    self=  4.998ms ( 3.2%) total=  4.998ms
+
+[PASS & HOOK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] transformer_lm:small -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm:small -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm:small -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] transformer_lm:small -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] transformer_lm:small -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:small -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm:small -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm:medium -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm:medium -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm:medium -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] transformer_lm:medium -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] transformer_lm:medium -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:medium -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm:medium -> optimizer.AdamW: fused=True
+[APPLIED] transformer_lm:large -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] transformer_lm:large -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] transformer_lm:large -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] transformer_lm:large -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] transformer_lm:large -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] transformer_lm:large -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm:large -> optimizer.AdamW: fused=True
+[APPLIED] cnn_vision:small -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision:small -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision:small -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision:small -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision:small -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision:small -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision:small -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision:small -> optimizer.SGD: fused=True
+[SKIPPED] cnn_vision:small -> runtime.channels_last: Conv2d spatial input below auto threshold (16384 px)
+[APPLIED] cnn_vision:medium -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision:medium -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision:medium -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision:medium -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision:medium -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision:medium -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision:medium -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision:medium -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision:medium -> runtime.channels_last: Converted Conv2d module to channels_last (min_spatial_area=16384)
+[APPLIED] cnn_vision:large -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision:large -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision:large -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision:large -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision:large -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision:large -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision:large -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision:large -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision:large -> runtime.channels_last: Converted Conv2d module to channels_last (min_spatial_area=16384)
+[APPLIED] deep_mlp:small -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp:small -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp:small -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] deep_mlp:small -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] deep_mlp:small -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:small -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp:small -> optimizer.AdamW: fused=True
+[SKIPPED] deep_mlp:small -> amp.auto: Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)
+[APPLIED] deep_mlp:medium -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp:medium -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp:medium -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] deep_mlp:medium -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] deep_mlp:medium -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:medium -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp:medium -> optimizer.AdamW: fused=True
+[SKIPPED] deep_mlp:medium -> amp.auto: Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)
+[APPLIED] deep_mlp:large -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] deep_mlp:large -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] deep_mlp:large -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] deep_mlp:large -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] deep_mlp:large -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] deep_mlp:large -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] deep_mlp:large -> optimizer.AdamW: fused=True
+[SKIPPED] deep_mlp:large -> amp.auto: Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)
+
+[UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+configfile: pyproject.toml
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 3 items
+
+tests/unit/test_debug_profiler.py::TestDebugProfilerTelemetry::test_debug_and_torch_profiler_captures_phases_and_top_ops PASSED [ 33%]
+tests/unit/test_debug_profiler.py::TestDebugProfilerTelemetry::test_default_mode_has_no_debug_profile_block PASSED [ 66%]
+tests/unit/test_debug_profiler.py::TestDebugProfilerTelemetry::test_uninstall_safely_closes_active_profiler_if_steps_fewer_than_window PASSED [100%]
+
+============================== 3 passed in 3.14s ===============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Inspect Scale-Up bottlenecks, phase shares, and top ops on Google Colab before designing Phase 3.5 (torch.compile) & profile heuristics)
+==============================================================================
