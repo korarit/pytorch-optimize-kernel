@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
-from src.config import OptimizeConfig
+from src.config import OptimizeConfig, migrate_config_dict
 
 PassCallable = Callable[[OptimizeConfig, "HookManager"], str | None]
 
@@ -130,7 +130,16 @@ class HookManager:
         raw_cfg = env_map.get("PTOPT_CONFIG_JSON")
         if raw_cfg:
             try:
-                self.config = OptimizeConfig.from_dict(json.loads(raw_cfg))
+                parsed_cfg = json.loads(raw_cfg)
+                mig = migrate_config_dict(parsed_cfg, emit_warnings=self.verbose)
+                self.config = mig.config
+                if mig.migrated:
+                    self.record_event(
+                        "config.migrate",
+                        "MIGRATED",
+                        f"Auto-migrated config schema {mig.source_version!r} -> v{mig.target_version}: "
+                        + "; ".join(mig.warnings[:3]),
+                    )
             except Exception as exc:  # noqa: BLE001
                 if self.strict:
                     raise

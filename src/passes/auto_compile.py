@@ -9,7 +9,7 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from src.config import OptimizeConfig
+from src.config import OptimizeConfig, detect_runtime_cache_key, validate_or_scope_cache_dir
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -60,19 +60,27 @@ def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: A
 
 
 def _configure_cache_and_dynamo(cfg: OptimizeConfig, torch_mod: Any, strict: bool) -> str | None:
-    """Configure persistent Inductor cache directory and safe Dynamo error suppression."""
+    """Configure versioned persistent Inductor cache directory and safe Dynamo error suppression."""
     cache_resolved: str | None = None
     if cfg.compile.cache_dir:
         try:
-            cache_path = Path(cfg.compile.cache_dir).expanduser().resolve()
-            cache_path.mkdir(parents=True, exist_ok=True)
-            triton_path = cache_path / "triton"
-            triton_path.mkdir(parents=True, exist_ok=True)
-            cache_resolved = str(cache_path)
-            os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", cache_resolved)
+            key_info = detect_runtime_cache_key(torch_mod)
+            validated = validate_or_scope_cache_dir(
+                cfg.compile.cache_dir,
+                key_info,
+                write_meta=True,
+                emit_warnings=True,
+            )
+            cache_resolved = str(validated.cache_dir)
+            if validated.rotated:
+                os.environ["TORCHINDUCTOR_CACHE_DIR"] = cache_resolved
+                os.environ["TRITON_CACHE_DIR"] = str(validated.triton_dir)
+            else:
+                os.environ.setdefault("TORCHINDUCTOR_CACHE_DIR", cache_resolved)
+                os.environ.setdefault("TRITON_CACHE_DIR", str(validated.triton_dir))
             os.environ.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
             os.environ.setdefault("TORCHINDUCTOR_AUTOGRAD_CACHE", "1")
-            os.environ.setdefault("TRITON_CACHE_DIR", str(triton_path))
+            os.environ["PTOPT_CACHE_KEY"] = key_info.cache_key
         except Exception:  # noqa: BLE001
             cache_resolved = None
 

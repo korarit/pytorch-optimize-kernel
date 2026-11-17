@@ -19,7 +19,7 @@ from src.cli.explain import (
     format_explain_text,
     format_show_config_text,
 )
-from src.config import ConfigResolver, ConfigValidationError, OptimizeConfig
+from src.config import ConfigResolver, ConfigValidationError, OptimizeConfig, migrate_config_dict
 from src.detect import collect_fingerprint
 from src.passes.memory_allocator import apply_prelaunch_env
 
@@ -180,11 +180,12 @@ def build_child_env(
 
     env["PYTHONPATH"] = os.pathsep.join(ordered_pp)
     env["PTOPT_ACTIVE"] = "1"
-    env["PTOPT_CONFIG_JSON"] = json.dumps(config_dict)
+    migrated_cfg = migrate_config_dict(config_dict, emit_warnings=verbose).config
+    env["PTOPT_CONFIG_JSON"] = json.dumps(migrated_cfg.to_dict())
     env["PTOPT_STRICT"] = "1" if strict else "0"
     env["PTOPT_VERBOSE"] = "1" if verbose else "0"
     env["PTOPT_FALLBACK_REPORT"] = "1" if fallback_report else "0"
-    apply_prelaunch_env(OptimizeConfig.from_dict(config_dict), env)
+    apply_prelaunch_env(migrated_cfg, env)
     return env
 
 

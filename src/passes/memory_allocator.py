@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, MutableMapping
 
-from src.config import OptimizeConfig
+from src.config import OptimizeConfig, detect_runtime_cache_key, validate_or_scope_cache_dir
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -56,17 +56,26 @@ def apply_prelaunch_env(cfg: OptimizeConfig, env: MutableMapping[str, str]) -> l
             notes.append(f"LD_PRELOAD={lib_path}")
 
     if (cfg.compile.enabled or cfg.kernels.enabled or cfg.inference.cuda_graphs) and cfg.compile.cache_dir:
-        cache_path = Path(cfg.compile.cache_dir).expanduser().resolve()
-        cache_dir = str(cache_path)
-        if "TORCHINDUCTOR_CACHE_DIR" not in env:
+        key_info = detect_runtime_cache_key()
+        validated = validate_or_scope_cache_dir(
+            cfg.compile.cache_dir,
+            key_info,
+            write_meta=False,
+            emit_warnings=False,
+        )
+        cache_dir = str(validated.cache_dir)
+        if "TORCHINDUCTOR_CACHE_DIR" not in env or validated.rotated:
             env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
             notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
         env.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
         env.setdefault("TORCHINDUCTOR_AUTOGRAD_CACHE", "1")
-        triton_dir = str(cache_path / "triton")
-        if "TRITON_CACHE_DIR" not in env:
+        env.setdefault("PTOPT_CACHE_KEY", key_info.cache_key)
+        triton_dir = str(validated.triton_dir)
+        if "TRITON_CACHE_DIR" not in env or validated.rotated:
             env["TRITON_CACHE_DIR"] = triton_dir
             notes.append(f"TRITON_CACHE_DIR={triton_dir}")
+        if validated.rotated:
+            notes.append(f"cache_rotated={key_info.cache_key}")
 
     return notes
 

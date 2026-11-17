@@ -1,5 +1,16 @@
 """Config Schema v1 and layered hardware-aware resolution package."""
 
+from src.config.migrator import (
+    CACHE_META_FILENAME,
+    CacheKeyInfo,
+    CacheValidationResult,
+    ConfigMigrationResult,
+    build_runtime_cache_key,
+    detect_runtime_cache_key,
+    load_and_migrate_config,
+    migrate_config_dict,
+    validate_or_scope_cache_dir,
+)
 from src.config.resolver import ConfigResolver, ResolutionResult, TraceEntry, extract_env_overrides
 from src.config.rules_builtin import LAYER_ORDER, ConfigRule, get_builtin_rules
 from src.config.schema import (
@@ -23,7 +34,11 @@ from src.config.schema import (
 __all__ = [
     "AmpConfig",
     "AttentionConfig",
+    "CACHE_META_FILENAME",
+    "CacheKeyInfo",
+    "CacheValidationResult",
     "CompileConfig",
+    "ConfigMigrationResult",
     "ConfigResolver",
     "ConfigRule",
     "ConfigValidationError",
@@ -40,7 +55,12 @@ __all__ = [
     "VALID_AMP_DTYPES",
     "VALID_COMPILE_MODES",
     "VALID_PROFILES",
+    "build_runtime_cache_key",
+    "detect_runtime_cache_key",
     "extract_env_overrides",
     "get_builtin_rules",
+    "load_and_migrate_config",
+    "migrate_config_dict",
     "validate_config",
+    "validate_or_scope_cache_dir",
 ]
