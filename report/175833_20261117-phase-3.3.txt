@@ -1,0 +1,123 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 3.3 EXPERIMENT REPORT: OPTIMIZER FUSION & SAFE AUTO-AMP
+==============================================================================
+Timestamp          : 2026-11-17 17:58:33 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 64e646e
+Google Colab       : False
+Backend / GPU      : cpu
+Steps per Workload : 6
+Unit Tests         : unittest (exit_code=0)
+Migrate Tests      : unittest (exit_code=0)
+Overall Experiment : PASS
+
+[FUSED OPTIMIZER & AUTO-AMP ABLATION]
+------------------------------------------------------------------------------
+Workload       | Variant                  | Base ms | Wrap ms | Wrap P95 | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+---------------+--------------------------+---------+---------+----------+---------+-----------------+------------+-------
+transformer_lm | 3.3a_fused_only          | 87.48   | 97.43   | 100.81   | 0.90x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm | 3.3b_fused_plus_amp_auto | 87.48   | 98.44   | 100.30   | 0.89x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp       | 3.3a_fused_only          | 9.81    | 9.87    | 9.93     | 0.99x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp       | 3.3b_fused_plus_amp_auto | 9.81    | 11.68   | 11.94    | 0.84x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision     | 3.3a_fused_only          | 71.39   | 114.85  | 118.54   | 0.62x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision     | 3.3b_fused_plus_amp_auto | 71.39   | 80.58   | 81.23    | 0.89x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_cases     | 3.3a_fused_only          | 0.49    | 0.73    | 1.94     | 0.67x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_cases     | 3.3b_fused_plus_amp_auto | 0.49    | 0.51    | 1.43     | 0.95x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[OPTIMIZER & AUTO-AMP HOOK LOGS]
+------------------------------------------------------------------------------
+[APPLIED] transformer_lm (3.3a_fused_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.3a_fused_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] transformer_lm (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm (3.3a_fused_only) -> optimizer.AdamW: foreach=True
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] transformer_lm (3.3b_fused_plus_amp_auto) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: foreach=True
+[APPLIED] deep_mlp (3.3a_fused_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.3a_fused_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] deep_mlp (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp (3.3a_fused_only) -> optimizer.AdamW: foreach=True
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] deep_mlp (3.3b_fused_plus_amp_auto) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: foreach=True
+[APPLIED] cnn_vision (3.3a_fused_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.3a_fused_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision (3.3a_fused_only) -> optimizer.SGD: foreach=True
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision (3.3b_fused_plus_amp_auto) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision (3.3b_fused_plus_amp_auto) -> optimizer.SGD: foreach=True
+[APPLIED] edge_cases (3.3a_fused_only) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] edge_cases (3.3a_fused_only) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] edge_cases (3.3a_fused_only) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (3.3a_fused_only) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] edge_cases (3.3a_fused_only) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.AdamW: foreach=True
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.Adam: foreach=True
+[APPLIED] edge_cases (3.3a_fused_only) -> optimizer.SGD: foreach=True
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> runtime.channels_last: opt-in only (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] edge_cases (3.3b_fused_plus_amp_auto) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.AdamW: foreach=True
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.Adam: foreach=True
+[APPLIED] edge_cases (3.3b_fused_plus_amp_auto) -> optimizer.SGD: foreach=True
+
+[MIGRATE TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_auto_amp_checkpoint_cross_load_to_baseline (tests.migrate.test_phase3_3_amp_fusion.TestPhase33Migration.test_auto_amp_checkpoint_cross_load_to_baseline) ... ok
+test_preexisting_amp_edge_case_and_transformer_with_auto_amp (tests.migrate.test_phase3_3_amp_fusion.TestPhase33Migration.test_preexisting_amp_edge_case_and_transformer_with_auto_amp) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 17.582s
+
+OK
+
+[UNIT TEST OUTPUT (unittest)]
+------------------------------------------------------------------------------
+/home/korarit/.local/lib/python3.12/site-packages/torch/_subclasses/functional_tensor.py:377: UserWarning: Failed to initialize NumPy: No module named 'numpy' (Triggered internally at /__w/pytorch/pytorch/torch/csrc/utils/tensor_numpy.cpp:82.)
+  cpu = _conversion_method_template(device=torch.device("cpu"))
+test_cpu_skips_auto_amp (tests.unit.test_pass_optimizer_amp.TestAutoAmpPass.test_cpu_skips_auto_amp) ... ok
+test_preexisting_user_autocast_and_grad_scaler_yield (tests.unit.test_pass_optimizer_amp.TestAutoAmpPass.test_preexisting_user_autocast_and_grad_scaler_yield) ... /home/korarit/Desktop/kernel-pytouch-optimize/src/passes/auto_amp.py:82: UserWarning: torch.cuda.amp.GradScaler is enabled, but CUDA is not available.  Disabling.
+  self.scaler = scaler_cls("cuda", enabled=True)
+ok
+test_stability_watchdog_disables_amp_on_nan (tests.unit.test_pass_optimizer_amp.TestAutoAmpPass.test_stability_watchdog_disables_amp_on_nan) ... ok
+test_t4_selects_fp16_scaler_and_l4_selects_bf16 (tests.unit.test_pass_optimizer_amp.TestAutoAmpPass.test_t4_selects_fp16_scaler_and_l4_selects_bf16) ... ok
+test_cpu_tensors_never_inject_fused_true (tests.unit.test_pass_optimizer_amp.TestOptimizerFusionPass.test_cpu_tensors_never_inject_fused_true) ... ok
+test_mock_cuda_injects_fused_for_adamw_and_foreach_for_sgd (tests.unit.test_pass_optimizer_amp.TestOptimizerFusionPass.test_mock_cuda_injects_fused_for_adamw_and_foreach_for_sgd) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.847s
+
+OK
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Fused Optimizer & Auto-AMP (bf16 + fp16) speedup, VRAM, and parity on Google Colab before Phase 3.4)
+==============================================================================
