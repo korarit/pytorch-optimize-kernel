@@ -1,0 +1,62 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.2 REPORT: DIAGNOSTICS (--doctor), FALLBACK REPORTER & DOCS
+==============================================================================
+Timestamp          : 2026-11-17 20:09:38 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 03cb96c
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+
+[Phase 4.2 Verification Checks]
+------------------------------------------------------------------------------
+Check                                | Scope                                         | Duration | Status | Details                                    
+-------------------------------------+-----------------------------------------------+----------+--------+--------------------------------------------
+Unit: Doctor & Fallback              | tests/unit/test_doctor_and_fallback.py        | 4.54s    | PASS   | Ran 7 tests in 4.386s                      
+CLI: ptopt --doctor (live)           | cuda (sm_89)                                  | 2.18s    | PASS   | Checks + recommendation printed            
+CLI: --target-arch low_shm_t4        | Colab T4 512MB /dev/shm simulation            | 0.11s    | PASS   | Recommended balanced + WARN low /dev/shm   
+CLI: --fallback-report --save-report | End-to-end audit stderr + run-*.txt file      | 4.39s    | PASS   | saved=200937_20261117-run-phase42_probe.txt
+Docs: ai-docs-dev/USER-GUIDE.md      | CLI, Profiles, Colab, GPU rule, Pass & Kernel | 0.00s    | PASS   | 7037 bytes                                 
+
+[Live `ptopt --doctor` Snapshot]
+------------------------------------------------------------------------------
+==============================================================================
+ptopt --doctor | ENVIRONMENT DIAGNOSTICS & PROFILE RECOMMENDATION
+==============================================================================
+Backend            : cuda
+Host               : Linux x86_64 (Colab=True)
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+
+[Diagnostic Checks]
+------------------------------------------------------------------------------
+[OK     ] CUDA Driver & GPU: NVIDIA L4 (sm_89, 22.0 GB VRAM, CUDA=13.0, driver=580.82.07)
+[OK     ] PyTorch & torch.compile: PyTorch 2.14.1+cu130 (Python 3.13.16; Inductor/SDPA supported).
+[OK     ] Triton Compiler: triton 3.8.0 installed (Inductor fusion & custom Triton kernels available).
+[OK     ] /dev/shm Shared Memory: Healthy /dev/shm (total=26155 MB, free=26155 MB).
+[OK     ] Host Memory Allocator: Found tcmalloc=libtcmalloc.so.4.
+[OK     ] TORCHINDUCTOR_CACHE_DIR: /content/pytorch-optimize-kernel/.torch_inductor_cache (exists & writable).
+[OK     ] Report Output Directory: /content/pytorch-optimize-kernel/report (exists & writable).
+
+[Recommended Profile]
+------------------------------------------------------------------------------
+Profile : balanced
+Advice  : Detected NVIDIA L4 (sm_89, 22.0GB VRAM, 26155MB /dev/shm) -> recommended: balanced (bf16 AMP, TF32 on, torch.compile default; use --profile aggressive for CUDA Graphs / max throughput)
+
+[Summary]
+------------------------------------------------------------------------------
+OK: 7 | WARN: 0 | MISSING: 0
+==============================================================================
+
+[Failure Diagnostics]
+------------------------------------------------------------------------------
+None — all Phase 4.2 diagnostics, fallback reporting, and docs passed cleanly.
+
+[Phase 4.2 Verdict]
+------------------------------------------------------------------------------
+Checks Passed         : 5/5
+Overall Phase 4.2     : PASS
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify `ptopt --doctor`, `--fallback-report`, and USER-GUIDE.md on Google Colab before advancing to Phase 4.3)
+==============================================================================
