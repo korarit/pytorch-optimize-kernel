@@ -128,7 +128,8 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
 
                 flat = inp.reshape(-1, lin.in_features)
                 m_rows = int(flat.shape[0])
-                if m_rows == 0 or m_rows % 16 != 0:
+                # Dynamic per-tensor FP8 quantize overhead hurts small M (<512) and loses precision (E4M3)
+                if m_rows < 512 or m_rows % 16 != 0:
                     return base_fwd(inp)
 
                 try:

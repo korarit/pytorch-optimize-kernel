@@ -355,10 +355,30 @@ class TelemetryCollector:
                     cur["last_phase_end"] = t1
                     if not collector._optimizer_used and not getattr(mod_self, "training", True):
                         collector.step_times_ms.append(round(dt_ms, 4))
+                        total_ms = cur["data_other_ms"] + dt_ms
+                        collector.debug_steps.append({
+                            "step": collector._step_idx,
+                            "data_other_ms": round(cur["data_other_ms"], 3),
+                            "forward_ms": round(dt_ms, 3),
+                            "loss_clip_ms": 0.0,
+                            "backward_ms": 0.0,
+                            "optim_ms": 0.0,
+                            "total_ms": round(total_ms, 3),
+                        })
+                        collector._cur_step = _new_step_bucket()
+                        collector._last_step_end = t1
+                        collector._step_idx += 1
+                        was_prof_active = collector._profiler_active
+                        collector._stop_profiler_if_done(force=False)
+                        if was_prof_active and not collector._profiler_active:
+                            collector._last_step_end = time.perf_counter()
                 elif is_top and not collector._optimizer_used and not getattr(mod_self, "training", True):
                     _sync_if_cuda(torch_mod)
                     dt_ms = (time.perf_counter() - t0) * 1000.0
                     collector.step_times_ms.append(round(dt_ms, 4))
+                    if collector.torch_profile:
+                        collector._step_idx += 1
+                        collector._stop_profiler_if_done(force=False)
                 return out
             finally:
                 collector._module_depth -= 1

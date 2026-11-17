@@ -133,6 +133,37 @@ class TestDebugProfilerTelemetry(unittest.TestCase):
             snap = collector.snapshot()
             self.assertIn("torch_profiler", snap["debug_profile"])
 
+    def test_eval_only_inference_loop_captures_debug_steps_and_profiler(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "tel_eval_debug.json"
+            mgr = HookManager()
+            collector = maybe_install_telemetry_hook(
+                torch,
+                mgr,
+                env={
+                    "PTOPT_TELEMETRY_OUT": str(out_path),
+                    "PTOPT_DEBUG_PROFILE": "1",
+                    "PTOPT_TORCH_PROFILE": "1",
+                    "PTOPT_TORCH_PROFILE_START": "1",
+                    "PTOPT_TORCH_PROFILE_STEPS": "3",
+                },
+            )
+            assert collector is not None
+            try:
+                model = nn.Sequential(nn.Linear(12, 16), nn.ReLU(), nn.Linear(16, 4))
+                model.eval()
+                with torch.no_grad():
+                    for _ in range(5):
+                        _ = model(torch.randn(2, 12))
+                collector.flush()
+                payload = json.loads(out_path.read_text(encoding="utf-8"))
+                dbg = payload["debug_profile"]
+                self.assertEqual(dbg["phase_breakdown"]["num_steps"], 5)
+                self.assertGreater(len(dbg["torch_profiler"]["top_cpu_ops"]), 0)
+            finally:
+                collector.uninstall()
+                mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()
