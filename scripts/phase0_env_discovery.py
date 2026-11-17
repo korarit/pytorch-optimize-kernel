@@ -320,7 +320,7 @@ def _build_recommendations(host: dict[str, Any], stack: dict[str, Any]) -> list[
             notes.append(f"[WARN] VRAM < 12 GB ({dev['total_vram_mb']} MB): prefer expandable_segments:True and conservative compile.")
 
     if not stack.get("triton_version"):
-        notes.append("[WARN] Triton not installed: Phase 3.6 custom Triton kernels will fallback to PyTorch native ops.")
+        notes.append("[WARN] Triton not installed: Phase 3.7 custom Triton kernels will fallback to PyTorch native ops.")
     if not stack.get("pytest_version"):
         notes.append("[WARN] pytest not installed: install pytest before running Phase 1+ test suites.")
     return notes
