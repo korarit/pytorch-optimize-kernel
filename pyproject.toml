@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kernel-pytouch-optimize"
+version = "0.1.0"
+description = "Zero-code hardware-aware PyTorch training and inference optimization wrapper"
+readme = "ai-docs-dev/PLAN.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+ptopt = "src.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.setuptools.package-data]
+"src.hooks.bootstrap" = ["*.py"]

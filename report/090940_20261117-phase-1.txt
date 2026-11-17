@@ -1,0 +1,159 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 1 CONSOLIDATED REPORT: HARDWARE PROBE, CONFIG ENGINE & --EXPLAIN
+==============================================================================
+Timestamp          : 2026-11-17 09:09:40 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ f7ca660
+Google Colab       : True
+Live Backend       : cuda
+Live GPU           : NVIDIA L4
+Test Runner        : pytest (exit_code=0)
+
+[LIVE HOST PROFILES SUMMARY]
+------------------------------------------------------------------------------
+Profile    | TF32 | AMP        | Scaler | Compile           | FusedOpt | FlashSDP | DL-Tune | Kernels
+-----------+------+------------+--------+-------------------+----------+----------+---------+--------
+safe       | True | False/bf16 | False  | False/default     | True     | True     | False   | False  
+balanced   | True | True/bf16  | False  | True/default      | True     | True     | True    | False  
+aggressive | True | True/bf16  | False  | True/max-autotune | True     | True     | True    | True   
+
+[MOCK TARGET ARCH COMPARISON (balanced)]
+------------------------------------------------------------------------------
+Preset | Backend | SM    | TF32  | AMP        | Scaler | Compile
+-------+---------+-------+-------+------------+--------+--------
+t4     | cuda    | sm_75 | False | True/fp16  | True   | True   
+l4     | cuda    | sm_89 | True  | True/bf16  | False  | True   
+a100   | cuda    | sm_80 | True  | True/bf16  | False  | True   
+h100   | cuda    | sm_90 | True  | True/bf16  | False  | True   
+cpu    | cpu     | N/A   | False | False/fp32 | False  | False  
+mps    | mps     | N/A   | False | False/fp32 | False  | False  
+
+[LIVE --EXPLAIN OUTPUT (balanced)]
+------------------------------------------------------------------------------
+==============================================================================
+PTOPT CONFIG EXPLAIN (profile=balanced)
+==============================================================================
+[HARDWARE FINGERPRINT]
+------------------------------------------------------------------------------
+Backend / Colab    : cuda (is_colab=True)
+Primary GPU        : NVIDIA L4 (sm_89, 22563.1 MB VRAM)
+Host OS / Arch     : Linux / x86_64 (cores=6/12)
+RAM / /dev/shm     : 54229.1 MB / 26155.0 MB (low_shm=False)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[MATCHED RULES]
+------------------------------------------------------------------------------
+base_safe_defaults
+host_linux_x86_64
+host_colab_runtime
+gpu_cuda_ada_sm89
+vram_12_24gb
+profile_balanced_cuda
+profile_balanced_dataloader
+
+[RESOLUTION TRACE]
+------------------------------------------------------------------------------
+[host_arch] host_linux_x86_64: runtime.omp_threads (0 -> 6) | Tune CPU threads and jemalloc for Linux x86_64
+[gpu_arch] gpu_cuda_ada_sm89: runtime.tf32 (False -> True) | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[gpu_arch] gpu_cuda_ada_sm89: amp.dtype ('fp32' -> 'bf16') | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[gpu_arch] gpu_cuda_ada_sm89: attention.flash_sdp (False -> True) | CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): enable TF32, BF16, Flash SDPA
+[user_profile] profile_balanced_cuda: runtime.cudnn_benchmark (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: amp.enabled (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: optimizer.fused (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: compile.enabled (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_cuda: inference.inference_mode (False -> True) | Balanced profile on CUDA: enable AMP, fused optimizer, compile(default), inference_mode
+[user_profile] profile_balanced_dataloader: dataloader.auto_tune (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.pin_memory (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.persistent_workers (False -> True) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+[user_profile] profile_balanced_dataloader: dataloader.num_workers (None -> 3) | Balanced profile with healthy /dev/shm: enable DataLoader auto-tuning
+
+[FINAL RESOLVED CONFIG]
+------------------------------------------------------------------------------
+{
+  "schema_version": 1,
+  "profile": "balanced",
+  "runtime": {
+    "tf32": true,
+    "cudnn_benchmark": true,
+    "alloc_conf": "expandable_segments:True",
+    "omp_threads": 6,
+    "jemalloc": false
+  },
+  "amp": {
+    "enabled": true,
+    "dtype": "bf16",
+    "grad_scaler": false
+  },
+  "compile": {
+    "enabled": true,
+    "mode": "default",
+    "dynamic": false,
+    "cache_dir": ".torch_inductor_cache"
+  },
+  "optimizer": {
+    "fused": true,
+    "foreach": true
+  },
+  "attention": {
+    "flash_sdp": true,
+    "mem_efficient_sdp": true,
+    "math_sdp": true
+  },
+  "dataloader": {
+    "auto_tune": true,
+    "pin_memory": true,
+    "persistent_workers": true,
+    "num_workers": 3,
+    "prefetch_factor": 2
+  },
+  "inference": {
+    "inference_mode": true,
+    "cuda_graphs": false
+  },
+  "kernels": {
+    "enabled": false,
+    "allow_list": [],
+    "fallback_on_error": true
+  }
+}
+==============================================================================
+
+[FULL PHASE 1 UNIT TEST OUTPUT (pytest)]
+------------------------------------------------------------------------------
+============================= test session starts ==============================
+platform linux -- Python 3.13.16, pytest-8.4.2, pluggy-1.7.0 -- /usr/bin/python3
+cachedir: .pytest_cache
+rootdir: /content/pytorch-optimize-kernel
+plugins: langsmith-0.14.17, platformdirs-4.14.3, anyio-4.16.0, typeguard-4.6.0
+collecting ... collected 23 items
+
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_a100_sm80_balanced PASSED [  4%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_cpu_only_and_mps PASSED [  8%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_l4_sm89_aggressive PASSED [ 13%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_shm_disables_dataloader_autotune PASSED [ 17%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_low_vram_disables_cuda_graphs_and_keeps_default_compile PASSED [ 21%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_overrides_and_trace PASSED [ 26%]
+tests/unit/test_config_resolver.py::TestConfigResolverMatrix::test_t4_sm75_balanced_and_safe PASSED [ 30%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_invalid_profile_and_env PASSED [ 34%]
+tests/unit/test_config_resolver.py::TestConfigValidation::test_unknown_keys_and_invalid_constraints PASSED [ 39%]
+tests/unit/test_detect.py::TestHardwareDetection::test_apple_silicon_mps_arm64 PASSED [ 43%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_a100_sm80 PASSED [ 47%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_l4_sm89 PASSED [ 52%]
+tests/unit/test_detect.py::TestHardwareDetection::test_colab_t4_sm75_low_shm PASSED [ 56%]
+tests/unit/test_detect.py::TestHardwareDetection::test_cpu_only_x86_and_aarch64 PASSED [ 60%]
+tests/unit/test_detect.py::TestHardwareDetection::test_fingerprint_json_roundtrip PASSED [ 65%]
+tests/unit/test_detect.py::TestHardwareDetection::test_hopper_h100_sm90_multigpu PASSED [ 69%]
+tests/unit/test_detect.py::TestHardwareDetection::test_low_shm_and_cuda_runtime_error_fallback PASSED [ 73%]
+tests/unit/test_detect.py::TestTextReportBuilder::test_report_filename_and_output PASSED [ 78%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_dump_config_roundtrip_and_validation PASSED [ 82%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_explain_contains_all_sections PASSED [ 86%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_invalid_target_arch_raises PASSED [ 91%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_snapshot_dict_helper PASSED [ 95%]
+tests/unit/test_explain_cli.py::TestExplainCLI::test_target_arch_presets_and_overrides PASSED [100%]
+
+============================== 23 passed in 0.09s ==============================
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Phase 1 consolidated report on Google Colab before starting Phase 2)
+==============================================================================

@@ -16,6 +16,6 @@
 ---
 
 ## Exit Criteria รวมของ Phase 1
-- [ ] Sub-Phase 1.1, 1.2, 1.3 ผ่านครบทุกข้อ
-- [ ] `pytest tests/unit` ฝั่ง detector + config resolver ผ่าน 100%
-- [ ] **[WAIT FOR USER]** ผู้ใช้ตรวจสอบ **Detailed Text Report (`report/HHMMSS_YYYYMMDD-phase-1.txt`)** บน Google Colab และยืนยันผลด้วยตนเองก่อนเริ่ม Phase 2
+- [x] Sub-Phase 1.1, 1.2, 1.3 ผ่านครบทุกข้อ
+- [x] `pytest tests/unit` ฝั่ง detector + config resolver ผ่าน 100%
+- [x] **[VERIFIED BY USER]** ผู้ใช้ตรวจสอบ **Detailed Text Report (`report/090940_20261117-phase-1.txt`)** บน Google Colab (23/23 passed) และยืนยันผลแล้ว
