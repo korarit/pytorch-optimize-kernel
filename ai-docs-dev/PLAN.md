@@ -8,19 +8,38 @@
 2. **Modular Optimization Passes**: แยกเทคนิคการ optimize เป็นโมดูลอิสระ พร้อม capability gate และ auto-fallback
 3. **Dedicated Optimization Lab**: แยก phase ทดลองและวัดผล A/B ออกจากโครงสร้างหลัก
 4. **Unit Tests & Migrate Tests**: คุ้มครองทั้ง logic ภายใน, การรันโค้ดเดิมโดยไม่แก้, และการโหลด checkpoint ข้ามโหมด
-5. **Detailed Text Report & Human Verification Gate (Google Colab)**: ทุก Phase ต้องมี script สร้าง **Detailed Text Report (`.txt` / stdout)** และ **ต้องรอให้ผู้ใช้เอาไปรันบน Google Colab และตรวจสอบยืนยันด้วยตนเองก่อน** จึงจะถือว่าผ่าน Phase และไปต่อได้
+5. **Detailed Text Report & Human Verification Gate (Google Colab)**: ทุก Phase และ Sub-Phase ต้องมี script สร้าง **Detailed Text Report (`.txt` / stdout)** และ **ต้องรอให้ผู้ใช้เอาไปรันบน Google Colab และตรวจสอบยืนยันด้วยตนเองก่อน** จึงจะไปต่อได้
 
 ---
 
-## ดัชนีแผนงานราย Phase (1 File = 1 Phase)
+## ดัชนีแผนงานราย Phase และ Sub-Phase (1 File = 1 Phase / Sub-Phase)
 
-| Phase | ชื่อ Phase | ไฟล์รายละเอียด | จุดเน้นหลัก |
-| :--- | :--- | :--- | :--- |
-| **Phase 0** | Environment Discovery & Design Spec | [phase-0-discovery-and-spec.md](./phase-0-discovery-and-spec.md) | ตรวจสเปกเครื่อง, กำหนด Config Schema v1, เกณฑ์ Parity & Benchmark |
-| **Phase 1** | Hardware Fingerprint & Layered Config | [phase-1-hardware-config-and-unit-tests.md](./phase-1-hardware-config-and-unit-tests.md) | ตรวจจับ GPU/Host Arch, Rule Engine, `--explain`, **Unit Tests (Mock Matrix)** |
-| **Phase 2** | Wrapper Core, Benchmark & Migrate Tests | [phase-2-wrapper-benchmark-and-migrate-tests.md](./phase-2-wrapper-benchmark-and-migrate-tests.md) | CLI + Hook Injection, Benchmark Harness (`pipline-for-test/`), **Migrate Tests ตั้งต้น** |
-| **Phase 3** | **[Dedicated]** Optimization Lab | [phase-3-optimization-lab.md](./phase-3-optimization-lab.md) | ทดลอง Track 3A–3D (Runtime, Compile/AMP, Inference, Triton Kernels) + Promotion Gate |
-| **Phase 4** | Hardening & Full Regression Gate | [phase-4-hardening-and-regression-gate.md](./phase-4-hardening-and-regression-gate.md) | Full Unit + Migrate Matrix (3 มิติ), Config Migration, `--doctor`, CI Gate |
+### Phase 0: Environment Discovery & Design Spec
+- [phase-0-discovery-and-spec.md](./phase-0-discovery-and-spec.md) — ตรวจสเปกเครื่อง Colab, กำหนด Config Schema v1, Text Report Format และเกณฑ์ Parity
+
+### Phase 1: Hardware Fingerprinting & Layered Config ([Overview](./phase-1-hardware-config-and-unit-tests.md))
+- [Phase 1.1](./phase-1/1.1-hardware-probe.md) — GPU & Machine Hardware Probe + Text Report Foundation + Unit Tests
+- [Phase 1.2](./phase-1/1.2-config-rule-engine.md) — Config Schema v1, Profiles & Layered Rule Merge Engine + Unit Tests
+- [Phase 1.3](./phase-1/1.3-explain-and-report.md) — `--explain` / `--show-config` CLI & Phase 1 Colab Verification Report
+
+### Phase 2: Wrapper Core, Benchmark Harness & Baseline Migrate Tests ([Overview](./phase-2-wrapper-benchmark-and-migrate-tests.md))
+- [Phase 2.1](./phase-2/2.1-cli-and-hook-injection.md) — CLI Launcher & `sitecustomize` Hook Injection + Idempotency Guards
+- [Phase 2.2](./phase-2/2.2-benchmark-workloads.md) — Representative Pure PyTorch Workloads & Edge-Case Scripts (`pipline-for-test/workloads/`)
+- [Phase 2.3](./phase-2/2.3-telemetry-and-bench-harness.md) — Non-Invasive Telemetry, A/B Runner (`bench.py`) & Detailed Text Report (`report.py`)
+- [Phase 2.4](./phase-2/2.4-baseline-migrate-tests.md) — Baseline Migrate Tests (Unmodified Script + Checkpoint Cross-Load)
+
+### Phase 3: [Dedicated] Optimization Lab ([Overview](./phase-3-optimization-lab.md))
+- [Phase 3.1](./phase-3/3.1-runtime-and-memory.md) — Track 3A.1: CUDA Flags, Memory Allocator & `channels_last` / CPU Threads
+- [Phase 3.2](./phase-3/3.2-dataloader-autotune.md) — Track 3A.2: DataLoader Auto-Tuning & Colab `/dev/shm` + Pickle Safety Guard
+- [Phase 3.3](./phase-3/3.3-fused-optimizer-and-amp.md) — Track 3B.1: Fused Optimizers & Safe Auto-AMP (`bf16` / `fp16 + GradScaler`)
+- [Phase 3.4](./phase-3/3.4-torch-compile.md) — Track 3B.2: Auto `torch.compile`, Persistent Cache & `_orig_mod.` Checkpoint Transparency
+- [Phase 3.5](./phase-3/3.5-inference-running.md) — Track 3C: Inference / Running Optimization (`inference_mode`, CUDA Graphs, Quant/FP8)
+- [Phase 3.6](./phase-3/3.6-custom-kernels.md) — Track 3D: Custom Kernels (Triton / CUDA), Capability Gate & Final Profile Consolidation
+
+### Phase 4: Hardening, Full Compatibility Matrix & Regression Gate ([Overview](./phase-4-hardening-and-regression-gate.md))
+- [Phase 4.1](./phase-4/4.1-full-migrate-matrix.md) — Full 3-Axis Migrate Test Matrix (Code, Checkpoint, Config/Cache Migration)
+- [Phase 4.2](./phase-4/4.2-diagnostics-and-docs.md) — `--doctor`, `--fallback-report` & Developer Docs
+- [Phase 4.3](./phase-4/4.3-regression-gate.md) — Automated Regression Gate & Final Colab Sign-off Report
 
 ---
 
@@ -28,11 +47,15 @@
 
 ```text
 kernel-pytouch-optimize/
-├── ai-docs-dev/                 # แผนงานราย Phase, Architecture Specs, Benchmark Logs
+├── ai-docs-dev/                 # แผนงานราย Phase/Sub-Phase, Architecture Specs, Experiment Logs
+│   ├── phase-1/
+│   ├── phase-2/
+│   ├── phase-3/
+│   └── phase-4/
 ├── src/                         # Wrapper Core, Detector, Config Engine, Passes, Kernels
 ├── pipline-for-test/            # Benchmark Harness, Workloads, Telemetry, Text Report Generator
 ├── report/                      # เก็บ Text Reports ทั้งหมด (ชื่อไฟล์ HHMMSS_YYYYMMDD-name.txt)
-├── scripts/                     # Utility scripts (เช่น gen_report.py, colab_verify.py)
+├── scripts/                     # Utility scripts สำหรับรันตรวจและสร้าง Text Report บน Google Colab
 └── tests/
     ├── unit/                    # Unit tests
     └── migrate/                 # Migrate tests (Code, Checkpoint, Config migration)
@@ -40,8 +63,8 @@ kernel-pytouch-optimize/
 
 ---
 
-## กฎกลางของทุก Phase (Mandatory Rules)
+## กฎกลางของทุก Phase และ Sub-Phase (Mandatory Rules)
 
 1. **Google Colab First**: ทุกคำสั่งทดสอบและสคริปต์ต้องรันบน Google Colab ได้สะดวก (รองรับ notebook shell `!python ...`, ephemeral disk, GPU T4/L4/A100 และ `/dev/shm` ขนาดจำกัดบน Colab)
-2. **Text Report First**: ทุก Phase ต้องมี script ที่ generate **Detailed Text Report (`.txt`)** เก็บในโฟลเดอร์ `report/` ทั้งหมด โดยตั้งชื่อไฟล์ตามรูปแบบ `HHMMSS_YYYYMMDD-name.txt` (เช่น `report/150810_20261117-phase-0-env.txt`) และพิมพ์ออกหน้าจอได้ แสดงรายละเอียดครบทั้ง Hardware, Config Trace, Test Results, Benchmark Metrics และ Fallback Reasons
-3. **Human Verification Gate (รอตรวจสอบเอง)**: ห้ามสรุปว่าจบ Phase เอง — หลังสร้างโค้ด/เทสเสร็จในแต่ละ Phase ต้อง **รอให้ผู้ใช้ไปรันบน Google Colab, อ่าน Text Report, และยืนยันด้วยตนเอง** ก่อนเริ่ม Phase ถัดไป
+2. **Text Report First**: ทุก Phase/Sub-Phase ต้องมี script ที่ generate **Detailed Text Report (`.txt`)** เก็บในโฟลเดอร์ `report/` ทั้งหมด โดยตั้งชื่อไฟล์ตามรูปแบบ `HHMMSS_YYYYMMDD-name.txt` (เช่น `report/150810_20261117-phase-1.1.txt`) และพิมพ์ออกหน้าจอได้
+3. **Human Verification Gate (รอตรวจสอบเอง)**: ห้ามสรุปว่าจบ Phase/Sub-Phase เอง — หลังสร้างโค้ด/เทสเสร็จในแต่ละขั้น ต้อง **รอให้ผู้ใช้ไปรันบน Google Colab, อ่าน Text Report, และยืนยันด้วยตนเอง** ก่อนเริ่มขั้นถัดไป
