@@ -273,13 +273,15 @@ def install_activation_checkpoint_hook(
                             mod_self._ptopt_act_ckpt_active = True
                             rt.triggered_modules += 1
                             rt.patched_blocks += n_patched
-                            # Bypass torch.compile when checkpointing is active to avoid Dynamo forward/recompute
-                            # LRU cache conflict (PyTorch #166926) and maximize VRAM headroom.
+                            # Bypass torch.compile on root AND all child submodules (so backward recomputation
+                            # inside checkpoint(..., use_reentrant=False) never compiles child blocks mid-backward,
+                            # preventing PyTorch #166926 tensor count mismatch).
                             was_compiled = bool(getattr(mod_self, "_ptopt_compile_active", False))
-                            mod_self._compiled_call_impl = None
-                            mod_self._ptopt_compile_active = False
-                            mod_self._ptopt_compile_checked = True
-                            mod_self._ptopt_compile_ineligible = True
+                            for sub_m in mod_self.modules():
+                                sub_m._compiled_call_impl = None
+                                sub_m._ptopt_compile_active = False
+                                sub_m._ptopt_compile_checked = True
+                                sub_m._ptopt_compile_ineligible = True
                             if was_compiled:
                                 manager.record_event(
                                     "compile.auto",

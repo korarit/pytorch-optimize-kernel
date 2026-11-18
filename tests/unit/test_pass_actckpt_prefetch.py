@@ -206,6 +206,12 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                     any(ev.pass_name == "runtime.activation_checkpointing" and ev.status == "APPLIED" for ev in mgr.events)
                 )
 
+                # Verify descendant submodules are marked _ptopt_compile_checked so backward recomputation
+                # never triggers auto_compile mid-backward.
+                for sub in model.modules():
+                    self.assertTrue(getattr(sub, "_ptopt_compile_checked", False))
+                    self.assertTrue(getattr(sub, "_ptopt_compile_ineligible", False))
+
                 # Simulate checkpoint failure -> block falls back cleanly to original forward
                 with patch.object(torch.utils.checkpoint, "checkpoint", side_effect=RuntimeError("unsupported return")):
                     out = model(torch.randn(2, 128))
