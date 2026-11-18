@@ -242,6 +242,118 @@ class TestInferenceOptPass(unittest.TestCase):
             self.assertEqual(param.dtype, torch.float32)
             torch.testing.assert_close(after_sd[name], orig_sd[name])
 
+    def test_fp8_compilable_traceable_path_zero_graph_breaks(self) -> None:
+        from src.passes.inference_opt import (
+            _quantize_fp8_traceable,
+            apply_fp8_linear_eval_hooks,
+            prewarm_fp8_weight_caches,
+        )
+
+        if not hasattr(torch, "float8_e4m3fn"):
+            self.skipTest("float8_e4m3fn unavailable in this PyTorch build")
+
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        # 1. Verify _quantize_fp8_traceable compiles under fullgraph=True with 0 graph breaks
+        compiled_quant = torch.compile(
+            lambda t: _quantize_fp8_traceable(t, torch.float8_e4m3fn, torch.float32),
+            fullgraph=True,
+        )
+        x_sample = torch.randn(512, 128, device=device, dtype=torch.bfloat16)
+        q_c, s_c = compiled_quant(x_sample)
+        q_e, s_e = _quantize_fp8_traceable(x_sample, torch.float8_e4m3fn, torch.float32)
+        self.assertEqual(q_c.dtype, torch.float8_e4m3fn)
+        self.assertEqual(s_c.dtype, torch.float32)
+        torch.testing.assert_close(s_c, s_e)
+        torch.testing.assert_close(q_c.float(), q_e.float())
+
+        # 2. Verify full patched Linear module compiles under fullgraph=True without graph breaks
+        class _Fp8Block(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.lin = nn.Linear(512, 512, bias=True)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return self.lin(torch.nn.functional.gelu(x))
+
+        mod = _Fp8Block().to(device=device, dtype=torch.bfloat16).eval()
+        orig_lin = nn.Linear(512, 512, bias=True).to(device=device, dtype=torch.bfloat16).eval()
+        orig_lin.load_state_dict(mod.lin.state_dict())
+
+        def _fake_scaled_mm(
+            a: torch.Tensor,
+            b: torch.Tensor,
+            *,
+            scale_a: torch.Tensor,
+            scale_b: torch.Tensor,
+            out_dtype: torch.dtype,
+            bias: torch.Tensor | None = None,
+        ) -> torch.Tensor:
+            out = (a.float() @ b.float()) * (scale_a.float() * scale_b.float())
+            if bias is not None:
+                out = out + bias.float()
+            return out.to(out_dtype)
+
+        if device == "cuda":
+            n_patched = apply_fp8_linear_eval_hooks(mod, torch, min_work=512 * 512)
+            self.assertEqual(n_patched, 1)
+            prewarm_fp8_weight_caches(mod, torch, min_work=512 * 512)
+            self.assertIsNotNone(getattr(mod.lin, "_ptopt_fp8_w_cache", None))
+            compiled_mod = torch.compile(mod, fullgraph=True)
+            with torch.inference_mode():
+                x_in = torch.randn(512, 512, device=device, dtype=torch.bfloat16)
+                out = compiled_mod(x_in)
+                ref = orig_lin(torch.nn.functional.gelu(x_in))
+            self.assertEqual(out.shape, ref.shape)
+            rel_err = (out.float() - ref.float()).abs().max() / ref.float().abs().max().clamp(min=1e-6)
+            self.assertLess(float(rel_err.item()), 0.05)
+        else:
+            with patch("src.passes.inference_opt._is_cuda_tensor", new=lambda _t: True), patch.object(
+                torch, "_scaled_mm", new=_fake_scaled_mm, create=True
+            ):
+                n_patched = apply_fp8_linear_eval_hooks(mod, torch, min_work=512 * 512)
+                self.assertEqual(n_patched, 1)
+                prewarm_fp8_weight_caches(mod, torch, min_work=512 * 512)
+                self.assertIsNotNone(getattr(mod.lin, "_ptopt_fp8_w_cache", None))
+                w_t_cached = mod.lin._ptopt_fp8_w_cache[1]
+                self.assertEqual(w_t_cached.stride(), (1, 512))
+                compiled_mod = torch.compile(mod, fullgraph=True)
+                with torch.inference_mode():
+                    x_in = torch.randn(512, 512, dtype=torch.bfloat16)
+                    out = compiled_mod(x_in)
+                    ref = orig_lin(torch.nn.functional.gelu(x_in))
+                max_diff = float((out.float() - ref.float()).abs().max().item())
+                self.assertGreater(max_diff, 0.0)
+                rel_err = max_diff / float(ref.float().abs().max().clamp(min=1e-6).item())
+                self.assertLess(rel_err, 0.05)
+
+    def test_fp8_min_work_gate_and_opt_in_weight_drop(self) -> None:
+        from src.passes.inference_opt import apply_fp8_linear_eval_hooks, prewarm_fp8_weight_caches
+
+        if not hasattr(torch, "float8_e4m3fn"):
+            self.skipTest("float8_e4m3fn unavailable in this PyTorch build")
+
+        small = nn.Linear(128, 128).eval()
+        large = nn.Linear(512, 512).eval()
+        with patch.object(torch.Tensor, "is_cuda", new=True):
+            apply_fp8_linear_eval_hooks(small, torch, min_work=512 * 512)
+            apply_fp8_linear_eval_hooks(large, torch, min_work=512 * 512)
+            # Small layer skips prewarm due to min_work gate; large layer builds strict col-major cache
+            built_small = prewarm_fp8_weight_caches(small, torch, min_work=512 * 512)
+            with patch.dict(os.environ, {"PTOPT_FP8_DROP_BF16_EVAL": "0"}):
+                built_large = prewarm_fp8_weight_caches(large, torch, min_work=512 * 512)
+            self.assertEqual(built_small, 0)
+            self.assertEqual(built_large, 1)
+            self.assertEqual(large.weight.numel(), 512 * 512)
+
+            # Opt-in PTOPT_FP8_DROP_BF16_EVAL=1 clears source weight storage once cached
+            large2 = nn.Linear(512, 512).eval()
+            apply_fp8_linear_eval_hooks(large2, torch, min_work=512 * 512)
+            with patch.dict(os.environ, {"PTOPT_FP8_DROP_BF16_EVAL": "1"}):
+                built_drop = prewarm_fp8_weight_caches(large2, torch, min_work=512 * 512)
+            self.assertEqual(built_drop, 1)
+            self.assertEqual(large2.weight.numel(), 0)
+            self.assertIsNotNone(getattr(large2, "_ptopt_fp8_w_cache", None))
+
 
 if __name__ == "__main__":
     unittest.main()

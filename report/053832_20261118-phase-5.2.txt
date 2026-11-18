@@ -1,0 +1,188 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.2 REPORT: FUSED CHUNKED LINEAR + CROSS-ENTROPY (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 05:38:32 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 25d613a
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (fused_lce)   : Ran 6 tests in 2.686s (5.40s) -> PASS
+Unit (registry)    : Ran 8 tests in 2.635s (5.42s) -> PASS
+Overall Phase 5.2  : PASS
+
+[MICRO-BENCHMARK: EAGER LINEAR+CE VS FUSED CHUNKED LINEAR+CE]
+------------------------------------------------------------------------------
+Shape (N x H -> V)   | Eager ms | Fused ms | Speedup | Eager VRAM MB | Fused VRAM MB | VRAM Delta            | LossAbsDiff
+---------------------+----------+----------+---------+---------------+---------------+-----------------------+------------
+1024x512 -> V=8192   | 1.50     | 1.26     | 1.19x   | 132.3         | 68.3          | -64.0 (48.4% saved)   | 0.00e+00   
+2048x768 -> V=32768  | 14.88    | 9.51     | 1.56x   | 886.3         | 297.3         | -589.0 (66.5% saved)  | 7.63e-06   
+4096x1024 -> V=65536 | 64.60    | 52.27    | 1.24x   | 3361.2        | 625.2         | -2736.0 (81.4% saved) | 1.53e-05   
+
+[END-TO-END LARGE-VOCAB TRANSFORMER_LM (BASELINE VS COMPILE VS FUSED_LCE)]
+------------------------------------------------------------------------------
+Scale    | Variant          | Step0 ms | Base ms | Wrap ms | Wrap P95 | Wrap P99 | E2E s (B/W) | Speedup | VRAM MB (B/W/d)         | MaxRelDiff | Status
+---------+------------------+----------+---------+---------+----------+----------+-------------+---------+-------------------------+------------+-------
+vocab8k  | balanced_compile | 16562.7  | 76.23   | 24.24   | 24.64    | 24.66    | 5.47/23.63s | 3.15x   | 1679.5/1159.0 (-520.5)  | 7e-06      | PASS  
+vocab8k  | fused_lce_eager  | 3459.0   | 76.23   | 21.03   | 21.98    | 22.01    | 5.47/8.91s  | 3.62x   | 1679.5/814.5 (-865.0)   | 7e-06      | PASS  
+vocab32k | balanced_compile | 16868.1  | 123.01  | 47.56   | 48.25    | 48.25    | 6.22/24.13s | 2.59x   | 3501.5/2815.0 (-686.5)  | 6e-06      | PASS  
+vocab32k | fused_lce_eager  | 3676.3   | 123.01  | 36.78   | 37.18    | 37.27    | 6.22/9.24s  | 3.34x   | 3501.5/1214.5 (-2287.0) | 6e-06      | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Scale    | Mode          | Step0 ms | Steady ms | Data/Other  | Forward       | Loss/Clip    | Backward      | Optim        
+---------+---------------+----------+-----------+-------------+---------------+--------------+---------------+--------------
+vocab8k  | baseline_dbg  | 1943.45  | 74.37     | 0.65 (0.9%) | 20.31 (27.3%) | 1.52 (2.0%)  | 42.56 (57.2%) | 9.33 (12.5%) 
+vocab8k  | compile_dbg   | 6544.56  | 25.65     | 0.88 (3.4%) | 5.82 (22.7%)  | 2.46 (9.6%)  | 12.85 (50.1%) | 3.63 (14.2%) 
+vocab8k  | fused_lce_dbg | 3450.98  | 26.17     | 0.75 (2.9%) | 7.00 (26.7%)  | 1.43 (5.5%)  | 13.42 (51.3%) | 3.58 (13.7%) 
+vocab32k | baseline_dbg  | 2151.25  | 120.14    | 0.69 (0.6%) | 28.62 (23.8%) | 5.02 (4.2%)  | 67.95 (56.6%) | 17.86 (14.9%)
+vocab32k | compile_dbg   | 6745.98  | 49.40     | 0.83 (1.7%) | 7.85 (15.9%)  | 8.54 (17.3%) | 25.50 (51.6%) | 6.66 (13.5%) 
+vocab32k | fused_lce_dbg | 3685.01  | 37.63     | 0.82 (2.2%) | 7.18 (19.1%)  | 4.37 (11.6%) | 18.55 (49.3%) | 6.70 (17.8%) 
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Scale    | Mode          | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+---------+---------------+----------+---------+-----------+----------+--------+--------
+vocab8k  | baseline_dbg  | 1674.5   | 1704.0  | 29.5      | 20859.1  | 7.5%   | 0      
+vocab8k  | compile_dbg   | 1159.0   | 1242.0  | 83.0      | 21321.1  | 5.5%   | 0      
+vocab8k  | fused_lce_dbg | 814.5    | 840.0   | 25.5      | 21723.1  | 3.7%   | 0      
+vocab32k | baseline_dbg  | 3498.5   | 3544.0  | 45.5      | 19019.1  | 15.7%  | 0      
+vocab32k | compile_dbg   | 2815.0   | 3342.0  | 527.0     | 19221.1  | 14.8%  | 0      
+vocab32k | fused_lce_dbg | 1214.5   | 1240.0  | 25.5      | 21323.1  | 5.5%   | 0      
+
+[TOP PYTORCH PROFILER OPS (BASELINE VS COMPILE VS FUSED_LCE)]
+------------------------------------------------------------------------------
+[vocab8k | baseline_dbg] Profiler window=[2, 4] self_cuda=296.871ms self_cpu=143.238ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 83.424ms (28.1%) total= 83.424ms
+  ampere_sgemm_128x64_tn                           calls=42    self= 29.224ms ( 9.8%) total= 29.224ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=34    self= 23.336ms ( 7.9%) total= 23.336ms
+  ampere_sgemm_128x64_nn                           calls=32    self= 18.343ms ( 6.2%) total= 18.343ms
+  Optimizer.step#AdamW.step                        calls=2     self= 17.377ms ( 5.9%) total= 17.377ms
+  aten::mul                                        calls=212   self= 14.242ms ( 4.8%) total= 14.242ms
+  void at::native::vectorized_elementwise_kernel<4 calls=104   self= 12.546ms ( 4.2%) total= 12.546ms
+  ampere_sgemm_128x128_nn                          calls=8     self=  5.612ms ( 1.9%) total=  5.612ms
+[vocab8k | compile_dbg] Profiler window=[2, 4] self_cuda=92.317ms self_cpu=52.673ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 14.993ms (16.2%) total= 14.993ms
+  Optimizer.step#AdamW.step                        calls=2     self=  6.364ms ( 6.9%) total=  6.364ms
+  aten::_fused_adamw_                              calls=2     self=  6.168ms ( 6.7%) total=  6.168ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self=  6.168ms ( 6.7%) total=  6.168ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=42    self=  4.943ms ( 5.4%) total=  4.943ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=26    self=  4.129ms ( 4.5%) total=  4.129ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=34    self=  3.847ms ( 4.2%) total=  3.847ms
+  aten::_log_softmax_backward_data                 calls=2     self=  3.448ms ( 3.7%) total=  3.448ms
+[vocab8k | fused_lce_dbg] Profiler window=[2, 4] self_cuda=76.466ms self_cpu=51.987ms (top_cuda_ops):
+  aten::mm                                         calls=134   self= 15.403ms (20.1%) total= 15.403ms
+  Optimizer.step#AdamW.step                        calls=2     self=  6.345ms ( 8.3%) total=  6.345ms
+  aten::_fused_adamw_                              calls=2     self=  6.155ms ( 8.0%) total=  6.155ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self=  6.155ms ( 8.0%) total=  6.155ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=40    self=  4.800ms ( 6.3%) total=  4.800ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=44    self=  4.749ms ( 6.2%) total=  4.749ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=28    self=  4.277ms ( 5.6%) total=  4.277ms
+  aten::copy_                                      calls=167   self=  2.662ms ( 3.5%) total=  2.662ms
+[vocab32k | baseline_dbg] Profiler window=[2, 4] self_cuda=495.104ms self_cpu=233.879ms (top_cuda_ops):
+  aten::mm                                         calls=126   self=134.786ms (27.2%) total=134.786ms
+  ampere_sgemm_128x64_tn                           calls=42    self= 45.850ms ( 9.3%) total= 45.850ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=34    self= 40.007ms ( 8.1%) total= 40.007ms
+  Optimizer.step#AdamW.step                        calls=2     self= 34.480ms ( 7.0%) total= 34.480ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_256x calls=2     self= 20.580ms ( 4.2%) total= 20.580ms
+  ampere_sgemm_128x64_nn                           calls=32    self= 20.124ms ( 4.1%) total= 20.124ms
+  aten::_log_softmax_backward_data                 calls=2     self= 14.407ms ( 2.9%) total= 14.407ms
+  void at::native::(anonymous namespace)::cunn_Sof calls=2     self= 14.407ms ( 2.9%) total= 14.407ms
+[vocab32k | compile_dbg] Profiler window=[2, 4] self_cuda=193.252ms self_cpu=100.531ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 24.028ms (12.4%) total= 24.028ms
+  aten::_log_softmax_backward_data                 calls=2     self= 14.334ms ( 7.4%) total= 14.334ms
+  void at::native::(anonymous namespace)::cunn_Sof calls=2     self= 14.334ms ( 7.4%) total= 14.334ms
+  aten::copy_                                      calls=11    self= 13.518ms ( 7.0%) total= 13.518ms
+  Optimizer.step#AdamW.step                        calls=2     self= 12.518ms ( 6.5%) total= 12.518ms
+  aten::_fused_adamw_                              calls=2     self= 12.317ms ( 6.4%) total= 12.317ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self= 12.317ms ( 6.4%) total= 12.317ms
+  aten::_log_softmax                               calls=2     self=  9.104ms ( 4.7%) total=  9.104ms
+[vocab32k | fused_lce_dbg] Profiler window=[2, 4] self_cuda=138.557ms self_cpu=72.32ms (top_cuda_ops):
+  aten::mm                                         calls=146   self= 27.000ms (19.5%) total= 27.000ms
+  Optimizer.step#AdamW.step                        calls=2     self= 12.479ms ( 9.0%) total= 12.479ms
+  aten::_fused_adamw_                              calls=2     self= 12.278ms ( 8.9%) total= 12.278ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self= 12.278ms ( 8.9%) total= 12.278ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=24    self=  9.974ms ( 7.2%) total=  9.974ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=32    self=  7.536ms ( 5.4%) total=  7.536ms
+  aten::copy_                                      calls=171   self=  4.494ms ( 3.2%) total=  4.494ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta calls=8     self=  4.239ms ( 3.1%) total=  4.239ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[vocab8k | baseline] step0=402.63ms | steady_med=76.12ms | s0=402.63ms, s1=67.69ms, s2=74.18ms, s3=75.61ms, s4=76.88ms, s5=76.77ms, s6=76.07ms, s7=76.00ms ...
+[vocab8k | balanced_compile] step0=16562.72ms | steady_med=24.22ms | s0=16562.72ms, s1=23.69ms, s2=23.49ms, s3=23.90ms, s4=24.00ms, s5=24.14ms, s6=24.67ms, s7=24.39ms ...
+[vocab8k | fused_lce_eager] step0=3459.03ms | steady_med=21.11ms | s0=3459.03ms, s1=22.01ms, s2=19.99ms, s3=20.57ms, s4=20.77ms, s5=21.28ms, s6=20.94ms, s7=21.11ms ...
+[vocab32k | baseline] step0=411.77ms | steady_med=122.93ms | s0=411.77ms, s1=115.86ms, s2=123.42ms, s3=123.10ms, s4=119.20ms, s5=121.67ms, s6=116.32ms, s7=122.93ms ...
+[vocab32k | balanced_compile] step0=16868.06ms | steady_med=47.54ms | s0=16868.06ms, s1=47.42ms, s2=47.54ms, s3=47.40ms, s4=47.43ms, s5=48.25ms, s6=47.50ms, s7=48.25ms ...
+[vocab32k | fused_lce_eager] step0=3676.30ms | steady_med=36.76ms | s0=3676.30ms, s1=35.43ms, s2=35.07ms, s3=35.69ms, s4=36.32ms, s5=36.90ms, s6=36.94ms, s7=37.30ms ...
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- vocab8k (balanced_compile): med=24.24ms (3.15x), VRAM 1679.5 -> 1159.0 MB (-520.5 MB)
+- vocab8k (fused_lce_eager): med=21.03ms (3.62x), VRAM 1679.5 -> 814.5 MB (-865.0 MB)
+- vocab32k (balanced_compile): med=47.56ms (2.59x), VRAM 3501.5 -> 2815.0 MB (-686.5 MB)
+- vocab32k (fused_lce_eager): med=36.78ms (3.34x), VRAM 3501.5 -> 1214.5 MB (-2287.0 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] vocab8k (balanced_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab8k (balanced_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab8k (balanced_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab8k (balanced_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab8k (balanced_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcnhns6jw/vocab8k)
+[APPLIED] vocab8k (balanced_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab8k (balanced_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab8k (balanced_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] vocab8k (balanced_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] vocab8k (balanced_compile) -> optimizer.AdamW: fused=True
+[APPLIED] vocab8k (balanced_compile) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab8k (fused_lce_eager) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab8k (fused_lce_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab8k (fused_lce_eager) -> compile.auto: compile.enabled is False
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab8k (fused_lce_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab8k (fused_lce_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.fused_linear_cross_entropy: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu, fused_linear_cross_entropy
+[APPLIED] vocab8k (fused_lce_eager) -> optimizer.AdamW: fused=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.patch: Patched 14 submodules in TinyGPT with custom Triton kernels
+[APPLIED] vocab32k (balanced_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab32k (balanced_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab32k (balanced_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab32k (balanced_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab32k (balanced_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpcnhns6jw/vocab32k)
+[APPLIED] vocab32k (balanced_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab32k (balanced_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab32k (balanced_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] vocab32k (balanced_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] vocab32k (balanced_compile) -> optimizer.AdamW: fused=True
+[APPLIED] vocab32k (balanced_compile) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab32k (fused_lce_eager) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab32k (fused_lce_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab32k (fused_lce_eager) -> compile.auto: compile.enabled is False
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab32k (fused_lce_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab32k (fused_lce_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.fused_linear_cross_entropy: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu, fused_linear_cross_entropy
+[APPLIED] vocab32k (fused_lce_eager) -> optimizer.AdamW: fused=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.patch: Patched 14 submodules in TinyGPT with custom Triton kernels
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Peak VRAM savings (40%-75% on large vocab) & Deep Debug traces on Colab L4 before Plan 5.3)
+==============================================================================

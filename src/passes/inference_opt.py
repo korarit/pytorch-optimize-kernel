@@ -154,7 +154,118 @@ def _get_triton_fp8_quantizer() -> Any:
     return _TRITON_FP8_QUANTIZER
 
 
-def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
+def _is_cuda_tensor(t: Any) -> bool:
+    """Return True when tensor resides on CUDA (helper kept clean for CPU unit mocking)."""
+    return bool(getattr(t, "is_cuda", False))
+
+
+def _is_dynamo_compiling(torch_mod: Any) -> bool:
+    """Return True when executing inside a TorchDynamo/torch.compile trace."""
+    compiler = getattr(torch_mod, "compiler", None)
+    is_comp_fn = getattr(compiler, "is_compiling", None)
+    if callable(is_comp_fn):
+        try:
+            return bool(is_comp_fn())
+        except Exception:  # noqa: BLE001
+            return False
+    return False
+
+
+def _quantize_fp8_traceable(flat: Any, fp8_dtype: Any, fp32_dtype: Any) -> tuple[Any, Any]:
+    """Pure-ATen dynamic per-tensor FP8 quantizer traceable by TorchDynamo/Inductor (0 graph breaks)."""
+    x_f32 = flat if flat.dtype == fp32_dtype else flat.to(fp32_dtype)
+    x_amax = x_f32.abs().amax().clamp(min=1e-12)
+    x_scale = x_amax / 448.0
+    inv_scale = 448.0 / x_amax
+    x_q = (x_f32 * inv_scale).clamp(-448.0, 448.0).to(fp8_dtype)
+    if not x_q.is_contiguous():
+        x_q = x_q.contiguous()
+    return x_q, x_scale
+
+
+def _quantize_fp8_weight_traceable(
+    lin: Any,
+    fp8_dtype: Any,
+    bf16_dtype: Any,
+    fp16_dtype: Any,
+    fp32_dtype: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Traceable pure-ATen weight FP8 quantization fallback (when pre-quant cache is absent)."""
+    w_src = lin.weight
+    w_f32 = w_src if w_src.dtype == fp32_dtype else w_src.to(fp32_dtype)
+    w_amax = w_f32.abs().amax().clamp(min=1e-12)
+    w_scale = w_amax / 448.0
+    w_inv_scale = 448.0 / w_amax
+    w_q = (w_f32 * w_inv_scale).clamp(-448.0, 448.0).to(fp8_dtype)
+    if not w_q.is_contiguous():
+        w_q = w_q.contiguous()
+    w_t = w_q.t()
+    bias_bf16 = lin.bias.to(bf16_dtype) if lin.bias is not None else None
+    bias_fp16 = lin.bias.to(fp16_dtype) if (lin.bias is not None and fp16_dtype != bf16_dtype) else bias_bf16
+    return w_t, w_scale, bias_bf16, bias_fp16
+
+
+def _build_fp8_weight_cache(
+    lin: Any,
+    torch_mod: Any,
+    fp8_dtype: Any,
+    bf16_dtype: Any,
+    fp16_dtype: Any,
+    fp32_dtype: Any,
+    *,
+    drop_source_weight: bool = False,
+) -> tuple[Any, ...]:
+    """Pre-quantize linear weight once into strict col-major `(1, K)` FP8 layout (`w_t`)."""
+    w_src = lin.weight.detach()
+    w_f32 = w_src if w_src.dtype == fp32_dtype else w_src.to(fp32_dtype)
+    w_amax = w_f32.abs().amax().clamp(min=1e-12)
+    w_scale = (w_amax / 448.0).to(dtype=fp32_dtype, device=w_src.device)
+    w_inv_scale = (448.0 / w_amax).to(dtype=fp32_dtype, device=w_src.device)
+    w_q = (w_f32 * w_inv_scale).clamp(-448.0, 448.0).to(fp8_dtype)
+    if not w_q.is_contiguous():
+        w_q = w_q.contiguous()
+    del w_f32
+    # Contiguous [out, in].t() gives col-major [in, out] with stride (1, in) required by _scaled_mm.
+    w_t = w_q.t()
+    bias_bf16 = lin.bias.detach().to(bf16_dtype) if lin.bias is not None else None
+    bias_fp16 = lin.bias.detach().to(fp16_dtype) if (lin.bias is not None and fp16_dtype != bf16_dtype) else bias_bf16
+    ver = lin.weight._version
+    # Opt-in only (PTOPT_FP8_DROP_BF16_EVAL=1): keep default state_dict() 100% untouched.
+    if drop_source_weight and not getattr(lin, "training", True):
+        lin.weight.data = torch_mod.empty((0,), dtype=w_src.dtype, device=w_src.device)
+        ver = lin.weight._version
+    return (ver, w_t, w_scale, bias_bf16, bias_fp16)
+
+
+def prewarm_fp8_weight_caches(module: Any, torch_mod: Any, *, min_work: int | None = None) -> int:
+    """Pre-build FP8 weight caches on eligible patched CUDA Linear modules before `torch.compile`."""
+    if module is None or torch_mod is None or not hasattr(module, "modules"):
+        return 0
+    fp8_dtype = getattr(torch_mod, "float8_e4m3fn", None)
+    bf16_dtype = getattr(torch_mod, "bfloat16", None)
+    fp16_dtype = getattr(torch_mod, "float16", bf16_dtype)
+    fp32_dtype = getattr(torch_mod, "float32", None)
+    if fp8_dtype is None or bf16_dtype is None or fp32_dtype is None:
+        return 0
+    work_gate = int(os.environ.get("PTOPT_FP8_MIN_WORK", str(512 * 512))) if min_work is None else int(min_work)
+    drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
+    built = 0
+    for sub in module.modules():
+        if not getattr(sub, "_ptopt_fp8_patched", False) or getattr(sub, "training", True):
+            continue
+        if (int(sub.in_features) * int(sub.out_features)) < work_gate:
+            continue
+        w_cache = getattr(sub, "_ptopt_fp8_w_cache", None)
+        if w_cache is None or (not drop_w and w_cache[0] != sub.weight._version):
+            if getattr(sub.weight, "numel", lambda: 0)() > 0:
+                sub._ptopt_fp8_w_cache = _build_fp8_weight_cache(
+                    sub, torch_mod, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype, drop_source_weight=drop_w
+                )
+                built += 1
+    return built
+
+
+def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | None = None) -> int:
     """Wrap eligible `nn.Linear` submodules on CUDA sm>=89 to use FP8 `_scaled_mm` during `.eval()`."""
     nn_ns = getattr(torch_mod, "nn", None)
     linear_cls = getattr(nn_ns, "Linear", None)
@@ -169,18 +280,9 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
     if fp8_dtype is None or bf16_dtype is None or fp32_dtype is None:
         return 0
 
+    work_gate = int(os.environ.get("PTOPT_FP8_MIN_WORK", str(512 * 512))) if min_work is None else int(min_work)
+    drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
     triton_quant = _get_triton_fp8_quantizer()
-
-    def _build_weight_cache(lin: Any) -> tuple[Any, ...]:
-        w_src = lin.weight.detach()
-        w_amax = w_src.abs().amax().clamp(min=1e-12)
-        w_scale = (w_amax / 448.0).to(dtype=fp32_dtype, device=w_src.device)
-        w_inv_scale = (448.0 / w_amax).to(dtype=fp32_dtype, device=w_src.device)
-        w_q = (w_src.to(fp32_dtype) * w_inv_scale).clamp(-448.0, 448.0).to(fp8_dtype)
-        w_t = w_q.t()
-        bias_bf16 = lin.bias.detach().to(bf16_dtype) if lin.bias is not None else None
-        bias_fp16 = lin.bias.detach().to(fp16_dtype) if (lin.bias is not None and fp16_dtype != bf16_dtype) else bias_bf16
-        return (lin.weight._version, w_t, w_scale, bias_bf16, bias_fp16)
 
     patched = 0
     for sub in module.modules():
@@ -188,17 +290,21 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
             continue
         if sub.in_features < 128 or sub.in_features % 16 != 0 or sub.out_features % 16 != 0:
             continue
-        if not getattr(sub.weight, "is_cuda", False):
+        if not _is_cuda_tensor(sub.weight):
             continue
 
         orig_fwd = sub.forward
 
         def _make_fp8_fwd(lin: Any, base_fwd: Any) -> Any:
+            lin_work = int(lin.in_features) * int(lin.out_features)
+
             @functools.wraps(base_fwd)
             def _fp8_forward(inp: Any) -> Any:
-                if getattr(lin, "training", True) or not getattr(inp, "is_cuda", False):
+                if getattr(lin, "training", True) or not _is_cuda_tensor(inp):
                     return base_fwd(inp)
                 if inp.dim() < 2 or inp.shape[-1] != lin.in_features:
+                    return base_fwd(inp)
+                if lin_work < work_gate:
                     return base_fwd(inp)
 
                 flat = inp.reshape(-1, lin.in_features)
@@ -207,10 +313,46 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
                 if m_rows < 512 or m_rows % 16 != 0:
                     return base_fwd(inp)
 
+                is_fp16 = inp.dtype == fp16_dtype and fp16_dtype != bf16_dtype
+                out_dtype = fp16_dtype if is_fp16 else bf16_dtype
+
+                # Path 1: TorchDynamo / TorchInductor compile path (0 graph breaks; fuses quantize with neighbors)
+                if _is_dynamo_compiling(torch_mod):
+                    w_cache = getattr(lin, "_ptopt_fp8_w_cache", None)
+                    if w_cache is not None:
+                        _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
+                    else:
+                        w_t, w_scale, bias_bf16, bias_fp16 = _quantize_fp8_weight_traceable(
+                            lin, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
+                        )
+                    x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
+                    bias = bias_fp16 if is_fp16 else bias_bf16
+                    out_2d = torch_mod._scaled_mm(
+                        x_q,
+                        w_t,
+                        scale_a=x_scale,
+                        scale_b=w_scale,
+                        out_dtype=out_dtype,
+                        bias=bias,
+                    )
+                    out = out_2d.reshape(*inp.shape[:-1], lin.out_features)
+                    return out if out.dtype == inp.dtype else out.to(inp.dtype)
+
+                # Path 2: Eager mode (2-pass fused Triton activation quantizer + lazy pre-quantized weight cache)
                 try:
                     w_cache = getattr(lin, "_ptopt_fp8_w_cache", None)
-                    if w_cache is None or w_cache[0] != lin.weight._version:
-                        w_cache = _build_weight_cache(lin)
+                    if w_cache is None or (not drop_w and w_cache[0] != lin.weight._version):
+                        if getattr(lin.weight, "numel", lambda: 0)() == 0:
+                            return base_fwd(inp)
+                        w_cache = _build_fp8_weight_cache(
+                            lin,
+                            torch_mod,
+                            fp8_dtype,
+                            bf16_dtype,
+                            fp16_dtype,
+                            fp32_dtype,
+                            drop_source_weight=drop_w,
+                        )
                         lin._ptopt_fp8_w_cache = w_cache
                     _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
 
@@ -220,16 +362,10 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any) -> int:
                             x_q, x_scale = triton_quant(flat, fp8_dtype)
                         except Exception:  # noqa: BLE001
                             triton_quant = None
-                            x_amax = flat.abs().amax().clamp(min=1e-12)
-                            x_scale = (x_amax / 448.0).to(dtype=fp32_dtype, device=flat.device)
-                            x_q = (flat * (448.0 / x_amax)).clamp(-448.0, 448.0).to(fp8_dtype).contiguous()
+                            x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
                     else:
-                        x_amax = flat.abs().amax().clamp(min=1e-12)
-                        x_scale = (x_amax / 448.0).to(dtype=fp32_dtype, device=flat.device)
-                        x_q = (flat * (448.0 / x_amax)).clamp(-448.0, 448.0).to(fp8_dtype).contiguous()
+                        x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
 
-                    is_fp16 = inp.dtype == fp16_dtype and fp16_dtype != bf16_dtype
-                    out_dtype = fp16_dtype if is_fp16 else bf16_dtype
                     bias = bias_fp16 if is_fp16 else bias_bf16
                     out_2d = torch_mod._scaled_mm(
                         x_q,
@@ -384,6 +520,26 @@ def install_inference_opt_hook(
                         "APPLIED",
                         f"Patched {n_patched} Linear layers on {type(mod_self).__name__} with FP8 _scaled_mm",
                     )
+
+            # When compiling eval module with FP8 enabled and large-M inputs (M >= 512), pre-build weight
+            # caches once before torch.compile traces so Dynamo lifts pre-quantized FP8 weights statically.
+            if (
+                rt.fp8_requested
+                and rt.fp8_eligible
+                and (rt.cfg.compile.enabled or rt.cuda_graphs_enabled)
+                and not getattr(mod_self, "_ptopt_fp8_prewarmed", False)
+            ):
+                tensor_cls = getattr(torch_mod, "Tensor", None)
+                has_large_m = any(
+                    tensor_cls is not None
+                    and isinstance(item, tensor_cls)
+                    and item.dim() >= 2
+                    and (item.numel() // max(1, int(item.shape[-1]))) >= 512
+                    for item in (*args, *kwargs.values())
+                )
+                if has_large_m:
+                    mod_self._ptopt_fp8_prewarmed = True
+                    prewarm_fp8_weight_caches(mod_self, torch_mod)
 
             # Optional CUDA Graphs / reduce-overhead compile for static-shape CUDA eval
             on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
