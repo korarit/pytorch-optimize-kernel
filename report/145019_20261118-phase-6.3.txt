@@ -1,0 +1,151 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 6.3 REPORT: LLM KERNELS (ROPE/STRIDED), STATIC FP8 & STARTUP POLISH
+==============================================================================
+Timestamp          : 2026-11-18 14:50:19 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ f765bdd
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (test_phase6_3_features.py): Ran 5 tests in 1.406s (3.85s) -> PASS
+Unit (test_kernels_parity.py): Ran 9 tests in 2.623s (5.11s) -> PASS
+Unit (test_pass_inference.py): Ran 9 tests in 4.915s (10.85s) -> PASS
+Unit (test_detect.py): Ran 9 tests in 0.037s (0.14s) -> PASS
+Unit (test_pass_optimizer_amp.py): Ran 13 tests in 1.223s (3.67s) -> PASS
+Unit (test_pass_dataloader.py): Ran 5 tests in 0.175s (2.35s) -> PASS
+Fast Gate (--mode fast): PASS (460.1s)
+Overall Phase 6.3  : PASS
+
+[MICRO-BENCHMARK: FUSED ROPE, ZERO-COPY STRIDED CE/SWIGLU & PACKED RMSNORM]
+------------------------------------------------------------------------------
+Kernel (Shape)                    | Ref ms | Triton ms | Speedup | GB/s  | VRAM MB (R/T/d)      | AbsDiff 
+----------------------------------+--------+-----------+---------+-------+----------------------+---------
+RoPE Fwd+Bwd (4x8x512x128)        | 0.941  | 0.779     | 1.21x   | 43.1  | 40.3/40.3 (+0.0)     | 0.00e+00
+CrossEntropy Strided (4096x8192)  | 5.199  | 1.029     | 5.05x   | 195.6 | 458.3/138.4 (-320.0) | 0.00e+00
+RMSNorm Packed (4096x512)         | 0.758  | 0.682     | 1.11x   | 30.7  | 134.3/94.9 (-39.5)   | 0.00e+00
+SwiGLU ZeroCopy Chunk (4096x2048) | 1.137  | 1.118     | 1.02x   | 120.1 | 222.3/222.3 (+0.0)   | 0.00e+00
+
+[COLD LAUNCH: FINGERPRINT DISK CACHE LATENCY (NO CACHE VS CACHE HIT)]
+------------------------------------------------------------------------------
+Probe Path                       | NoCache ms | Miss ms | Hit ms | Speedup | Status
+---------------------------------+------------+---------+--------+---------+-------
+collect_fingerprint() subprocess | 2124.2     | 2177.7  | 108.0  | 19.66x  | PASS  
+
+[E2E INFERENCE ABLATION (infer_bs64_large: DYNAMIC VS STATIC FP8 + COMPILE)]
+------------------------------------------------------------------------------
+Case             | Variant             | Step0 ms | Med ms | P95 ms | P99 ms   | Samp/s | E2E s  | Speedup | VRAM MB         | MaxRelDiff | Status
+-----------------+---------------------+----------+--------+--------+----------+--------+--------+---------+-----------------+------------+-------
+infer_bs64_large | baseline            | 472.4    | 377.82 | 385.37 | 388.76   | 169.4  | 12.08s | 1.00x   | 766.9 (+0.0)    | 0.0        | BASE  
+infer_bs64_large | bf16_compile        | 15344.8  | 91.72  | 96.05  | 97.78    | 697.8  | 25.89s | 4.12x   | 600.0 (-166.9)  | 0.00041    | PASS  
+infer_bs64_large | fp8_compile_dynamic | 17204.0  | 79.96  | 83.23  | 85.33    | 800.4  | 27.61s | 4.72x   | 677.6 (-89.2)   | 0.006976   | PASS  
+infer_bs64_large | fp8_compile_static  | 2496.2   | 76.38  | 726.22 | 10236.07 | 837.9  | 26.22s | 4.95x   | 1019.7 (+252.8) | 0.006897   | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Case             | Mode                    | Step0 ms | Steady ms | Data/Other    | Forward        | Loss/Clip   | Backward    | Optim      
+-----------------+-------------------------+----------+-----------+---------------+----------------+-------------+-------------+------------
+infer_bs64_large | bf16_compile_dbg        | 8257.55  | 109.55    | 18.77 (17.1%) | 90.78 (82.9%)  | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+infer_bs64_large | fp8_compile_dynamic_dbg | 9031.58  | 95.00     | 17.00 (17.9%) | 78.00 (82.1%)  | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+infer_bs64_large | fp8_compile_static_dbg  | 4323.36  | 393.04    | 83.40 (21.2%) | 309.64 (78.8%) | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Case             | Mode                    | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+-----------------+-------------------------+----------+---------+-----------+----------+--------+--------
+infer_bs64_large | bf16_compile_dbg        | 579.4    | 662.0   | 82.6      | 21901.1  | 2.9%   | 0      
+infer_bs64_large | fp8_compile_dynamic_dbg | 629.6    | 702.0   | 72.4      | 21861.1  | 3.1%   | 0      
+infer_bs64_large | fp8_compile_static_dbg  | 1019.7   | 1222.0  | 202.3     | 21341.1  | 5.4%   | 0      
+
+[TOP PYTORCH PROFILER OPS (DYNAMIC VS STATIC FP8 QUANTIZATION)]
+------------------------------------------------------------------------------
+[infer_bs64_large | bf16_compile_dbg] Profiler window=[4, 9] self_cuda=987.636ms self_cpu=503.99ms (top_cuda_ops):
+  aten::addmm                                      calls=190   self=176.536ms (17.9%) total=176.536ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f calls=125   self=101.394ms (10.3%) total=101.394ms
+  aten::bmm                                        calls=60    self= 84.303ms ( 8.5%) total= 84.303ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 84.303ms ( 8.5%) total= 84.303ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 75.086ms ( 7.6%) total= 75.086ms
+  triton_poi_fused_gelu_view_11                    calls=60    self= 47.691ms ( 4.8%) total= 47.691ms
+  triton_poi_fused_gelu_view_11                    calls=60    self= 47.691ms ( 4.8%) total= 47.691ms
+  aten::copy_                                      calls=12    self= 42.078ms ( 4.3%) total= 42.078ms
+[infer_bs64_large | fp8_compile_dynamic_dbg] Profiler window=[4, 9] self_cuda=853.239ms self_cpu=436.617ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=125   self= 92.363ms (10.8%) total= 92.363ms
+  aten::bmm                                        calls=60    self= 80.268ms ( 9.4%) total= 80.268ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 80.268ms ( 9.4%) total= 80.268ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=65    self= 46.864ms ( 5.5%) total= 46.864ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=60    self= 45.499ms ( 5.3%) total= 45.499ms
+  aten::copy_                                      calls=12    self= 41.595ms ( 4.9%) total= 41.595ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self= 41.565ms ( 4.9%) total= 41.565ms
+  triton_poi_fused__scaled_mm__to_copy_clamp_div_g calls=60    self= 36.286ms ( 4.3%) total= 36.286ms
+[infer_bs64_large | fp8_compile_static_dbg] Profiler window=[4, 9] self_cuda=804.11ms self_cpu=3912.801ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=178   self= 91.593ms (11.4%) total=109.128ms
+  aten::bmm                                        calls=72    self= 82.529ms (10.3%) total= 97.501ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 82.529ms (10.3%) total= 82.529ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=65    self= 46.921ms ( 5.8%) total= 46.921ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=60    self= 44.672ms ( 5.6%) total= 44.672ms
+  aten::copy_                                      calls=12    self= 41.889ms ( 5.2%) total= 41.889ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self= 41.861ms ( 5.2%) total= 41.861ms
+  triton_poi_fused__scaled_mm__to_copy_clamp_gelu_ calls=60    self= 36.118ms ( 4.5%) total= 36.118ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[infer_bs64_large | baseline] step0=472.37ms | steady_med=377.12ms | s0=472.37ms, s1=364.34ms, s2=370.43ms, s3=386.32ms, s4=370.44ms, s5=373.02ms, s6=381.86ms, s7=373.14ms ...
+[infer_bs64_large | bf16_compile] step0=15344.77ms | steady_med=91.37ms | s0=15344.77ms, s1=86.33ms, s2=91.30ms, s3=90.22ms, s4=90.25ms, s5=90.78ms, s6=90.16ms, s7=90.71ms ...
+[infer_bs64_large | fp8_compile_dynamic] step0=17204.02ms | steady_med=79.88ms | s0=17204.02ms, s1=74.51ms, s2=79.51ms, s3=81.73ms, s4=79.19ms, s5=79.33ms, s6=79.88ms, s7=79.41ms ...
+[infer_bs64_large | fp8_compile_static] step0=2496.19ms | steady_med=76.30ms | s0=2496.19ms, s1=313.54ms, s2=0.27ms, s3=0.89ms, s4=13034.73ms, s5=70.55ms, s6=76.50ms, s7=74.51ms ...
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- infer_bs64_large (bf16_compile): med=91.72ms (4.12x), 697.8 samp/s, VRAM=600.0 MB (-166.9 MB)
+- infer_bs64_large (fp8_compile_dynamic): med=79.96ms (4.72x), 800.4 samp/s, VRAM=677.6 MB (-89.2 MB)
+- infer_bs64_large (fp8_compile_static): med=76.38ms (4.95x), 837.9 samp/s, VRAM=1019.7 MB (+252.8 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (bf16_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (bf16_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (bf16_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp5dpw2q1i/bf16_compile)
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (bf16_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (bf16_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (bf16_compile) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (bf16_compile) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (bf16_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp5dpw2q1i/fp8_dyn)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.fp8: Patched 26 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (fp8_compile_static) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (fp8_compile_static) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (fp8_compile_static) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp5dpw2q1i/fp8_static)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (fp8_compile_static) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8: Patched 26 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8_static: Calibrated static FP8 activation scales on InferenceBackbone
+[APPLIED] infer_bs64_large (fp8_compile_static) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Fused RoPE, zero-copy strided kernels, static FP8 reduction drop, and cold CLI startup on Colab L4)
+==============================================================================

@@ -1,0 +1,80 @@
+
+
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4 FINAL CONSOLIDATED REPORT: REGRESSION GATE & FULL VERIFICATION
+==============================================================================
+Timestamp          : 2026-11-18 15:04:58 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ f765bdd
+Gate Mode          : full
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+
+[Regression Gate Suites]
+------------------------------------------------------------------------------
+Stage                                        | Scope                                             | Duration | Status | Details                       
+---------------------------------------------+---------------------------------------------------+----------+--------+-------------------------------
+CLI: ptopt --doctor                          | Hardware probe & diagnostics                      | 0.14s    | PASS   | Checks & summary OK           
+CLI: ptopt --explain                         | Hardware probe & diagnostics                      | 0.14s    | PASS   | Checks & summary OK           
+Unit Suite (tests/unit)                      | Config, detect, passes, kernels, doctor, migrator | 93.97s   | PASS   | Ran 139 tests in 90.237s -> OK
+Migrate: test_checkpoint_compat.py           | full gate                                         | 23.34s   | PASS   | Ran 2 tests in 21.175s -> OK  
+Migrate: test_checkpoint_migration_matrix.py | full gate                                         | 46.39s   | PASS   | Ran 1 test in 44.157s -> OK   
+Migrate: test_code_migration_matrix.py       | full gate                                         | 51.03s   | PASS   | Ran 1 test in 48.806s -> OK   
+Migrate: test_config_cache_migration.py      | full gate                                         | 9.88s    | PASS   | Ran 2 tests in 7.634s -> OK   
+Migrate: test_phase3_1_runtime_channels.py   | full gate                                         | 28.39s   | PASS   | Ran 2 tests in 26.144s -> OK  
+Migrate: test_phase3_2_dataloader.py         | full gate                                         | 19.13s   | PASS   | Ran 1 test in 16.902s -> OK   
+Migrate: test_phase3_3_amp_fusion.py         | full gate                                         | 27.66s   | PASS   | Ran 2 tests in 25.422s -> OK  
+Migrate: test_phase3_5_compile.py            | full gate                                         | 52.69s   | PASS   | Ran 2 tests in 50.427s -> OK  
+Migrate: test_phase3_6_inference.py          | full gate                                         | 27.31s   | PASS   | Ran 2 tests in 25.087s -> OK  
+Migrate: test_phase3_7_kernels.py            | full gate                                         | 28.42s   | PASS   | Ran 1 test in 26.242s -> OK   
+Migrate: test_phase5_4_train_cudagraphs.py   | full gate                                         | 67.80s   | PASS   | Ran 2 tests in 65.571s -> OK  
+Migrate: test_script_migration.py            | full gate                                         | 41.71s   | PASS   | Ran 1 test in 39.403s -> OK   
+
+[Smoke Benchmark (Baseline vs supersafe / safe / balanced / aggressive)]
+------------------------------------------------------------------------------
+Workload          | Profile    | Base ms | Wrap ms | Speedup | VRAM MB (B/W/d)        | MaxRelDiff | Status
+------------------+------------+---------+---------+---------+------------------------+------------+-------
+transformer_lm    | supersafe  | 100.60  | 96.48   | 1.04x   | 1734.8/1730.9 (-4.0)   | 0.0        | PASS  
+transformer_lm    | safe       | 100.60  | 53.89   | 1.87x   | 1734.8/1730.9 (-4.0)   | 1e-06      | PASS  
+transformer_lm    | balanced   | 100.60  | 27.22   | 3.70x   | 1734.8/1033.4 (-701.5) | 7e-06      | PASS  
+transformer_lm    | aggressive | 100.60  | 26.36   | 3.82x   | 1734.8/955.4 (-779.5)  | 7e-06      | PASS  
+cnn_vision        | supersafe  | 66.84   | 67.88   | 0.98x   | 839.4/837.8 (-1.6)     | 0.0        | PASS  
+cnn_vision        | safe       | 66.84   | 57.64   | 1.16x   | 839.4/842.5 (+3.2)     | 0.000117   | PASS  
+cnn_vision        | balanced   | 66.84   | 22.03   | 3.03x   | 839.4/450.2 (-389.2)   | 0.000439   | PASS  
+cnn_vision        | aggressive | 66.84   | 20.84   | 3.21x   | 839.4/568.2 (-271.2)   | 0.000667   | PASS  
+deep_mlp          | supersafe  | 17.03   | 10.77   | 1.58x   | 498.5/402.7 (-95.8)    | 0.0        | PASS  
+deep_mlp          | safe       | 17.03   | 11.00   | 1.55x   | 498.5/402.7 (-95.8)    | 0.000311   | PASS  
+deep_mlp          | balanced   | 17.03   | 10.42   | 1.63x   | 498.5/404.2 (-94.3)    | 0.002193   | PASS  
+deep_mlp          | aggressive | 17.03   | 9.78    | 1.74x   | 498.5/404.2 (-94.3)    | 0.002193   | PASS  
+infer_runner_bs1  | supersafe  | 1.56    | 1.51    | 1.04x   | 21.0/21.0 (+0.0)       | 0.0        | PASS  
+infer_runner_bs1  | safe       | 1.56    | 1.57    | 1.00x   | 21.0/21.0 (+0.0)       | 0.000233   | PASS  
+infer_runner_bs1  | balanced   | 1.56    | 1.53    | 1.02x   | 21.0/69.2 (+48.2)      | 0.003214   | PASS  
+infer_runner_bs1  | aggressive | 1.56    | 0.49    | 3.17x   | 21.0/21.2 (+0.2)       | 0.003214   | PASS  
+infer_runner_bs32 | supersafe  | 2.41    | 1.83    | 1.32x   | 38.5/38.5 (+0.0)       | 0.0        | PASS  
+infer_runner_bs32 | safe       | 2.41    | 1.64    | 1.47x   | 38.5/38.5 (+0.0)       | 3.8e-05    | PASS  
+infer_runner_bs32 | balanced   | 2.41    | 1.53    | 1.58x   | 38.5/80.4 (+42.0)      | 0.000576   | PASS  
+infer_runner_bs32 | aggressive | 2.41    | 0.89    | 2.72x   | 38.5/30.9 (-7.5)       | 0.000576   | PASS  
+edge_cases        | supersafe  | 1.56    | 1.48    | 1.05x   | 16.9/16.9 (-0.1)       | 0.0        | PASS  
+edge_cases        | safe       | 1.56    | 1.52    | 1.02x   | 16.9/16.9 (-0.1)       | 1.4e-05    | PASS  
+edge_cases        | balanced   | 1.56    | 1.97    | 0.79x   | 16.9/16.9 (-0.1)       | 1.4e-05    | PASS  
+edge_cases        | aggressive | 1.56    | 1.95    | 0.80x   | 16.9/16.9 (-0.1)       | 1.4e-05    | PASS  
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+None — all regression gate checks passed cleanly.
+
+[Final Gate Verdict]
+------------------------------------------------------------------------------
+Gate Mode             : full
+Stages Passed         : 15/15
+Smoke Benchmark       : PASS
+Suite Wall Time       : 518.00s
+Overall Verdict       : PASS
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Review Final Text Report (`report/*-phase-4.txt`) on Google Colab for final project sign-off)
+==============================================================================
