@@ -18,8 +18,30 @@
 
 ---
 
+## Zero-Code Preservation Guardrails (ทั้ง 5 ข้อที่ต้องรักษาตลอด Phase 6)
+เพื่อให้หลักการ **Zero-Code Injection** (`ptopt -- python3 script.py` โดยไม่แก้โค้ดผู้ใช้, ไม่แก้ `state_dict()`, ไม่ทำผลลัพธ์เพี้ยน) ยังคงสมบูรณ์ 100% ทุก sub-plan ต้องปฏิบัติตาม guardrails ทั้ง 5 ข้อนี้:
+1. **Strict Semantic Guard สำหรับ `RoPE` และ `SwiGLU` ([Plan 6.3](./phase-6/6.3-llm-kernels-fp8-scale-and-startup.md))**: ห้ามเดาจากชื่อ attribute (`gate_proj`/`up_proj`/`down_proj`) เพียงอย่างเดียวเพราะโมเดลแบบ **GeGLU (`GELU`)** จะพัง; ต้องตรวจ `act_fn == SiLU` + ไม่มี `Dropout`/submodules แฝง และ `RoPE` ต้องตรวจ layout (half-rotate vs interleaved) ชัดเจนก่อน patch เสมอ
+2. **Step-0 `OutOfMemoryError` Catch-and-Retry Safety ([Plan 6.2](./phase-6/6.2-compile-fused-lce-and-selective-act-ckpt.md))**: ใช้เป็น last-resort rescue เฉพาะ `mode="auto"` เท่านั้น (ปิดเมื่อ `--strict` หรือ `PTOPT_ACT_CKPT_OOM_RETRY=0`), log `[FALLBACK]` ชัดเจนเพื่อแจ้งผู้ใช้เรื่อง side-effect ที่อาจเกิดก่อน OOM (เช่น `BatchNorm` stats / RNG)
+3. **Zero-Sync AMP Watchdog Without NaN Weight Leak ([Plan 6.1](./phase-6/6.1-zero-sync-amp-unified-dispatch-and-cg-warmup.md))**: สั่ง D2H copy แบบ `non_blocking=True` ใน `backward()` แล้วไปตรวจผลใน **`optimizer.step()` pre-hook** (ไม่ปล่อย NaN ไป step ถัดไปจนแก้ weights ใน `bf16`, และคง sync ทันทีใน `--strict`)
+4. **`LazyLinearLogits` Cross-Boundary Safety ([Plan 6.2](./phase-6/6.2-compile-fused-lce-and-selective-act-ckpt.md))**: จำกัด `LazyLinearLogits` เฉพาะคู่ `lm_head` ใน `training=True` + `is_grad_enabled()`, ป้องกัน `meta` tensor leakage นอก `__torch_function__` และทดสอบ boundary ร่วมกับ `AOTAutograd` / `torch.compile`
+5. **`capturable=True` & Fingerprint Cache Freshness ([Plan 6.3](./phase-6/6.3-llm-kernels-fp8-scale-and-startup.md))**: เปิด `capturable=True` เฉพาะ opt-in/CUDA Graph + normalize `state['step']` ใน `checkpoint_compat.py` ไม่ให้พังข้าม CPU/CUDA, และ **ห้าม cache `/dev/shm` size แบบตายตัว** ใน Fingerprint disk cache (ต้อง probe `/dev/shm` สดและผูก key กับ `CUDA_VISIBLE_DEVICES` + driver/torch/triton versions)
+
+---
+
+## มาตรฐาน Report Log ฉบับละเอียด (Phase 3/5-Grade Deep Debug Standard)
+ทุก Sub-Plan (`6.1 – 6.3`) **ต้องออก Detailed Text Report ครบทั้ง 7 ส่วน** ผ่าน `scripts/phase5_report_helper.py` (หรือ shared helper ที่อัปเกรดเพิ่ม) ด้วย `PTOPT_DEBUG_PROFILE=1` และ `PTOPT_TORCH_PROFILE=1` เพื่อพิสูจน์ผลด้วยตัวเลขระดับ Op และ Step:
+1. **Full Header & Hardware Stack**: `Timestamp`, `Repo Root`, `Git Branch/Commit`, `Google Colab`, `GPU / SM`, `Python / PyTorch`, `CUDA / Triton`, `Runtime Cache Key`, ผล `Unit` & `Migrate` tests
+2. **Ablation & Regression Matrix**: `Step0 ms`, `Base ms`, `Wrap ms (Med)`, `Wrap P95`, `Wrap P99`, `E2E s (B/W)`, `Speedup`, `VRAM MB (B/W/d)`, `MaxRelDiff`, `Status`
+3. **`[DEEP DEBUG: STEP PHASE BREAKDOWN]`**: แยก `Step0 ms`, `Steady ms`, `Data/Other (%)`, `Forward (%)`, `Loss/Clip (%)`, `Backward (%)`, `Optim (%)` (เทียบ `baseline_dbg` vs ก่อนแก้ vs หลังแก้)
+4. **`[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]`**: `Alloc MB`, `Resv MB`, `Ovhead MB`, `Headroom MB`, `Util %`, `Retries` (`num_alloc_retries`)
+5. **`[TOP PYTORCH PROFILER OPS]`**: แสดง `self_cuda_ms`, `self_cpu_ms` และ Top 8–12 CUDA/CPU Ops (`calls`, `self_ms`, `%`, `total_ms`) เพื่อพิสูจน์ระดับ kernel ว่าไม่มี hidden sync / redundant copy / graph break
+6. **`[WARMUP VS STEADY STEP TRACE]`**: แสดงเวลา step รายตัว (`step0`, `steady_med`, `s0..s7+`) เพื่อจับ compile/warmup spike
+7. **`[AUTOMATED DIAGNOSIS]` + `[HOOK / KERNEL / FALLBACK AUDIT]` + `[VERIFICATION STATUS]`**: สรุป decision, skipped, fallback, guardrail trigger ของทุก pass พร้อม `STATUS : PENDING_USER_REVIEW`
+
+---
+
 ## กฎกลางและ Exit Criteria ของ Phase 6
-- ใช้ Shared Deep Debug Telemetry Helper (`scripts/phase5_report_helper.py` หรือ helper กลางที่อัปเกรดเพิ่ม) ออกรายงานครบ 7 ส่วนเทียบเท่าระดับ Phase 3/5
+- ใช้ Shared Deep Debug Telemetry Helper (`scripts/phase5_report_helper.py`) ออก Detailed Text Report (`report/HHMMSS_YYYYMMDD-phase-6.*.txt`) ครบทั้ง 7 ส่วนข้างต้นทุก sub-phase
 - คง `dependencies = []` ใน [`pyproject.toml`](../pyproject.toml), ไม่แก้ไฟล์ workload ใน [`pipline-for-test/workloads/`](../pipline-for-test/workloads/), และรักษาความเข้ากันได้ของ `state_dict()` / Checkpoint Cross-Load 100%
 - `python3 scripts/run_gate.py --mode fast` (CPU/CI) และ `--mode full` (Colab GPU) ต้องผ่าน **100%**
 - **[WAIT FOR USER]**: หลังทำเสร็จแต่ละ Sub-Plan (`6.1 → 6.2 → 6.3`) ต้องรอให้ผู้ใช้รัน verify script และตรวจ Text Report บน Google Colab GPU ก่อนไปขั้นถัดไป
