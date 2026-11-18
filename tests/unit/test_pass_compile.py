@@ -282,12 +282,14 @@ class TestAutoCompilePass(unittest.TestCase):
             assert rt is not None
             try:
                 x_static = torch.randn(32, 512)
-                # Step 0: default compile; Step 1: 2nd static step promotes -> reduce-overhead + calls mark_step_begin
+                # Step 0: eager shape probe (0 compiles); Step 1: 2nd static step compiles ONCE -> reduce-overhead + mark_step_begin
                 # Step 2: 3rd static step keeps reduce-overhead + calls mark_step_begin
                 model(x_static)
+                self.assertEqual(compile_modes, [])
+                self.assertTrue(getattr(model, "_ptopt_train_cg_pending", False))
                 model(x_static)
                 model(x_static)
-                self.assertEqual(compile_modes, [("default", False), ("reduce-overhead", False)])
+                self.assertEqual(compile_modes, [("reduce-overhead", False)])
                 self.assertTrue(getattr(model, "_ptopt_train_cg_active", False))
                 self.assertEqual(mark_calls, 2)
                 self.assertTrue(
@@ -389,6 +391,115 @@ class TestAutoCompilePass(unittest.TestCase):
             finally:
                 uninstall_auto_compile_hook(torch)
                 mgr_err.reset()
+
+    def test_max_autotune_downgrades_to_no_cudagraphs_when_ineligible(self) -> None:
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.compile.enabled = True
+        cfg.compile.mode = "max-autotune"
+        cfg.compile.train_cuda_graphs = True
+        mgr = HookManager()
+        seen_modes: list[object] = []
+
+        model = nn.Sequential(nn.Linear(256, 256), nn.Dropout(0.1), nn.Linear(256, 16))
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89", "PTOPT_TRAIN_CG_FORCE": "1"},
+        ), patch.object(torch, "compile", side_effect=lambda fn, **kw: (seen_modes.append(kw.get("mode")) or fn)):
+            install_auto_compile_hook(cfg, mgr, torch)
+            try:
+                model(torch.randn(8, 256))
+                self.assertEqual(seen_modes, ["max-autotune-no-cudagraphs"])
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
+    def test_nested_dict_and_cyclic_container_shape_signature(self) -> None:
+        from src.hooks.module_dispatch import build_shape_signature
+
+        cyclic: dict[str, object] = {"x": torch.randn(2, 4)}
+        cyclic["self"] = cyclic
+        sig = build_shape_signature((), {"batch": cyclic}, torch)
+        self.assertEqual(len(sig), 1)
+        self.assertEqual(sig[0][0], (2, 4))
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        cfg.compile.dynamic = False
+        mgr = HookManager()
+        dyn_flags: list[object] = []
+
+        class _DictModel(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.lin = nn.Linear(512, 512)
+
+            def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+                return self.lin(batch["x"])
+
+        model = _DictModel()
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: (dyn_flags.append(kw.get("dynamic")) or fn)
+        ):
+            install_auto_compile_hook(cfg, mgr, torch)
+            try:
+                model({"x": torch.randn(2, 512)})
+                model({"x": torch.randn(5, 512)})
+                self.assertEqual(dyn_flags, [False, True])
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
+    def test_unified_dispatcher_and_train_eval_compiled_handle_isolation(self) -> None:
+        from src.passes.inference_opt import install_inference_opt_hook, uninstall_inference_opt_hook
+
+        orig_call = nn.Module.__call__
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.compile.enabled = True
+        cfg.compile.mode = "default"
+        cfg.compile.train_cuda_graphs = False
+        cfg.inference.inference_mode = True
+        cfg.inference.cuda_graphs = True
+        mgr = HookManager()
+        compiled_modes: list[object] = []
+
+        def _spy_compile(fn: object, **kw: object) -> object:
+            mode = kw.get("mode")
+            compiled_modes.append(mode)
+            return lambda *a, **k: fn(*a, **k)
+
+        model = nn.Linear(512, 512)
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch(
+            "src.passes.inference_opt._has_cuda_context", return_value=True
+        ), patch.object(torch, "compile", side_effect=_spy_compile):
+            install_inference_opt_hook(cfg, mgr, torch)
+            install_auto_compile_hook(cfg, mgr, torch)
+            self.assertIsNotNone(getattr(torch, "_ptopt_module_dispatcher", None))
+            try:
+                x = torch.randn(4, 512)
+                model.train()
+                _ = model(x)
+                train_impl = getattr(model, "_ptopt_train_compiled_impl", None)
+                self.assertIsNotNone(train_impl)
+
+                # Switching to .eval() must NOT be skipped by train's compiled handle; it builds reduce-overhead handle
+                model.eval()
+                _ = model(x)
+                eval_impl = getattr(model, "_ptopt_eval_compiled_impl", None)
+                self.assertIsNotNone(eval_impl)
+                self.assertIsNot(train_impl, eval_impl)
+                self.assertEqual(compiled_modes, ["default", "reduce-overhead"])
+
+                # Switching back to .train() restores train_impl cleanly
+                model.train()
+                _ = model(x)
+                self.assertIs(model._compiled_call_impl, train_impl)
+            finally:
+                uninstall_auto_compile_hook(torch)
+                uninstall_inference_opt_hook(torch)
+                mgr.reset()
+
+        self.assertIs(nn.Module.__call__, orig_call)
+        self.assertIsNone(getattr(torch, "_ptopt_module_dispatcher", None))
 
 
 if __name__ == "__main__":

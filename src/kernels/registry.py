@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Callable
 
 from src.config import OptimizeConfig
+from src.hooks.module_dispatch import register_module_call_handler, unregister_module_call_handler
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -268,10 +269,6 @@ def install_custom_kernels_hooks(
         func_mod.cross_entropy = _custom_cross_entropy
 
     # 2. Patch RMSNorm, LayerNorm, SwiGLUMLP submodules lazily on top-level forward
-    nn_mod = torch_mod.nn.Module
-    call_attr = "__call__"
-    orig_mod_call = getattr(nn_mod, call_attr)
-    depth = [0]
     ln_cls = getattr(torch_mod.nn, "LayerNorm", None)
     rms_cls = getattr(torch_mod.nn, "RMSNorm", None)
     lin_cls = getattr(torch_mod.nn, "Linear", None)
@@ -414,26 +411,19 @@ def install_custom_kernels_hooks(
 
         return patched
 
-    @functools.wraps(orig_mod_call)
-    def _kernels_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-        depth[0] += 1
-        try:
-            if depth[0] == 1 and not getattr(mod_self, "_ptopt_kern_scanned", False):
-                mod_self._ptopt_kern_scanned = True
-                n = _patch_submodules(mod_self)
-                if n > 0:
-                    manager.record_event(
-                        "kernels.patch",
-                        "APPLIED",
-                        f"Patched {n} submodules in {type(mod_self).__name__} with custom Triton kernels",
-                    )
-            return orig_mod_call(mod_self, *args, **kwargs)
-        finally:
-            depth[0] -= 1
+    def _kernels_mod_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
+        if not getattr(mod_self, "_ptopt_kern_scanned", False):
+            mod_self._ptopt_kern_scanned = True
+            n = _patch_submodules(mod_self)
+            if n > 0:
+                manager.record_event(
+                    "kernels.patch",
+                    "APPLIED",
+                    f"Patched {n} submodules in {type(mod_self).__name__} with custom Triton kernels",
+                )
+        return next_fn(mod_self, *args, **kwargs)
 
-    nn_mod._ptopt_kern_call_attr = call_attr
-    nn_mod._ptopt_kern_orig_call = orig_mod_call
-    setattr(nn_mod, call_attr, _kernels_mod_call)
+    register_module_call_handler(torch_mod, "kernels.auto", 10, _kernels_mod_call)
     _KERNELS_INSTALLED = True
     torch_mod._ptopt_kernel_registry = reg
     return reg
@@ -444,11 +434,7 @@ def uninstall_custom_kernels_hooks(torch_mod: Any) -> None:
     global _KERNELS_INSTALLED  # noqa: PLW0603
     if not _KERNELS_INSTALLED or torch_mod is None:
         return
-    nn_mod = getattr(torch_mod, "nn", None) and torch_mod.nn.Module
-    if nn_mod is not None and hasattr(nn_mod, "_ptopt_kern_orig_call"):
-        setattr(nn_mod, getattr(nn_mod, "_ptopt_kern_call_attr"), getattr(nn_mod, "_ptopt_kern_orig_call"))
-        delattr(nn_mod, "_ptopt_kern_call_attr")
-        delattr(nn_mod, "_ptopt_kern_orig_call")
+    unregister_module_call_handler(torch_mod, "kernels.auto")
     func_mod = getattr(getattr(torch_mod, "nn", None), "functional", None)
     if func_mod is not None and hasattr(func_mod, "_ptopt_kern_orig_cross_entropy"):
         func_mod.cross_entropy = func_mod._ptopt_kern_orig_cross_entropy

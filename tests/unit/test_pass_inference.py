@@ -366,6 +366,33 @@ class TestInferenceOptPass(unittest.TestCase):
             self.assertEqual(enc.linear1.weight.numel(), 0)
             self.assertEqual(enc.linear2.weight.numel(), 0)
 
+    def test_nested_dict_requires_grad_skips_inference_mode(self) -> None:
+        cfg = OptimizeConfig(profile="safe")
+        cfg.inference.inference_mode = True
+        mgr = HookManager()
+        rt = install_inference_opt_hook(cfg, mgr, torch)
+        assert rt is not None
+
+        class _DictInferNet(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.lin = nn.Linear(6, 2)
+
+            def forward(self, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+                return self.lin(batch["x"])
+
+        model = _DictInferNet().eval()
+        try:
+            x_req = torch.randn(2, 6, requires_grad=True)
+            out = model({"x": x_req})
+            self.assertTrue(out.requires_grad)
+            out.sum().backward()
+            self.assertIsNotNone(x_req.grad)
+            self.assertEqual(rt.grad_guard_skips, 1)
+        finally:
+            uninstall_inference_opt_hook(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

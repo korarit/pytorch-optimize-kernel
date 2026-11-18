@@ -9,6 +9,11 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from src.config import OptimizeConfig
+from src.hooks.module_dispatch import (
+    has_cuda_context,
+    register_module_call_handler,
+    unregister_module_call_handler,
+)
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -25,19 +30,7 @@ _FUNCTIONAL_LOSS_FP32_SPECS: dict[str, bool] = {
 
 def _has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
     """Return True if module parameters or inputs live on CUDA."""
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    if tensor_cls is not None:
-        for item in (*args, *kwargs.values()):
-            if isinstance(item, tensor_cls) and getattr(item, "is_cuda", False):
-                return True
-    if hasattr(mod_self, "parameters"):
-        try:
-            first_param = next(mod_self.parameters(), None)
-            if first_param is not None and getattr(first_param, "is_cuda", False):
-                return True
-        except Exception:  # noqa: BLE001
-            pass
-    return False
+    return has_cuda_context(mod_self, args, kwargs, torch_mod)
 
 
 def _is_autocast_active(torch_mod: Any) -> bool:
@@ -198,6 +191,16 @@ class AutoAmpRuntime:
         self._last_forward_skipped_amp = False
         self._module_depth = 0
         self.scaler: Any = None
+        self._watchdog_buf: Any = None
+        self._watchdog_events: list[Any] = [None, None]
+        self._watchdog_pending_slot: int | None = None
+        self._watchdog_slot_cursor: int = 0
+        self._watchdog_sync_mode: bool = (
+            os.environ.get("PTOPT_AMP_WATCHDOG_SYNC") == "1"
+            or bool(getattr(manager, "strict", False))
+        )
+        self._async_watchdog_checks: int = 0
+        self._sync_watchdog_checks: int = 0
         if self.use_scaler:
             self._init_internal_scaler()
 
@@ -225,23 +228,109 @@ class AutoAmpRuntime:
                 f"Pre-existing user AMP detected ({source}); yielding to user code",
             )
 
+    def _trip_watchdog(self, val: float) -> bool:
+        self.disabled_by_watchdog = True
+        self._step_scaled = False
+        self._watchdog_pending_slot = None
+        self.manager.record_event(
+            "amp.auto",
+            "FALLBACK",
+            f"Non-finite loss ({val}) detected under {self.dtype_name}; falling back to fp32",
+        )
+        return False
+
     def check_loss_stability(self, loss_tensor: Any) -> bool:
-        """Return False and disable Auto-AMP if non-finite loss is detected."""
+        """Return False and disable Auto-AMP if non-finite loss is detected (synchronous)."""
         if self.disabled_by_watchdog or not hasattr(loss_tensor, "numel") or loss_tensor.numel() != 1:
             return True
+        self._sync_watchdog_checks += 1
         try:
             val = float(loss_tensor.detach().cpu().item())
         except Exception:  # noqa: BLE001
             return True
         if not math.isfinite(val):
-            self.disabled_by_watchdog = True
-            self._step_scaled = False
-            self.manager.record_event(
-                "amp.auto",
-                "FALLBACK",
-                f"Non-finite loss ({val}) detected under {self.dtype_name}; falling back to fp32",
-            )
+            return self._trip_watchdog(val)
+        return True
+
+    def _poll_pending_slot_nonblocking(self) -> bool:
+        slot = self._watchdog_pending_slot
+        if slot is None or self._watchdog_buf is None:
+            return True
+        ev = self._watchdog_events[slot]
+        if ev is not None and callable(getattr(ev, "query", None)):
+            try:
+                if not ev.query():
+                    return True
+            except Exception:  # noqa: BLE001
+                return True
+        self._watchdog_pending_slot = None
+        try:
+            val = float(self._watchdog_buf[slot].item())
+        except Exception:  # noqa: BLE001
+            return True
+        if not math.isfinite(val):
+            return self._trip_watchdog(val)
+        return True
+
+    def enqueue_loss_stability_check(self, loss_tensor: Any) -> bool:
+        """Stage a non-blocking D2H scalar loss check for backward() without forcing CUDA sync."""
+        if self.disabled_by_watchdog or not hasattr(loss_tensor, "numel") or loss_tensor.numel() != 1:
+            return True
+        if self._watchdog_sync_mode or not getattr(loss_tensor, "is_cuda", False):
+            return self.check_loss_stability(loss_tensor)
+
+        if not self._poll_pending_slot_nonblocking():
             return False
+
+        cuda_api = getattr(self.torch, "cuda", None)
+        event_cls = getattr(cuda_api, "Event", None) if cuda_api is not None else None
+        empty_fn = getattr(self.torch, "empty", None)
+        fp32_dt = getattr(self.torch, "float32", None)
+        if not callable(empty_fn) or event_cls is None or fp32_dt is None:
+            return self.check_loss_stability(loss_tensor)
+
+        try:
+            if self._watchdog_buf is None:
+                try:
+                    self._watchdog_buf = empty_fn((2,), dtype=fp32_dt, pin_memory=True)
+                except Exception:  # noqa: BLE001
+                    self._watchdog_buf = empty_fn((2,), dtype=fp32_dt)
+                self._watchdog_events = [event_cls(), event_cls()]
+
+            slot = self._watchdog_slot_cursor
+            scalar = loss_tensor.detach().reshape(())
+            if getattr(scalar, "dtype", None) != fp32_dt and hasattr(scalar, "float"):
+                scalar = scalar.float()
+            self._watchdog_buf[slot].copy_(scalar, non_blocking=True)
+            self._watchdog_events[slot].record()
+            self._watchdog_pending_slot = slot
+            self._watchdog_slot_cursor = 1 - slot
+            self._async_watchdog_checks += 1
+            return True
+        except Exception:  # noqa: BLE001
+            self._watchdog_pending_slot = None
+            return self.check_loss_stability(loss_tensor)
+
+    def flush_pending_stability_check(self) -> bool:
+        """Verify any queued scalar loss check before optimizer.step() updates weights."""
+        if self.disabled_by_watchdog:
+            return False
+        slot = self._watchdog_pending_slot
+        if slot is None or self._watchdog_buf is None:
+            return True
+        self._watchdog_pending_slot = None
+        ev = self._watchdog_events[slot]
+        if ev is not None and callable(getattr(ev, "synchronize", None)):
+            try:
+                ev.synchronize()
+            except Exception:  # noqa: BLE001
+                return True
+        try:
+            val = float(self._watchdog_buf[slot].item())
+        except Exception:  # noqa: BLE001
+            return True
+        if not math.isfinite(val):
+            return self._trip_watchdog(val)
         return True
 
 
@@ -280,61 +369,49 @@ def install_auto_amp_hook(
         s_cls._ptopt_orig_init = orig_s_init
         s_cls.__init__ = _detect_user_scaler
 
-    # 2. Wrap top-level Module.__call__ in autocast when active and not already in user autocast
-    nn_mod = torch_mod.nn.Module
-    call_attr = "__call__"
-    orig_mod_call = getattr(nn_mod, call_attr)
+    # 2. Register top-level Module.__call__ autocast handler on unified dispatcher
+    def _amp_mod_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
+        if rt.disabled_by_watchdog or rt.user_amp_detected:
+            return next_fn(mod_self, *args, **kwargs)
+        if _is_autocast_active(torch_mod):
+            rt.mark_user_amp("torch.amp.autocast")
+            return next_fn(mod_self, *args, **kwargs)
+        if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
+            return next_fn(mod_self, *args, **kwargs)
 
-    @functools.wraps(orig_mod_call)
-    def _amp_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-        rt._module_depth += 1
-        is_top = rt._module_depth == 1
-        try:
-            if not is_top or rt.disabled_by_watchdog or rt.user_amp_detected:
-                return orig_mod_call(mod_self, *args, **kwargs)
-            if _is_autocast_active(torch_mod):
-                rt.mark_user_amp("torch.amp.autocast")
-                return orig_mod_call(mod_self, *args, **kwargs)
-            if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
-                return orig_mod_call(mod_self, *args, **kwargs)
-
-            eligible = getattr(mod_self, "_ptopt_amp_eligible", None)
-            if eligible is None:
-                eligible = not _is_cast_heavy_eager_mlp(mod_self, cfg, torch_mod)
-                mod_self._ptopt_amp_eligible = eligible
-                if not eligible:
-                    manager.record_event(
-                        "amp.auto",
-                        "SKIPPED",
-                        "Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)",
-                    )
-            if (
-                eligible
-                and (getattr(mod_self, "_ptopt_compile_ineligible", False) or getattr(mod_self, "_ptopt_compile_failed", False))
-                and _is_tiny_uncompiled_mlp(mod_self, args, kwargs, torch_mod)
-            ):
-                eligible = False
-                mod_self._ptopt_amp_eligible = False
+        eligible = getattr(mod_self, "_ptopt_amp_eligible", None)
+        if eligible is None:
+            eligible = not _is_cast_heavy_eager_mlp(mod_self, cfg, torch_mod)
+            mod_self._ptopt_amp_eligible = eligible
+            if not eligible:
                 manager.record_event(
                     "amp.auto",
                     "SKIPPED",
-                    f"Skipped eager AMP for tiny uncompiled module {type(mod_self).__name__} (autocast overhead > compute)",
+                    "Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)",
                 )
-            if not eligible:
-                rt._last_forward_skipped_amp = True
-                return orig_mod_call(mod_self, *args, **kwargs)
+        if (
+            eligible
+            and (getattr(mod_self, "_ptopt_compile_ineligible", False) or getattr(mod_self, "_ptopt_compile_failed", False))
+            and _is_tiny_uncompiled_mlp(mod_self, args, kwargs, torch_mod)
+        ):
+            eligible = False
+            mod_self._ptopt_amp_eligible = False
+            manager.record_event(
+                "amp.auto",
+                "SKIPPED",
+                f"Skipped eager AMP for tiny uncompiled module {type(mod_self).__name__} (autocast overhead > compute)",
+            )
+        if not eligible:
+            rt._last_forward_skipped_amp = True
+            return next_fn(mod_self, *args, **kwargs)
 
-            rt._last_forward_skipped_amp = False
-            with torch_mod.amp.autocast(device_type="cuda", dtype=rt.target_dtype):
-                return orig_mod_call(mod_self, *args, **kwargs)
-        finally:
-            rt._module_depth -= 1
+        rt._last_forward_skipped_amp = False
+        with torch_mod.amp.autocast(device_type="cuda", dtype=rt.target_dtype):
+            return next_fn(mod_self, *args, **kwargs)
 
-    nn_mod._ptopt_amp_call_attr = call_attr
-    nn_mod._ptopt_amp_orig_call = orig_mod_call
-    setattr(nn_mod, call_attr, _amp_mod_call)
+    register_module_call_handler(torch_mod, "amp.auto", 40, _amp_mod_call)
 
-    # 3. Wrap Tensor.backward for fp16 GradScaler & stability watchdog
+    # 3. Wrap Tensor.backward for fp16 GradScaler & zero-sync stability watchdog
     orig_backward = torch_mod.Tensor.backward
 
     @functools.wraps(orig_backward)
@@ -345,8 +422,8 @@ def install_auto_amp_hook(
             rt._last_forward_skipped_amp = False
             return orig_backward(tensor_self, *args, **kwargs)
 
-        # Only check stability on scalar losses produced when CUDA autocast or fp16 scaler applies
-        if getattr(tensor_self, "is_cuda", False) and not rt.check_loss_stability(tensor_self):
+        # Enqueue non-blocking stability check so forward->backward never forces a CUDA sync
+        if getattr(tensor_self, "is_cuda", False) and not rt.enqueue_loss_stability_check(tensor_self):
             return orig_backward(tensor_self, *args, **kwargs)
 
         if (
@@ -367,9 +444,9 @@ def install_auto_amp_hook(
     torch_mod.Tensor._ptopt_amp_orig_backward = orig_backward
     torch_mod.Tensor.backward = _amp_backward
 
-    # 4. Wrap optimizer step() classes for fp16 GradScaler.step() + update()
+    # 4. Wrap optimizer step() classes for stability check flush + optional fp16 GradScaler.step()
     optim_mod = getattr(torch_mod, "optim", None)
-    if optim_mod is not None and rt.use_scaler and rt.scaler is not None:
+    if optim_mod is not None:
         for cls_name in _OPTIM_STEP_CLASSES:
             opt_cls = getattr(optim_mod, cls_name, None)
             if opt_cls is None:
@@ -379,7 +456,11 @@ def install_auto_amp_hook(
             def _make_amp_step(base_step: Any) -> Any:
                 @functools.wraps(base_step)
                 def _amp_step(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
-                    if rt._in_internal_scaler_step or not rt._step_scaled or rt.user_amp_detected or rt.disabled_by_watchdog:
+                    if rt._in_internal_scaler_step or rt.user_amp_detected or rt.disabled_by_watchdog:
+                        return base_step(opt_self, *args, **kwargs)
+                    if not rt.flush_pending_stability_check():
+                        return None
+                    if not (rt.use_scaler and rt.scaler is not None and rt._step_scaled):
                         return base_step(opt_self, *args, **kwargs)
                     rt._in_internal_scaler_step = True
                     opt_self._ptopt_in_scaler_step = True
@@ -420,11 +501,7 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
             ns_cls.__init__ = ns_cls._ptopt_orig_init
             delattr(ns_cls, "_ptopt_orig_init")
 
-    nn_mod = getattr(torch_mod, "nn", None) and torch_mod.nn.Module
-    if nn_mod is not None and hasattr(nn_mod, "_ptopt_amp_orig_call"):
-        setattr(nn_mod, getattr(nn_mod, "_ptopt_amp_call_attr"), getattr(nn_mod, "_ptopt_amp_orig_call"))
-        delattr(nn_mod, "_ptopt_amp_call_attr")
-        delattr(nn_mod, "_ptopt_amp_orig_call")
+    unregister_module_call_handler(torch_mod, "amp.auto")
 
     if hasattr(torch_mod.Tensor, "_ptopt_amp_orig_backward"):
         torch_mod.Tensor.backward = torch_mod.Tensor._ptopt_amp_orig_backward

@@ -385,6 +385,72 @@ class TestAutoAmpPass(unittest.TestCase):
             uninstall_auto_amp_hook(torch)
             mgr.reset()
 
+    def test_zero_sync_async_watchdog_flushes_at_optimizer_step_without_backward_sync(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        mgr = HookManager()
+
+        class _FakeEvent:
+            def __init__(self) -> None:
+                self.recorded = False
+                self.synced = False
+
+            def record(self) -> None:
+                self.recorded = True
+
+            def query(self) -> bool:
+                return False
+
+            def synchronize(self) -> None:
+                self.synced = True
+
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+        p = nn.Parameter(torch.tensor([2.0, -3.0]))
+        opt = torch.optim.AdamW([p], lr=0.1)
+        orig_p = p.detach().clone()
+
+        class _FakeCudaLoss:
+            def __init__(self, val: float) -> None:
+                self._t = torch.tensor(val, dtype=torch.float32)
+                self.is_cuda = True
+
+            def numel(self) -> int:
+                return 1
+
+            def detach(self) -> "_FakeCudaLoss":
+                return self
+
+            def reshape(self, _shape: tuple[()]) -> torch.Tensor:
+                return self._t
+
+        try:
+            with patch.object(torch.cuda, "Event", _FakeEvent), patch.object(
+                torch.Tensor, "backward", autospec=True, side_effect=lambda self_t, *a, **kw: None
+            ):
+                pass
+            # Verify enqueue_loss_stability_check queues async check with 0 sync checks
+            with patch.object(torch.cuda, "Event", _FakeEvent):
+                ok_fin = rt.enqueue_loss_stability_check(_FakeCudaLoss(1.0))  # type: ignore[arg-type]
+                self.assertTrue(ok_fin)
+                self.assertEqual(rt._async_watchdog_checks, 1)
+                self.assertEqual(rt._sync_watchdog_checks, 0)
+                self.assertTrue(rt.flush_pending_stability_check())
+
+                # Enqueue NaN loss -> backward does not sync; optimizer.step() catches NaN and skips weight corruption
+                ok_nan = rt.enqueue_loss_stability_check(_FakeCudaLoss(float("nan")))  # type: ignore[arg-type]
+                self.assertTrue(ok_nan)
+                self.assertFalse(rt.disabled_by_watchdog)
+                p.grad = torch.tensor([1.0, 1.0])
+                opt.step()
+                self.assertTrue(rt.disabled_by_watchdog)
+                torch.testing.assert_close(p.detach(), orig_p)
+                self.assertTrue(any(ev.status == "FALLBACK" and "Non-finite" in ev.reason for ev in mgr.events))
+        finally:
+            uninstall_auto_amp_hook(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

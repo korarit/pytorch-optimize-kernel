@@ -10,6 +10,14 @@ from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any
 
 from src.config import OptimizeConfig
+from src.hooks.module_dispatch import (
+    build_shape_signature,
+    has_cuda_context,
+    has_requires_grad_tensor,
+    iter_nested_tensors,
+    register_module_call_handler,
+    unregister_module_call_handler,
+)
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -29,38 +37,15 @@ def _detect_cuda_sm(torch_mod: Any) -> int:
 
 
 def _has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    if tensor_cls is not None:
-        for item in (*args, *kwargs.values()):
-            if isinstance(item, tensor_cls) and getattr(item, "is_cuda", False):
-                return True
-    if hasattr(mod_self, "parameters"):
-        try:
-            first_param = next(mod_self.parameters(), None)
-            if first_param is not None and getattr(first_param, "is_cuda", False):
-                return True
-        except Exception:  # noqa: BLE001
-            pass
-    return False
+    return has_cuda_context(mod_self, args, kwargs, torch_mod)
 
 
 def _has_requires_grad_tensor(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    if tensor_cls is None:
-        return False
-    for item in (*args, *kwargs.values()):
-        if isinstance(item, tensor_cls) and getattr(item, "requires_grad", False):
-            return True
-    return False
+    return has_requires_grad_tensor(args, kwargs, torch_mod)
 
 
 def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> tuple[Any, ...]:
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    sig: list[Any] = []
-    for item in (*args, *kwargs.values()):
-        if tensor_cls is not None and isinstance(item, tensor_cls):
-            sig.append((tuple(item.shape), str(item.dtype)))
-    return tuple(sig)
+    return build_shape_signature(args, kwargs, torch_mod, include_device=False)
 
 
 def check_fp8_eligibility(torch_mod: Any) -> tuple[bool, str]:
@@ -468,183 +453,182 @@ def install_inference_opt_hook(
         torch_mod._ptopt_orig_enable_grad = orig_enable_grad
         torch_mod.enable_grad = _TrackedEnableGrad  # type: ignore[assignment]
 
-    # 2. Wrap top-level nn.Module.__call__ for safe eval optimization
-    nn_mod = torch_mod.nn.Module
-    call_attr = "__call__"
-    orig_mod_call = getattr(nn_mod, call_attr)
-    depth = [0]
+    # 2. Register top-level nn.Module.__call__ handler on unified dispatcher
+    def _inference_mod_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
+        if getattr(mod_self, "training", True):
+            return next_fn(mod_self, *args, **kwargs)
 
-    @functools.wraps(orig_mod_call)
-    def _inference_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-        depth[0] += 1
-        is_top = depth[0] == 1
-        try:
-            if not is_top or getattr(mod_self, "training", True):
-                return orig_mod_call(mod_self, *args, **kwargs)
-
-            # Safety guard: skip inference_mode if explicit enable_grad or requires_grad tensor exists
-            needs_grad = (
-                rt.enable_grad_depth > 0
-                or _has_requires_grad_tensor(args, kwargs, torch_mod)
-            )
-            if needs_grad:
-                rt.grad_guard_skips += 1
-                if not getattr(mod_self, "_ptopt_grad_guard_logged", False):
-                    mod_self._ptopt_grad_guard_logged = True
-                    manager.record_event(
-                        "inference.mode",
-                        "SKIPPED",
-                        "Requires-grad or enable_grad() detected during eval(); preserving autograd",
-                    )
-                return orig_mod_call(mod_self, *args, **kwargs)
-
-            # Optional CPU dynamic int8 quantization on first pure-eval forward
-            if (
-                rt.quant_mode == "int8"
-                and not getattr(mod_self, "_ptopt_quant_checked", False)
-                and not _has_cuda_context(mod_self, args, kwargs, torch_mod)
-            ):
-                mod_self._ptopt_quant_checked = True
-                ok_q, reason_q = check_dynamic_quant_eligibility(torch_mod)
-                if ok_q:
-                    try:
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore", DeprecationWarning)
-                            q_mod = torch_mod.ao.quantization.quantize_dynamic(
-                                mod_self, {torch_mod.nn.Linear}, dtype=torch_mod.qint8
-                            )
-                        mod_self._ptopt_quantized_mod = q_mod
-                        manager.record_event("inference.quant", "APPLIED", "CPU INT8 dynamic quantization applied")
-                    except Exception as exc:  # noqa: BLE001
-                        manager.record_event("inference.quant", "FALLBACK", "Dynamic INT8 quantization failed", str(exc))
-                else:
-                    manager.record_event("inference.quant", "SKIPPED", reason_q)
-
-            # Optional FP8 Linear patching on sm >= 89 CUDA
-            if rt.fp8_requested and rt.fp8_eligible and not getattr(mod_self, "_ptopt_fp8_checked", False):
-                mod_self._ptopt_fp8_checked = True
-                n_patched = apply_fp8_linear_eval_hooks(mod_self, torch_mod)
-                if n_patched > 0:
-                    manager.record_event(
-                        "inference.fp8",
-                        "APPLIED",
-                        f"Patched {n_patched} Linear layers on {type(mod_self).__name__} with FP8 _scaled_mm",
-                    )
-
-            # When compiling eval module with FP8 enabled and large-M inputs (M >= 512), pre-build weight
-            # caches once before torch.compile traces so Dynamo lifts pre-quantized FP8 weights statically.
-            if (
-                rt.fp8_requested
-                and rt.fp8_eligible
-                and (rt.cfg.compile.enabled or rt.cuda_graphs_enabled)
-                and not getattr(mod_self, "_ptopt_fp8_prewarmed", False)
-            ):
-                tensor_cls = getattr(torch_mod, "Tensor", None)
-                has_large_m = any(
-                    tensor_cls is not None
-                    and isinstance(item, tensor_cls)
-                    and item.dim() >= 2
-                    and (item.numel() // max(1, int(item.shape[-1]))) >= 512
-                    for item in (*args, *kwargs.values())
+        # Safety guard: skip inference_mode if explicit enable_grad or requires_grad tensor exists
+        needs_grad = (
+            rt.enable_grad_depth > 0
+            or _has_requires_grad_tensor(args, kwargs, torch_mod)
+        )
+        if needs_grad:
+            rt.grad_guard_skips += 1
+            if not getattr(mod_self, "_ptopt_grad_guard_logged", False):
+                mod_self._ptopt_grad_guard_logged = True
+                manager.record_event(
+                    "inference.mode",
+                    "SKIPPED",
+                    "Requires-grad or enable_grad() detected during eval(); preserving autograd",
                 )
-                if has_large_m:
-                    mod_self._ptopt_fp8_prewarmed = True
-                    prewarm_fp8_weight_caches(mod_self, torch_mod)
+            return next_fn(mod_self, *args, **kwargs)
 
-            # Optional CUDA Graphs / reduce-overhead compile for static-shape CUDA eval
-            on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
-            if (
-                rt.cuda_graphs_enabled
-                and on_cuda
-                and callable(getattr(torch_mod, "compile", None))
-                and not getattr(mod_self, "_orig_mod", None)
-            ):
-                if not getattr(mod_self, "_ptopt_infer_cg_checked", False):
-                    mod_self._ptopt_infer_cg_checked = True
-                    mod_self._ptopt_infer_cg_shapes = {_shape_signature(args, kwargs, torch_mod)}
-                    if getattr(mod_self, "_compiled_call_impl", None) is None and callable(getattr(mod_self, "_call_impl", None)):
-                        try:
-                            mod_self._compiled_call_impl = torch_mod.compile(
-                                mod_self._call_impl,
-                                mode="reduce-overhead",
-                            )
-                            mod_self._ptopt_compile_checked = True
-                            mod_self._ptopt_infer_cg_active = True
-                            rt.cuda_graph_compiles += 1
-                            manager.record_event(
-                                "inference.cuda_graphs",
-                                "APPLIED",
-                                f"Compiled eval {type(mod_self).__name__} with mode=reduce-overhead (CUDA Graphs)",
-                            )
-                        except Exception as exc:  # noqa: BLE001
-                            mod_self._compiled_call_impl = None
-                            rt.cuda_graph_fallbacks += 1
-                            manager.record_event(
-                                "inference.cuda_graphs",
-                                "FALLBACK",
-                                f"reduce-overhead compile failed on {type(mod_self).__name__}; using standard eval",
-                                str(exc),
-                            )
-                elif getattr(mod_self, "_ptopt_infer_cg_active", False):
-                    seen = getattr(mod_self, "_ptopt_infer_cg_shapes", None)
-                    sig = _shape_signature(args, kwargs, torch_mod)
-                    if seen is not None and sig and sig not in seen:
-                        mod_self._compiled_call_impl = None
-                        mod_self._ptopt_infer_cg_active = False
-                        mod_self._ptopt_compile_checked = False
-                        rt.cuda_graph_fallbacks += 1
-                        manager.record_event(
-                            "inference.cuda_graphs",
-                            "FALLBACK",
-                            f"Dynamic eval input shape detected on {type(mod_self).__name__}; reverted reduce-overhead/CUDA Graphs",
-                        )
-
-            use_infer_ctx = (
-                rt.inference_mode_enabled
-                and hasattr(torch_mod, "inference_mode")
-                and os.environ.get("PTOPT_INFERENCE_MODE") != "0"
-            )
-            ctx = torch_mod.inference_mode() if use_infer_ctx else nullcontext()
-            with ctx:
-                if use_infer_ctx:
-                    rt.inference_calls += 1
-                q_mod = getattr(mod_self, "_ptopt_quantized_mod", None)
-                if q_mod is not None:
-                    try:
-                        return q_mod(*args, **kwargs)
-                    except Exception as exc:  # noqa: BLE001
-                        mod_self._ptopt_quantized_mod = None
-                        manager.record_event(
-                            "inference.quant",
-                            "FALLBACK",
-                            f"Dynamic INT8 forward unsupported on {type(mod_self).__name__}; reverted to fp32 eval",
-                            str(exc),
-                        )
-                        if manager.strict:
-                            raise
+        # Optional CPU dynamic int8 quantization on first pure-eval forward
+        if (
+            rt.quant_mode == "int8"
+            and not getattr(mod_self, "_ptopt_quant_checked", False)
+            and not _has_cuda_context(mod_self, args, kwargs, torch_mod)
+        ):
+            mod_self._ptopt_quant_checked = True
+            ok_q, reason_q = check_dynamic_quant_eligibility(torch_mod)
+            if ok_q:
                 try:
-                    return orig_mod_call(mod_self, *args, **kwargs)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", DeprecationWarning)
+                        q_mod = torch_mod.ao.quantization.quantize_dynamic(
+                            mod_self, {torch_mod.nn.Linear}, dtype=torch_mod.qint8
+                        )
+                    mod_self._ptopt_quantized_mod = q_mod
+                    manager.record_event("inference.quant", "APPLIED", "CPU INT8 dynamic quantization applied")
                 except Exception as exc:  # noqa: BLE001
-                    if getattr(mod_self, "_ptopt_infer_cg_active", False):
+                    manager.record_event("inference.quant", "FALLBACK", "Dynamic INT8 quantization failed", str(exc))
+            else:
+                manager.record_event("inference.quant", "SKIPPED", reason_q)
+
+        # Optional FP8 Linear patching on sm >= 89 CUDA
+        if rt.fp8_requested and rt.fp8_eligible and not getattr(mod_self, "_ptopt_fp8_checked", False):
+            mod_self._ptopt_fp8_checked = True
+            n_patched = apply_fp8_linear_eval_hooks(mod_self, torch_mod)
+            if n_patched > 0:
+                manager.record_event(
+                    "inference.fp8",
+                    "APPLIED",
+                    f"Patched {n_patched} Linear layers on {type(mod_self).__name__} with FP8 _scaled_mm",
+                )
+
+        # When compiling eval module with FP8 enabled and large-M inputs (M >= 512), pre-build weight
+        # caches once before torch.compile traces so Dynamo lifts pre-quantized FP8 weights statically.
+        if (
+            rt.fp8_requested
+            and rt.fp8_eligible
+            and (rt.cfg.compile.enabled or rt.cuda_graphs_enabled)
+            and not getattr(mod_self, "_ptopt_fp8_prewarmed", False)
+        ):
+            tensor_cls = getattr(torch_mod, "Tensor", None)
+            has_large_m = any(
+                tensor.dim() >= 2 and (tensor.numel() // max(1, int(tensor.shape[-1]))) >= 512
+                for item in (*args, *kwargs.values())
+                for tensor in iter_nested_tensors(item, tensor_cls)
+            )
+            if has_large_m:
+                mod_self._ptopt_fp8_prewarmed = True
+                prewarm_fp8_weight_caches(mod_self, torch_mod)
+
+        # Optional CUDA Graphs / reduce-overhead compile for static-shape CUDA eval (isolated from train handle)
+        on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
+        if (
+            rt.cuda_graphs_enabled
+            and on_cuda
+            and callable(getattr(torch_mod, "compile", None))
+            and not getattr(mod_self, "_orig_mod", None)
+        ):
+            if not getattr(mod_self, "_ptopt_infer_cg_checked", False):
+                mod_self._ptopt_infer_cg_checked = True
+                mod_self._ptopt_infer_cg_shapes = {_shape_signature(args, kwargs, torch_mod)}
+                existing_eval = getattr(mod_self, "_ptopt_eval_compiled_impl", None)
+                existing_cur = getattr(mod_self, "_compiled_call_impl", None)
+                # Compile dedicated eval CUDA Graph handle if not already user-precompiled
+                is_user_precompiled = existing_cur is not None and existing_cur is not getattr(
+                    mod_self, "_ptopt_train_compiled_impl", None
+                )
+                if existing_eval is None and not is_user_precompiled and callable(getattr(mod_self, "_call_impl", None)):
+                    try:
+                        eval_impl = torch_mod.compile(
+                            mod_self._call_impl,
+                            mode="reduce-overhead",
+                        )
+                        mod_self._ptopt_eval_compiled_impl = eval_impl
+                        mod_self._compiled_call_impl = eval_impl
+                        mod_self._ptopt_compile_checked = True
+                        mod_self._ptopt_infer_cg_active = True
+                        rt.cuda_graph_compiles += 1
+                        manager.record_event(
+                            "inference.cuda_graphs",
+                            "APPLIED",
+                            f"Compiled eval {type(mod_self).__name__} with mode=reduce-overhead (CUDA Graphs)",
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        mod_self._ptopt_eval_compiled_impl = None
                         mod_self._compiled_call_impl = None
-                        mod_self._ptopt_infer_cg_active = False
                         rt.cuda_graph_fallbacks += 1
                         manager.record_event(
                             "inference.cuda_graphs",
                             "FALLBACK",
-                            f"reduce-overhead eval failed on {type(mod_self).__name__}; reverted to eager",
+                            f"reduce-overhead compile failed on {type(mod_self).__name__}; using standard eval",
                             str(exc),
                         )
-                        if manager.strict:
-                            raise
-                        return orig_mod_call(mod_self, *args, **kwargs)
-                    raise
-        finally:
-            depth[0] -= 1
+            elif getattr(mod_self, "_ptopt_infer_cg_active", False):
+                eval_impl = getattr(mod_self, "_ptopt_eval_compiled_impl", None)
+                if eval_impl is not None:
+                    mod_self._compiled_call_impl = eval_impl
+                seen = getattr(mod_self, "_ptopt_infer_cg_shapes", None)
+                sig = _shape_signature(args, kwargs, torch_mod)
+                if seen is not None and sig and sig not in seen:
+                    mod_self._ptopt_eval_compiled_impl = None
+                    mod_self._compiled_call_impl = None
+                    mod_self._ptopt_infer_cg_active = False
+                    mod_self._ptopt_compile_checked = False
+                    rt.cuda_graph_fallbacks += 1
+                    manager.record_event(
+                        "inference.cuda_graphs",
+                        "FALLBACK",
+                        f"Dynamic eval input shape detected on {type(mod_self).__name__}; reverted reduce-overhead/CUDA Graphs",
+                    )
 
-    nn_mod._ptopt_infer_call_attr = call_attr
-    nn_mod._ptopt_infer_orig_call = orig_mod_call
-    setattr(nn_mod, call_attr, _inference_mod_call)
+        use_infer_ctx = (
+            rt.inference_mode_enabled
+            and hasattr(torch_mod, "inference_mode")
+            and os.environ.get("PTOPT_INFERENCE_MODE") != "0"
+        )
+        ctx = torch_mod.inference_mode() if use_infer_ctx else nullcontext()
+        with ctx:
+            if use_infer_ctx:
+                rt.inference_calls += 1
+            q_mod = getattr(mod_self, "_ptopt_quantized_mod", None)
+            if q_mod is not None:
+                try:
+                    return q_mod(*args, **kwargs)
+                except Exception as exc:  # noqa: BLE001
+                    mod_self._ptopt_quantized_mod = None
+                    manager.record_event(
+                        "inference.quant",
+                        "FALLBACK",
+                        f"Dynamic INT8 forward unsupported on {type(mod_self).__name__}; reverted to fp32 eval",
+                        str(exc),
+                    )
+                    if manager.strict:
+                        raise
+            try:
+                return next_fn(mod_self, *args, **kwargs)
+            except Exception as exc:  # noqa: BLE001
+                if getattr(mod_self, "_ptopt_infer_cg_active", False):
+                    mod_self._ptopt_eval_compiled_impl = None
+                    mod_self._compiled_call_impl = None
+                    mod_self._ptopt_infer_cg_active = False
+                    rt.cuda_graph_fallbacks += 1
+                    manager.record_event(
+                        "inference.cuda_graphs",
+                        "FALLBACK",
+                        f"reduce-overhead eval failed on {type(mod_self).__name__}; reverted to eager",
+                        str(exc),
+                    )
+                    if manager.strict:
+                        raise
+                    return next_fn(mod_self, *args, **kwargs)
+                raise
+
+    register_module_call_handler(torch_mod, "inference.opt", 30, _inference_mod_call)
     _INFERENCE_OPT_INSTALLED = True
     torch_mod._ptopt_inference_runtime = rt
     return rt
@@ -660,11 +644,7 @@ def uninstall_inference_opt_hook(torch_mod: Any) -> None:
         torch_mod.enable_grad = torch_mod._ptopt_orig_enable_grad
         delattr(torch_mod, "_ptopt_orig_enable_grad")
 
-    nn_mod = getattr(torch_mod, "nn", None) and torch_mod.nn.Module
-    if nn_mod is not None and hasattr(nn_mod, "_ptopt_infer_orig_call"):
-        setattr(nn_mod, getattr(nn_mod, "_ptopt_infer_call_attr"), getattr(nn_mod, "_ptopt_infer_orig_call"))
-        delattr(nn_mod, "_ptopt_infer_call_attr")
-        delattr(nn_mod, "_ptopt_infer_orig_call")
+    unregister_module_call_handler(torch_mod, "inference.opt")
 
     if hasattr(torch_mod, "_ptopt_inference_runtime"):
         delattr(torch_mod, "_ptopt_inference_runtime")

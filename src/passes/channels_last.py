@@ -8,6 +8,11 @@ import sys
 from typing import TYPE_CHECKING, Any
 
 from src.config import OptimizeConfig
+from src.hooks.module_dispatch import (
+    iter_nested_tensors,
+    register_module_call_handler,
+    unregister_module_call_handler,
+)
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -73,11 +78,12 @@ def _has_large_4d_input(
     if tensor_cls is None:
         return False
     for item in (*args, *kwargs.values()):
-        if isinstance(item, tensor_cls) and item.dim() == 4:
-            if require_cuda and not getattr(item, "is_cuda", False):
-                continue
-            if int(item.shape[-2]) * int(item.shape[-1]) >= min_spatial_area:
-                return True
+        for tensor in iter_nested_tensors(item, tensor_cls):
+            if tensor.dim() == 4:
+                if require_cuda and not getattr(tensor, "is_cuda", False):
+                    continue
+                if int(tensor.shape[-2]) * int(tensor.shape[-1]) >= min_spatial_area:
+                    return True
     return False
 
 
@@ -93,45 +99,33 @@ def install_channels_last_hook(
     if _CHANNELS_LAST_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return False
 
-    nn_module = torch_mod.nn.Module
-    attr_name = "__call__"
-    orig_call = getattr(nn_module, attr_name)
-    depth = [0]
-
-    @functools.wraps(orig_call)
-    def _channels_last_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-        depth[0] += 1
-        try:
-            if depth[0] == 1 and not getattr(mod_self, "_ptopt_channels_last_checked", False):
-                mod_self._ptopt_channels_last_checked = True
-                if has_conv2d(mod_self, torch_mod):
-                    should_convert = min_spatial_area <= 0 or _has_large_4d_input(
-                        args,
-                        kwargs,
-                        torch_mod,
-                        min_spatial_area=min_spatial_area,
-                        require_cuda=require_cuda,
-                    )
-                    if should_convert:
-                        if convert_module_channels_last(mod_self, torch_mod) and manager is not None:
-                            manager.record_event(
-                                "runtime.channels_last",
-                                "APPLIED",
-                                f"Converted Conv2d module to channels_last (min_spatial_area={min_spatial_area})",
-                            )
-                    elif manager is not None:
+    def _channels_last_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
+        if not getattr(mod_self, "_ptopt_channels_last_checked", False):
+            mod_self._ptopt_channels_last_checked = True
+            if has_conv2d(mod_self, torch_mod):
+                should_convert = min_spatial_area <= 0 or _has_large_4d_input(
+                    args,
+                    kwargs,
+                    torch_mod,
+                    min_spatial_area=min_spatial_area,
+                    require_cuda=require_cuda,
+                )
+                if should_convert:
+                    if convert_module_channels_last(mod_self, torch_mod) and manager is not None:
                         manager.record_event(
                             "runtime.channels_last",
-                            "SKIPPED",
-                            f"Conv2d spatial input below auto threshold ({min_spatial_area} px)",
+                            "APPLIED",
+                            f"Converted Conv2d module to channels_last (min_spatial_area={min_spatial_area})",
                         )
-            return orig_call(mod_self, *args, **kwargs)
-        finally:
-            depth[0] -= 1
+                elif manager is not None:
+                    manager.record_event(
+                        "runtime.channels_last",
+                        "SKIPPED",
+                        f"Conv2d spatial input below auto threshold ({min_spatial_area} px)",
+                    )
+        return next_fn(mod_self, *args, **kwargs)
 
-    setattr(nn_module, attr_name, _channels_last_call)
-    nn_module._ptopt_orig_channels_last_attr = attr_name  # type: ignore[attr-defined]
-    nn_module._ptopt_orig_channels_last_call = orig_call  # type: ignore[attr-defined]
+    register_module_call_handler(torch_mod, "runtime.channels_last", 50, _channels_last_call)
     _CHANNELS_LAST_INSTALLED = True
     return True
 
@@ -141,12 +135,7 @@ def uninstall_channels_last_hook(torch_mod: Any) -> None:
     global _CHANNELS_LAST_INSTALLED  # noqa: PLW0603
     if not _CHANNELS_LAST_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return
-    nn_module = torch_mod.nn.Module
-    if hasattr(nn_module, "_ptopt_orig_channels_last_call"):
-        attr = getattr(nn_module, "_ptopt_orig_channels_last_attr")
-        setattr(nn_module, attr, getattr(nn_module, "_ptopt_orig_channels_last_call"))
-        delattr(nn_module, "_ptopt_orig_channels_last_attr")
-        delattr(nn_module, "_ptopt_orig_channels_last_call")
+    unregister_module_call_handler(torch_mod, "runtime.channels_last")
     _CHANNELS_LAST_INSTALLED = False
 
 

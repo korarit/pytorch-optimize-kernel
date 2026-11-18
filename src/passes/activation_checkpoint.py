@@ -8,6 +8,7 @@ import sys
 from typing import TYPE_CHECKING, Any, Callable
 
 from src.config import OptimizeConfig
+from src.hooks.module_dispatch import register_module_call_handler, unregister_module_call_handler
 
 if TYPE_CHECKING:
     from src.hooks.manager import HookManager
@@ -242,71 +243,64 @@ def install_activation_checkpoint_hook(
         return None
 
     rt = ActivationCheckpointRuntime(cfg, manager, torch_mod, mode)
-    nn_mod = torch_mod.nn.Module
-    call_attr = "__call__"
-    orig_mod_call = getattr(nn_mod, call_attr)
-    depth = [0]
     probe_vram = vram_probe_fn or (lambda: _default_vram_ratio(torch_mod))
 
-    @functools.wraps(orig_mod_call)
-    def _act_ckpt_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-        depth[0] += 1
-        is_top = depth[0] == 1
-        try:
-            if (
-                is_top
-                and getattr(mod_self, "training", True)
-                and torch_mod.is_grad_enabled()
-                and not getattr(mod_self, "_ptopt_act_ckpt_no_blocks", False)
-            ):
-                if not getattr(mod_self, "_ptopt_act_ckpt_active", False):
-                    should_enable = mode == "always"
-                    vram_ratio: float | None = None
-                    if not should_enable:
-                        vram_ratio = probe_vram()
-                        if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
-                            should_enable = True
+    def _act_ckpt_mod_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
+        if (
+            getattr(mod_self, "training", True)
+            and torch_mod.is_grad_enabled()
+            and not getattr(mod_self, "_ptopt_act_ckpt_no_blocks", False)
+        ):
+            if not getattr(mod_self, "_ptopt_act_ckpt_active", False):
+                should_enable = mode == "always"
+                vram_ratio: float | None = None
+                if not should_enable:
+                    vram_ratio = probe_vram()
+                    if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
+                        should_enable = True
 
-                    if should_enable:
-                        n_patched = patch_module_activation_checkpointing(mod_self, torch_mod, manager=manager)
-                        if n_patched > 0:
-                            mod_self._ptopt_act_ckpt_active = True
-                            rt.triggered_modules += 1
-                            rt.patched_blocks += n_patched
-                            # Bypass torch.compile on root AND all child submodules (so backward recomputation
-                            # inside checkpoint(..., use_reentrant=False) never compiles child blocks mid-backward,
-                            # preventing PyTorch #166926 tensor count mismatch).
-                            was_compiled = bool(getattr(mod_self, "_ptopt_compile_active", False))
-                            for sub_m in mod_self.modules():
-                                sub_m._compiled_call_impl = None
-                                sub_m._ptopt_compile_active = False
-                                sub_m._ptopt_compile_checked = True
-                                sub_m._ptopt_compile_ineligible = True
-                            if was_compiled:
-                                manager.record_event(
-                                    "compile.auto",
-                                    "FALLBACK",
-                                    f"Bypassed torch.compile on {type(mod_self).__name__} while activation checkpointing active",
-                                )
-                            detail = (
-                                f"mode=always"
-                                if mode == "always"
-                                else f"mode=auto (VRAM {(vram_ratio or 0.0) * 100.0:.1f}% >= {rt.vram_threshold * 100.0:.0f}%)"
-                            )
+                if should_enable:
+                    n_patched = patch_module_activation_checkpointing(mod_self, torch_mod, manager=manager)
+                    if n_patched > 0:
+                        mod_self._ptopt_act_ckpt_active = True
+                        rt.triggered_modules += 1
+                        rt.patched_blocks += n_patched
+                        # Bypass torch.compile on root AND all child submodules (so backward recomputation
+                        # inside checkpoint(..., use_reentrant=False) never compiles child blocks mid-backward,
+                        # preventing PyTorch #166926 tensor count mismatch).
+                        was_compiled = bool(getattr(mod_self, "_ptopt_compile_active", False))
+                        for sub_m in mod_self.modules():
+                            sub_m._compiled_call_impl = None
+                            sub_m._ptopt_train_compiled_impl = None
+                            sub_m._ptopt_eval_compiled_impl = None
+                            sub_m._ptopt_compile_active = False
+                            sub_m._ptopt_train_compile_active = False
+                            sub_m._ptopt_eval_compile_active = False
+                            sub_m._ptopt_compile_checked = True
+                            sub_m._ptopt_train_compile_checked = True
+                            sub_m._ptopt_eval_compile_checked = True
+                            sub_m._ptopt_compile_ineligible = True
+                        if was_compiled:
                             manager.record_event(
-                                "runtime.activation_checkpointing",
-                                "APPLIED",
-                                f"Enabled activation checkpointing on {n_patched} blocks of {type(mod_self).__name__} ({detail})",
+                                "compile.auto",
+                                "FALLBACK",
+                                f"Bypassed torch.compile on {type(mod_self).__name__} while activation checkpointing active",
                             )
-                        else:
-                            mod_self._ptopt_act_ckpt_no_blocks = True
-            return orig_mod_call(mod_self, *args, **kwargs)
-        finally:
-            depth[0] -= 1
+                        detail = (
+                            "mode=always"
+                            if mode == "always"
+                            else f"mode=auto (VRAM {(vram_ratio or 0.0) * 100.0:.1f}% >= {rt.vram_threshold * 100.0:.0f}%)"
+                        )
+                        manager.record_event(
+                            "runtime.activation_checkpointing",
+                            "APPLIED",
+                            f"Enabled activation checkpointing on {n_patched} blocks of {type(mod_self).__name__} ({detail})",
+                        )
+                    else:
+                        mod_self._ptopt_act_ckpt_no_blocks = True
+        return next_fn(mod_self, *args, **kwargs)
 
-    nn_mod._ptopt_act_ckpt_call_attr = call_attr
-    nn_mod._ptopt_act_ckpt_orig_call = orig_mod_call
-    setattr(nn_mod, call_attr, _act_ckpt_mod_call)
+    register_module_call_handler(torch_mod, "runtime.activation_checkpointing", 20, _act_ckpt_mod_call)
     _ACT_CKPT_INSTALLED = True
     torch_mod._ptopt_act_ckpt_runtime = rt
     return rt
@@ -317,11 +311,7 @@ def uninstall_activation_checkpoint_hook(torch_mod: Any) -> None:
     global _ACT_CKPT_INSTALLED  # noqa: PLW0603
     if not _ACT_CKPT_INSTALLED or torch_mod is None:
         return
-    nn_mod = getattr(torch_mod, "nn", None) and torch_mod.nn.Module
-    if nn_mod is not None and hasattr(nn_mod, "_ptopt_act_ckpt_orig_call"):
-        setattr(nn_mod, getattr(nn_mod, "_ptopt_act_ckpt_call_attr"), getattr(nn_mod, "_ptopt_act_ckpt_orig_call"))
-        delattr(nn_mod, "_ptopt_act_ckpt_call_attr")
-        delattr(nn_mod, "_ptopt_act_ckpt_orig_call")
+    unregister_module_call_handler(torch_mod, "runtime.activation_checkpointing")
     if hasattr(torch_mod, "_ptopt_act_ckpt_runtime"):
         delattr(torch_mod, "_ptopt_act_ckpt_runtime")
     _ACT_CKPT_INSTALLED = False
