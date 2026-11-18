@@ -104,9 +104,20 @@ class TestKernelCapabilityGate(unittest.TestCase):
                 self.assertEqual(entries["rmsnorm"].status, "SKIPPED")
                 self.assertEqual(entries["layernorm"].status, "SKIPPED")
                 self.assertEqual(entries["swiglu"].status, "SKIPPED")
-                self.assertEqual(entries["fused_linear_cross_entropy"].status, "SKIPPED")
+                self.assertEqual(entries["fused_linear_cross_entropy"].status, "APPLIED")
+                self.assertIn("hybrid", entries["fused_linear_cross_entropy"].reason.lower())
                 self.assertIn("Inductor", entries["rmsnorm"].reason)
                 self.assertIn("Inductor", entries["layernorm"].reason)
+            finally:
+                uninstall_custom_kernels_hooks(torch)
+                mgr.reset()
+
+        with patch.dict(os.environ, {"PTOPT_HYBRID_LCE": "0"}, clear=False):
+            reg2 = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+            assert reg2 is not None
+            try:
+                entries2 = reg2.fallback_registry.entries
+                self.assertEqual(entries2["fused_linear_cross_entropy"].status, "SKIPPED")
             finally:
                 uninstall_custom_kernels_hooks(torch)
                 mgr.reset()

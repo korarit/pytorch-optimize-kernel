@@ -196,6 +196,116 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
             uninstall_custom_kernels_hooks(torch)
             mgr.reset()
 
+    def test_lazy_linear_logits_dtype_cast_stays_lazy_and_matches_gradients(self) -> None:
+        torch.manual_seed(7)
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+        assert reg is not None
+        try:
+            h = torch.randn(2, 4, 8, dtype=torch.bfloat16, requires_grad=True)
+            w = torch.randn(32, 8, dtype=torch.bfloat16, requires_grad=True)
+            b = torch.randn(32, dtype=torch.bfloat16, requires_grad=True)
+            tgt = torch.randint(0, 32, (8,))
+
+            lazy = create_lazy_linear_logits(h, w, b)
+            casted = lazy.view(-1, 32).float()
+            self.assertIsInstance(casted, LazyLinearLogits)
+            self.assertEqual(casted.dtype, torch.float32)
+            self.assertEqual(casted._ptopt_lazy_out_dtype, torch.float32)
+
+            loss_fused = F.cross_entropy(casted, tgt)
+
+            h_ref = h.detach().clone().requires_grad_(True)
+            w_ref = w.detach().clone().requires_grad_(True)
+            b_ref = b.detach().clone().requires_grad_(True)
+            logits_ref = F.linear(h_ref, w_ref, b_ref).view(-1, 32).float()
+            loss_ref = F.cross_entropy(logits_ref, tgt)
+
+            self.assertTrue(torch.allclose(loss_fused.float(), loss_ref.float(), atol=1e-4, rtol=1e-4))
+            loss_fused.backward()
+            loss_ref.backward()
+            self.assertIsNotNone(h.grad)
+            self.assertIsNotNone(w.grad)
+            self.assertTrue(torch.allclose(h.grad.float(), h_ref.grad.float(), atol=5e-3, rtol=5e-3))
+            self.assertTrue(torch.allclose(w.grad.float(), w_ref.grad.float(), atol=5e-3, rtol=5e-3))
+            self.assertTrue(torch.allclose(b.grad.float(), b_ref.grad.float(), atol=5e-3, rtol=5e-3))
+
+            # Verify .to(dtype) and .half() also stay lazy without materializing
+            lazy_half = lazy.to(torch.float16)
+            self.assertIsInstance(lazy_half, LazyLinearLogits)
+            self.assertEqual(lazy_half.dtype, torch.float16)
+            self.assertEqual(lazy_half._ptopt_lazy_out_dtype, torch.float16)
+        finally:
+            uninstall_custom_kernels_hooks(torch)
+            mgr.reset()
+
+    def test_hybrid_compile_lce_balanced_patches_terminal_head_only(self) -> None:
+        from types import SimpleNamespace
+        from src.kernels.registry import _patch_module_submodules
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+
+        reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+        assert reg is not None
+        try:
+            self.assertEqual(reg.fallback_registry.entries["fused_linear_cross_entropy"].status, "APPLIED")
+            self.assertIn("hybrid", reg.fallback_registry.entries["fused_linear_cross_entropy"].reason.lower())
+
+            # Verify _patch_module_submodules wraps terminal head with torch.compiler.disable in hybrid mode
+            # while skipping standard 4x MLP up-projection below min_lce_vocab.
+            class _FakeLinear:
+                def __init__(self, in_f: int, out_f: int) -> None:
+                    self.in_features = in_f
+                    self.out_features = out_f
+                    self.weight = SimpleNamespace(is_cuda=True, dtype=torch.bfloat16)
+                    self.bias = None
+
+                def forward(self, x: object) -> object:
+                    return x
+
+            class _FakeModel:
+                def __init__(self) -> None:
+                    self.mlp_up = _FakeLinear(16, 128)  # 8x expansion, vocab=128 < 8192
+                    self.head = _FakeLinear(128, 8192)  # terminal LM head >= 8192
+
+                def modules(self) -> list[object]:
+                    return [self, self.mlp_up, self.head]
+
+            disable_calls: list[object] = []
+
+            def _fake_compiler_disable(fn: object) -> object:
+                disable_calls.append(fn)
+                return fn
+
+            fake_torch = SimpleNamespace(
+                bfloat16=torch.bfloat16,
+                float16=torch.float16,
+                float32=torch.float32,
+                nn=SimpleNamespace(Linear=_FakeLinear),
+                compiler=SimpleNamespace(disable=_fake_compiler_disable),
+            )
+            fake_model = _FakeModel()
+            patched = _patch_module_submodules(
+                fake_model,
+                fake_torch,
+                {"fused_linear_cross_entropy": True},
+                mgr,
+                min_lce_vocab=8192,
+                fallback_on_error=True,
+                hybrid_compile_lce=True,
+            )
+            self.assertEqual(patched, 1)
+            self.assertTrue(getattr(fake_model.head, "_ptopt_kern_patched", False))
+            self.assertFalse(getattr(fake_model.mlp_up, "_ptopt_kern_patched", False))
+            self.assertEqual(len(disable_calls), 1)
+        finally:
+            uninstall_custom_kernels_hooks(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -221,6 +221,7 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
 
         d_hidden = torch.empty((n_rows, h_dim), dtype=h_in_dtype, device=h_mm.device) if need_h else None
         d_weight = torch.empty(weight.shape, dtype=d_weight_dtype, device=weight.device) if need_w else None
+        dw_buf = torch.empty(weight.shape, dtype=mm_dtype, device=weight.device) if (need_w and not use_addmm_w) else None
         d_bias = torch.zeros(bias.shape, dtype=torch.float32, device=bias.device) if need_b else None
 
         is_scalar = ctx.reduction in ("mean", "sum")
@@ -268,10 +269,13 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
                         torch.mm(dl_mm.t(), h_c, out=d_weight)
                     else:
                         d_weight.addmm_(dl_mm.t(), h_c)
-                elif start == 0:
-                    d_weight.copy_(torch.mm(dl_mm.t(), h_c))
                 else:
-                    d_weight.add_(torch.mm(dl_mm.t(), h_c).float())
+                    assert dw_buf is not None
+                    torch.mm(dl_mm.t(), h_c, out=dw_buf)
+                    if start == 0:
+                        d_weight.copy_(dw_buf)
+                    else:
+                        d_weight.add_(dw_buf)
             if d_bias is not None:
                 d_bias.add_(dl_mm.sum(dim=0, dtype=torch.float32))
             del logits_c, dlogits_c
@@ -345,6 +349,7 @@ class LazyLinearLogits(torch.Tensor):
     """Zero-VRAM `torch.Tensor` subclass deferring `F.linear(hidden, weight, bias)` until needed or fused."""
 
     _ptopt_lazy_linear: tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, tuple[int, ...], torch.dtype]
+    _ptopt_lazy_out_dtype: torch.dtype
 
     @staticmethod
     def __new__(
@@ -354,11 +359,14 @@ class LazyLinearLogits(torch.Tensor):
         bias: torch.Tensor | None,
         out_shape: tuple[int, ...],
         matmul_dtype: torch.dtype,
+        out_dtype: torch.dtype | None = None,
     ) -> "LazyLinearLogits":
-        meta = torch.empty(out_shape, dtype=matmul_dtype, device="meta")
+        eff_out_dtype = out_dtype if out_dtype is not None else matmul_dtype
+        meta = torch.empty(out_shape, dtype=eff_out_dtype, device="meta")
         req = bool(hidden.requires_grad or weight.requires_grad or (bias is not None and bias.requires_grad))
         obj = torch.Tensor._make_subclass(cls, meta, require_grad=req)
         obj._ptopt_lazy_linear = (hidden, weight, bias, tuple(out_shape), matmul_dtype)
+        obj._ptopt_lazy_out_dtype = eff_out_dtype
         return obj
 
     @property
@@ -372,10 +380,14 @@ class LazyLinearLogits(torch.Tensor):
     def materialize(self) -> torch.Tensor:
         """Compute full `F.linear(hidden, weight, bias)` if a non-fused consumer touches logits."""
         hidden, weight, bias, out_shape, mm_dtype = self._ptopt_lazy_linear
+        out_dt = getattr(self, "_ptopt_lazy_out_dtype", mm_dtype)
         h_m = hidden.to(mm_dtype) if hidden.dtype != mm_dtype else hidden
         w_m = weight.to(mm_dtype) if weight.dtype != mm_dtype else weight
         b_m = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
-        return F.linear(h_m, w_m, b_m).reshape(out_shape)
+        out = F.linear(h_m, w_m, b_m).reshape(out_shape)
+        if out_dt != out.dtype:
+            out = out.to(out_dt)
+        return out
 
     @classmethod
     def __torch_function__(cls, func: Any, types: Any, args: tuple[Any, ...] = (), kwargs: dict[str, Any] | None = None) -> Any:
@@ -394,10 +406,43 @@ class LazyLinearLogits(torch.Tensor):
         first = args[0] if args else None
         if isinstance(first, LazyLinearLogits):
             hidden, weight, bias, out_shape, mm_dtype = first._ptopt_lazy_linear
+            cur_out_dt = getattr(first, "_ptopt_lazy_out_dtype", mm_dtype)
             vocab = int(weight.shape[0])
 
+            if func in (torch.Tensor.float, torch.Tensor.half, torch.Tensor.bfloat16) and len(args) == 1 and not kw:
+                dt_map = {
+                    torch.Tensor.float: torch.float32,
+                    torch.Tensor.half: torch.float16,
+                    torch.Tensor.bfloat16: torch.bfloat16,
+                }
+                return LazyLinearLogits(hidden, weight, bias, out_shape, mm_dtype, out_dtype=dt_map[func])
+
+            if func is torch.Tensor.to and not kw.get("copy", False) and kw.get("memory_format") is None:
+                target_dt: torch.dtype | None = kw.get("dtype")
+                target_dev: Any = kw.get("device")
+                other_args = args[1:]
+                if len(other_args) == 1:
+                    if isinstance(other_args[0], torch.dtype):
+                        target_dt = other_args[0]
+                    elif isinstance(other_args[0], (torch.device, str)):
+                        target_dev = other_args[0]
+                    elif isinstance(other_args[0], torch.Tensor):
+                        target_dt = other_args[0].dtype
+                        target_dev = other_args[0].device
+                elif len(other_args) == 2 and isinstance(other_args[1], torch.dtype):
+                    target_dev, target_dt = other_args[0], other_args[1]
+                elif other_args:
+                    target_dt = None
+                    target_dev = "unsupported"
+
+                same_dev = target_dev is None or (
+                    target_dev != "unsupported" and torch.device(target_dev) == hidden.device
+                )
+                if same_dev and target_dt in (torch.float32, torch.float16, torch.bfloat16):
+                    return LazyLinearLogits(hidden, weight, bias, out_shape, mm_dtype, out_dtype=target_dt)
+
             if func is torch.Tensor.contiguous:
-                return LazyLinearLogits(hidden.contiguous(), weight, bias, out_shape, mm_dtype)
+                return LazyLinearLogits(hidden.contiguous(), weight, bias, out_shape, mm_dtype, out_dtype=cur_out_dt)
 
             if func in (torch.Tensor.view, torch.Tensor.reshape):
                 new_shape = args[1] if (len(args) == 2 and isinstance(args[1], (tuple, list))) else args[1:]
@@ -405,7 +450,7 @@ class LazyLinearLogits(torch.Tensor):
                     resolved = tuple(torch.empty(out_shape, device="meta").reshape(*new_shape).shape)
                 if len(resolved) >= 1 and resolved[-1] == vocab:
                     h_reshaped = hidden.reshape(*resolved[:-1], int(hidden.shape[-1]))
-                    return LazyLinearLogits(h_reshaped, weight, bias, resolved, mm_dtype)
+                    return LazyLinearLogits(h_reshaped, weight, bias, resolved, mm_dtype, out_dtype=cur_out_dt)
 
             if func is torch.Tensor.__getitem__ and len(args) == 2:
                 idx = args[1]
@@ -423,7 +468,7 @@ class LazyLinearLogits(torch.Tensor):
                     h_idx = idx_tuple[:-1] if len(idx_tuple) == len(out_shape) else idx
                     sliced_h = hidden[h_idx]
                     new_out_shape = tuple(sliced_h.shape[:-1]) + (vocab,)
-                    return LazyLinearLogits(sliced_h, weight, bias, new_out_shape, mm_dtype)
+                    return LazyLinearLogits(sliced_h, weight, bias, new_out_shape, mm_dtype, out_dtype=cur_out_dt)
 
         new_args = tuple(x.materialize() if isinstance(x, LazyLinearLogits) else x for x in args)
         new_kw = {k: (v.materialize() if isinstance(v, LazyLinearLogits) else v) for k, v in kw.items()}

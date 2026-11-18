@@ -313,6 +313,145 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                 uninstall_dataloader_hook(torch)
                 mgr_cpu.reset()
 
+    def test_recompute_dispatch_guard_blocks_amp_reentry_during_backward(self) -> None:
+        from src.hooks.module_dispatch import register_module_call_handler, unregister_module_call_handler
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.runtime.activation_checkpointing = "always"
+        mgr = HookManager()
+        model = _StackedModel(dim=256, n_blocks=2).train()
+
+        handler_calls: list[str] = []
+
+        def _spy_amp_handler(mod_self: object, args: tuple[object, ...], kwargs: dict[str, object], next_fn: object) -> object:
+            # Simulates amp.auto detecting whether an inner call enters top-level dispatch
+            handler_calls.append(type(mod_self).__name__)
+            return next_fn(mod_self, *args, **kwargs)  # type: ignore[operator]
+
+        register_module_call_handler(torch, "amp.spy", 50, _spy_amp_handler)
+        install_activation_checkpoint_hook(cfg, mgr, torch)
+        try:
+            x = torch.randn(2, 256, requires_grad=True)
+            with torch.autocast("cpu", dtype=torch.bfloat16):
+                loss = model(x).sum()
+            # During forward, top-level _StackedModel triggers _spy_amp_handler once (depth 0 -> 1)
+            self.assertEqual(handler_calls, ["_StackedModel"])
+            loss.backward()
+            # During backward recomputation inside checkpoint, _recompute_depth > 0 blocks re-entry!
+            self.assertEqual(handler_calls, ["_StackedModel"])
+        finally:
+            uninstall_activation_checkpoint_hook(torch)
+            unregister_module_call_handler(torch, "amp.spy")
+            mgr.reset()
+
+    def test_partial_strided_checkpointing_and_escalation(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.runtime.activation_checkpointing = "auto"
+        mgr = HookManager()
+        # dim=128 (~33k params per block) tests both len>=4 10k discovery & strided ratio=0.5
+        model = _StackedModel(dim=128, n_blocks=4).train()
+
+        probes = iter([0.90, 0.90, 0.40])
+        rt = install_activation_checkpoint_hook(cfg, mgr, torch, vram_probe_fn=lambda: next(probes, 0.40))
+        assert rt is not None
+        try:
+            x = torch.randn(2, 128, requires_grad=True)
+            model(x).sum().backward()
+            # Step 1 (ratio=0.5 on 4 blocks -> stride 2 -> 2 blocks patched)
+            self.assertEqual(rt.patched_blocks, 2)
+            self.assertTrue(getattr(model.blocks[0], "_ptopt_act_ckpt_patched", False))
+            self.assertFalse(getattr(model.blocks[1], "_ptopt_act_ckpt_patched", False))
+            self.assertTrue(getattr(model.blocks[2], "_ptopt_act_ckpt_patched", False))
+            self.assertFalse(getattr(model.blocks[3], "_ptopt_act_ckpt_patched", False))
+
+            # Step 2 (VRAM still >= 0.82 -> escalates to ratio=1.0 -> patches remaining 2 blocks)
+            model(x).sum().backward()
+            self.assertEqual(rt.patched_blocks, 4)
+            self.assertTrue(all(getattr(b, "_ptopt_act_ckpt_patched", False) for b in model.blocks))
+        finally:
+            uninstall_activation_checkpoint_hook(torch)
+            mgr.reset()
+
+    def test_act_ckpt_enables_auto_triton_fallback_on_bypass(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.runtime.activation_checkpointing = "always"
+        mgr = HookManager()
+        model = _StackedModel(dim=256, n_blocks=2).train()
+
+        install_activation_checkpoint_hook(cfg, mgr, torch)
+        try:
+            with patch("src.kernels.registry.enable_custom_kernels_on_module", return_value=2) as mocked_triton:
+                x = torch.randn(2, 256, requires_grad=True)
+                model(x).sum().backward()
+                mocked_triton.assert_called_once()
+        finally:
+            uninstall_activation_checkpoint_hook(torch)
+            mgr.reset()
+
+    def test_step0_oom_catch_and_retry_guardrail2(self) -> None:
+        import os
+
+        # Case 1: mode="auto", non-strict -> catches Step-0 OOM, enables ratio=1.0, retries cleanly
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.runtime.activation_checkpointing = "auto"
+        mgr = HookManager()
+        mgr.strict = False
+        model = _StackedModel(dim=256, n_blocks=4).train()
+
+        orig_fwd = model.forward
+        call_count = 0
+
+        def _oom_once(x: torch.Tensor) -> torch.Tensor:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("CUDA out of memory. Tried to allocate 512.00 MiB")
+            return orig_fwd(x)
+
+        model.forward = _oom_once  # type: ignore[method-assign]
+        # VRAM probe says 0.40 (below 0.82 threshold), so only OOM catch triggers checkpointing
+        rt = install_activation_checkpoint_hook(cfg, mgr, torch, vram_probe_fn=lambda: 0.40)
+        assert rt is not None
+        try:
+            x = torch.randn(2, 256, requires_grad=True)
+            out = model(x)
+            out.sum().backward()
+            self.assertEqual(call_count, 2)
+            self.assertEqual(rt.patched_blocks, 4)
+            self.assertTrue(
+                any(
+                    ev.pass_name == "runtime.activation_checkpointing"
+                    and ev.status == "FALLBACK"
+                    and "OutOfMemoryError" in ev.reason
+                    for ev in mgr.events
+                )
+            )
+        finally:
+            uninstall_activation_checkpoint_hook(torch)
+            mgr.reset()
+
+        # Case 2: strict=True -> Guardrail #2 disables OOM retry
+        mgr_strict = HookManager()
+        mgr_strict.strict = True
+        model_strict = _StackedModel(dim=256, n_blocks=4).train()
+        orig_strict_fwd = model_strict.forward
+
+        def _always_oom(x: torch.Tensor) -> torch.Tensor:
+            if not getattr(model_strict, "_ptopt_act_ckpt_active", False):
+                raise RuntimeError("CUDA out of memory. Tried to allocate 512.00 MiB")
+            return orig_strict_fwd(x)
+
+        model_strict.forward = _always_oom  # type: ignore[method-assign]
+        with patch.dict(os.environ, {}, clear=False):
+            install_activation_checkpoint_hook(cfg, mgr_strict, torch, vram_probe_fn=lambda: 0.40)
+            try:
+                x_s = torch.randn(2, 256, requires_grad=True)
+                with self.assertRaises(RuntimeError):
+                    model_strict(x_s)
+            finally:
+                uninstall_activation_checkpoint_hook(torch)
+                mgr_strict.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

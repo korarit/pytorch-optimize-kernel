@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import functools
+from contextlib import contextmanager
 from typing import Any, Callable, Iterator
 
 ModuleCallHandler = Callable[[Any, tuple[Any, ...], dict[str, Any], Callable[..., Any]], Any]
@@ -120,6 +121,7 @@ class ModuleCallDispatcher:
         self._handlers: dict[str, tuple[int, ModuleCallHandler]] = {}
         self._chain: Callable[..., Any] = self._orig_call
         self._depth = 0
+        self._recompute_depth = 0
         self._installed = False
 
     def _rebuild_chain(self) -> None:
@@ -148,7 +150,7 @@ class ModuleCallDispatcher:
 
         @functools.wraps(orig_call)
         def _unified_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if dispatcher._depth > 0:
+            if dispatcher._depth > 0 or dispatcher._recompute_depth > 0:
                 return orig_call(mod_self, *args, **kwargs)
             dispatcher._depth += 1
             try:
@@ -210,3 +212,17 @@ def unregister_module_call_handler(torch_mod: Any, name: str) -> None:
     disp = get_module_call_dispatcher(torch_mod, create=False)
     if disp is not None:
         disp.unregister(name)
+
+
+@contextmanager
+def recompute_dispatch_guard(torch_mod: Any) -> Iterator[None]:
+    """Suppress top-level `nn.Module.__call__` pass wrappers during backward recomputation."""
+    disp = get_module_call_dispatcher(torch_mod, create=False)
+    if disp is None:
+        yield
+        return
+    disp._recompute_depth += 1
+    try:
+        yield
+    finally:
+        disp._recompute_depth = max(0, disp._recompute_depth - 1)
