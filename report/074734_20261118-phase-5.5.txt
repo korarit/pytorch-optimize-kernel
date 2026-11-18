@@ -1,0 +1,217 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.5 REPORT: AUTO ACTIVATION CHECKPOINTING & ASYNC CUDA PREFETCH (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 07:47:34 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 5b7f9aa
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (actckpt+pf)  : Ran 4 tests in 1.495s (4.03s) -> PASS
+Unit (dataloader)  : Ran 5 tests in 0.161s (2.40s) -> PASS
+Overall Phase 5.5  : PASS
+
+[PART A: AUTO ACTIVATION CHECKPOINTING (VRAM REDUCTION & PARITY)]
+------------------------------------------------------------------------------
+Case         | Variant           | Step0 ms | Med ms | Wrap P99 | Speedup | VRAM MB (B/W/d | Saved)               | MaxRelDiff | Status
+-------------+-------------------+----------+--------+----------+---------+---------------------------------------+------------+-------
+lm_act_med   | balanced_no_ckpt  | 21486.5  | 63.24  | 64.30    | 4.08x   | 4066.0/2153.1 (-1913.0 | 0.0%)        | 6e-06      | PASS  
+lm_act_med   | balanced_act_ckpt | 2087.5   | 190.04 | 245.69   | 1.36x   | 4066.0/1171.8 (-2894.2 | 45.6% saved) | 2e-06      | PASS  
+lm_act_large | balanced_no_ckpt  | 24314.9  | 120.71 | 126.85   | 4.17x   | 7231.3/3623.3 (-3608.0 | 0.0%)        | 8e-06      | PASS  
+lm_act_large | balanced_act_ckpt | 2216.5   | 372.01 | 420.04   | 1.35x   | 7231.3/1684.1 (-5547.2 | 53.5% saved) | 1e-06      | PASS  
+
+[PART B: DEDICATED CUDA COPY STREAM PREFETCH (HEAVY H2D THROUGHPUT)]
+------------------------------------------------------------------------------
+Case           | Variant          | Step0 ms | Med ms | Wrap P99 | E2E s (B/W)  | Speedup | VRAM MB (B/W/d)         | MaxRelDiff | Status
+---------------+------------------+----------+--------+----------+--------------+---------+-------------------------+------------+-------
+cnn_vision_224 | dl_no_prefetch   | 22176.6  | 76.83  | 82.11    | 12.67/30.35s | 3.31x   | 3301.8/1618.9 (-1683.0) | 0.000507   | PASS  
+cnn_vision_224 | dl_cuda_prefetch | 8916.9   | 75.60  | 82.04    | 12.67/16.74s | 3.37x   | 3301.8/1611.3 (-1690.5) | 0.000507   | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (DATA/OTHER VS FORWARD/BACKWARD)]
+------------------------------------------------------------------------------
+Case           | Mode                 | Step0 ms | Steady ms | Data/Other  | Forward        | Loss/Clip   | Backward       | Optim      
+---------------+----------------------+----------+-----------+-------------+----------------+-------------+----------------+------------
+lm_act_med     | no_ckpt_dbg          | 7194.03  | 62.04     | 0.80 (1.3%) | 17.90 (28.9%)  | 1.46 (2.4%) | 36.86 (59.4%)  | 5.00 (8.1%)
+lm_act_med     | act_ckpt_dbg         | 2063.84  | 202.10    | 0.73 (0.4%) | 69.03 (34.2%)  | 0.88 (0.4%) | 143.93 (71.2%) | 4.95 (2.4%)
+lm_act_large   | no_ckpt_dbg          | 7842.66  | 114.63    | 0.91 (0.8%) | 34.19 (29.8%)  | 2.06 (1.8%) | 71.28 (62.2%)  | 6.19 (5.4%)
+lm_act_large   | act_ckpt_dbg         | 2214.21  | 382.18    | 0.81 (0.2%) | 122.73 (32.1%) | 1.28 (0.3%) | 282.81 (74.0%) | 6.17 (1.6%)
+cnn_vision_224 | dl_no_prefetch_dbg   | 7574.95  | 75.62     | 4.11 (5.4%) | 19.81 (26.2%)  | 0.59 (0.8%) | 50.73 (67.1%)  | 0.38 (0.5%)
+cnn_vision_224 | dl_cuda_prefetch_dbg | 7598.98  | 75.02     | 3.35 (4.5%) | 19.87 (26.5%)  | 0.64 (0.9%) | 50.77 (67.7%)  | 0.39 (0.5%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Case           | Mode                 | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+---------------+----------------------+----------+---------+-----------+----------+--------+--------
+lm_act_med     | no_ckpt_dbg          | 2153.1   | 2202.0  | 49.0      | 20361.1  | 9.8%   | 0      
+lm_act_med     | act_ckpt_dbg         | 1171.8   | 1238.0  | 66.2      | 21325.1  | 5.5%   | 0      
+lm_act_large   | no_ckpt_dbg          | 3623.3   | 3692.0  | 68.7      | 18871.1  | 16.4%  | 0      
+lm_act_large   | act_ckpt_dbg         | 1684.1   | 1768.0  | 83.9      | 20795.1  | 7.8%   | 0      
+cnn_vision_224 | dl_no_prefetch_dbg   | 1574.5   | 1632.0  | 57.5      | 20931.1  | 7.2%   | 0      
+cnn_vision_224 | dl_cuda_prefetch_dbg | 1611.3   | 1734.0  | 122.7     | 20829.1  | 7.7%   | 0      
+
+[TOP PYTORCH PROFILER OPS (RECOMPUTE & cudaMemcpyAsync OVERLAP)]
+------------------------------------------------------------------------------
+[lm_act_med | no_ckpt_dbg] Profiler window=[2, 4] self_cuda=239.744ms self_cpu=124.667ms (top_cuda_ops):
+  aten::mm                                         calls=246   self= 53.552ms (22.3%) total= 53.552ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=66    self= 17.390ms ( 7.3%) total= 17.390ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=82    self= 17.126ms ( 7.1%) total= 17.126ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=66    self= 13.391ms ( 5.6%) total= 13.391ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=16    self= 11.005ms ( 4.6%) total= 11.005ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=16    self= 11.005ms ( 4.6%) total= 11.005ms
+  Optimizer.step#AdamW.step                        calls=2     self=  8.945ms ( 3.7%) total=  8.945ms
+  aten::_fused_adamw_                              calls=2     self=  8.732ms ( 3.6%) total=  8.732ms
+[lm_act_med | act_ckpt_dbg] Profiler window=[2, 4] self_cuda=733.97ms self_cpu=369.209ms (top_cuda_ops):
+  aten::mm                                         calls=326   self=139.928ms (19.1%) total=139.928ms
+  aten::mul                                        calls=484   self= 80.281ms (10.9%) total= 80.281ms
+  void at::native::vectorized_elementwise_kernel<4 calls=216   self= 70.128ms ( 9.6%) total= 70.128ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=98    self= 50.533ms ( 6.9%) total= 50.533ms
+  aten::_efficient_attention_backward              calls=16    self= 35.237ms ( 4.8%) total= 38.032ms
+  fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch calls=16    self= 35.237ms ( 4.8%) total= 35.237ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=66    self= 29.172ms ( 4.0%) total= 29.172ms
+  aten::_efficient_attention_forward               calls=32    self= 24.075ms ( 3.3%) total= 24.203ms
+[lm_act_large | no_ckpt_dbg] Profiler window=[2, 4] self_cuda=452.089ms self_cpu=230.155ms (top_cuda_ops):
+  aten::mm                                         calls=306   self=112.310ms (24.8%) total=112.310ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=102   self= 37.363ms ( 8.3%) total= 37.363ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=82    self= 35.179ms ( 7.8%) total= 35.179ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=82    self= 28.084ms ( 6.2%) total= 28.084ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=20    self= 21.210ms ( 4.7%) total= 21.210ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=20    self= 21.210ms ( 4.7%) total= 21.210ms
+  aten::_flash_attention_backward                  calls=20    self= 17.261ms ( 3.8%) total= 17.261ms
+  triton_poi_fused__unsafe_view_mul_silu_7         calls=20    self= 12.411ms ( 2.7%) total= 12.411ms
+[lm_act_large | act_ckpt_dbg] Profiler window=[2, 4] self_cuda=1460.281ms self_cpu=727.849ms (top_cuda_ops):
+  aten::mm                                         calls=406   self=267.120ms (18.3%) total=267.120ms
+  aten::mul                                        calls=600   self=173.694ms (11.9%) total=173.694ms
+  void at::native::vectorized_elementwise_kernel<4 calls=268   self=142.500ms ( 9.8%) total=142.500ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=122   self=100.431ms ( 6.9%) total=100.431ms
+  aten::_efficient_attention_backward              calls=20    self= 68.462ms ( 4.7%) total= 76.029ms
+  fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch calls=20    self= 68.462ms ( 4.7%) total= 68.462ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=82    self= 52.874ms ( 3.6%) total= 52.874ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=62    self= 51.962ms ( 3.6%) total= 51.962ms
+[cnn_vision_224 | dl_no_prefetch_dbg] Profiler window=[3, 6] self_cuda=422.318ms self_cpu=221.89ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self= 66.161ms (15.7%) total= 66.161ms
+  aten::cudnn_convolution                          calls=30    self= 25.501ms ( 6.0%) total= 25.501ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=15    self= 22.586ms ( 5.3%) total= 22.586ms
+  sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f calls=15    self= 17.366ms ( 4.1%) total= 17.366ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=12    self= 13.959ms ( 3.3%) total= 13.959ms
+  triton_red_fused__native_batch_norm_legit_functi calls=9     self= 12.682ms ( 3.0%) total= 12.682ms
+  triton_red_fused__native_batch_norm_legit_functi calls=9     self= 12.682ms ( 3.0%) total= 12.682ms
+  sm80_xmma_fprop_implicit_gemm_bf16bf16_bf16f32_f calls=12    self= 12.070ms ( 2.9%) total= 12.070ms
+[cnn_vision_224 | dl_cuda_prefetch_dbg] Profiler window=[3, 6] self_cuda=424.334ms self_cpu=223.367ms (top_cuda_ops):
+  aten::convolution_backward                       calls=30    self= 66.672ms (15.7%) total= 66.672ms
+  aten::cudnn_convolution                          calls=30    self= 26.171ms ( 6.2%) total= 26.171ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=15    self= 22.709ms ( 5.4%) total= 22.709ms
+  sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f calls=15    self= 17.425ms ( 4.1%) total= 17.425ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=12    self= 14.071ms ( 3.3%) total= 14.071ms
+  triton_red_fused__native_batch_norm_legit_functi calls=9     self= 12.673ms ( 3.0%) total= 12.673ms
+  triton_red_fused__native_batch_norm_legit_functi calls=9     self= 12.673ms ( 3.0%) total= 12.673ms
+  sm80_xmma_fprop_implicit_gemm_bf16bf16_bf16f32_f calls=12    self= 12.315ms ( 2.9%) total= 12.315ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[lm_act_med | baseline] step0=545.76ms | steady_med=257.08ms | s0=545.76ms, s1=245.58ms, s2=252.20ms, s3=248.79ms, s4=260.99ms, s5=259.04ms, s6=257.08ms, s7=255.28ms ...
+[lm_act_med | balanced_no_ckpt] step0=21486.47ms | steady_med=63.16ms | s0=21486.47ms, s1=57.99ms, s2=63.33ms, s3=63.16ms, s4=62.99ms, s5=62.94ms, s6=62.71ms, s7=63.33ms ...
+[lm_act_med | balanced_act_ckpt] step0=2087.52ms | steady_med=190.09ms | s0=2087.52ms, s1=249.92ms, s2=189.29ms, s3=187.73ms, s4=190.09ms, s5=194.12ms, s6=197.04ms, s7=190.00ms ...
+[lm_act_large | baseline] step0=767.00ms | steady_med=501.62ms | s0=767.00ms, s1=484.79ms, s2=496.79ms, s3=504.85ms, s4=498.54ms, s5=508.40ms, s6=495.46ms, s7=505.97ms ...
+[lm_act_large | balanced_no_ckpt] step0=24314.85ms | steady_med=120.10ms | s0=24314.85ms, s1=108.20ms, s2=115.04ms, s3=116.98ms, s4=117.37ms, s5=121.32ms, s6=126.86ms, s7=125.40ms ...
+[lm_act_large | balanced_act_ckpt] step0=2216.45ms | steady_med=374.44ms | s0=2216.45ms, s1=415.81ms, s2=364.47ms, s3=374.44ms, s4=369.58ms, s5=368.72ms, s6=420.41ms, s7=365.59ms ...
+[cnn_vision_224 | baseline] step0=740.67ms | steady_med=254.35ms | s0=740.67ms, s1=254.43ms, s2=255.78ms, s3=253.55ms, s4=253.39ms, s5=253.93ms, s6=254.71ms, s7=254.42ms ...
+[cnn_vision_224 | dl_no_prefetch] step0=22176.56ms | steady_med=76.83ms | s0=22176.56ms, s1=71.43ms, s2=74.15ms, s3=80.21ms, s4=80.65ms, s5=75.76ms, s6=79.62ms, s7=81.60ms ...
+[cnn_vision_224 | dl_cuda_prefetch] step0=8916.89ms | steady_med=75.10ms | s0=8916.89ms, s1=70.68ms, s2=74.06ms, s3=74.27ms, s4=77.15ms, s5=76.99ms, s6=80.53ms, s7=73.97ms ...
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- lm_act_med (balanced_no_ckpt): med=63.24ms (4.08x), VRAM 2153.1 MB (0.0% vs no_ckpt)
+- lm_act_med (balanced_act_ckpt): med=190.04ms (1.36x), VRAM 1171.8 MB (45.6% saved vs no_ckpt)
+- lm_act_large (balanced_no_ckpt): med=120.71ms (4.17x), VRAM 3623.3 MB (0.0% vs no_ckpt)
+- lm_act_large (balanced_act_ckpt): med=372.01ms (1.35x), VRAM 1684.1 MB (53.5% saved vs no_ckpt)
+- cnn_vision_224 (dl_no_prefetch): med=76.83ms (3.31x), E2E=30.35s, VRAM 1618.9 MB (-1683.0 MB)
+- cnn_vision_224 (dl_cuda_prefetch): med=75.60ms (3.37x), E2E=16.74s, VRAM 1611.3 MB (-1690.5 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] lm_act_med (balanced_no_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (balanced_no_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (balanced_no_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (balanced_no_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (balanced_no_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/lm_act_med)
+[APPLIED] lm_act_med (balanced_no_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (balanced_no_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (balanced_no_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] lm_act_med (balanced_no_ckpt) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] lm_act_med (balanced_no_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_med (balanced_no_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (balanced_no_ckpt) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_med (balanced_act_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (balanced_act_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (balanced_act_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (balanced_act_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (balanced_act_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/lm_act_med)
+[APPLIED] lm_act_med (balanced_act_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (balanced_act_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (balanced_act_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_med (balanced_act_ckpt) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[SKIPPED] lm_act_med (balanced_act_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_med (balanced_act_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (balanced_act_ckpt) -> runtime.activation_checkpointing: Enabled activation checkpointing on 8 blocks of TinyGPT (mode=always)
+[SKIPPED] lm_act_med (balanced_act_ckpt) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[APPLIED] lm_act_large (balanced_no_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (balanced_no_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (balanced_no_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (balanced_no_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (balanced_no_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/lm_act_large)
+[APPLIED] lm_act_large (balanced_no_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (balanced_no_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (balanced_no_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] lm_act_large (balanced_no_ckpt) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] lm_act_large (balanced_no_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_large (balanced_no_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (balanced_no_ckpt) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_large (balanced_act_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (balanced_act_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (balanced_act_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (balanced_act_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (balanced_act_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/lm_act_large)
+[APPLIED] lm_act_large (balanced_act_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (balanced_act_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (balanced_act_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_large (balanced_act_ckpt) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[SKIPPED] lm_act_large (balanced_act_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_large (balanced_act_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (balanced_act_ckpt) -> runtime.activation_checkpointing: Enabled activation checkpointing on 10 blocks of TinyGPT (mode=always)
+[SKIPPED] lm_act_large (balanced_act_ckpt) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/cnn_vision_224)
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] cnn_vision_224 (dl_no_prefetch) -> kernels.auto: kernels.enabled is False
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> runtime.channels_last: Converted Conv2d module to channels_last (min_spatial_area=16384)
+[APPLIED] cnn_vision_224 (dl_no_prefetch) -> compile.auto: Compiled TinyResNet (mode=default, dynamic=False)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8jqatkiq/cnn_vision_224)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] cnn_vision_224 (dl_cuda_prefetch) -> kernels.auto: kernels.enabled is False
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> dataloader.cuda_prefetch: Dedicated CUDA copy-stream prefetch enabled for DataLoader
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> optimizer.SGD: fused=True
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> runtime.channels_last: Converted Conv2d module to channels_last (min_spatial_area=16384)
+[APPLIED] cnn_vision_224 (dl_cuda_prefetch) -> compile.auto: Compiled TinyResNet (mode=default, dynamic=False)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify 30%-60% Activation VRAM reduction and H2D Data/Other overlap on Colab L4)
+==============================================================================

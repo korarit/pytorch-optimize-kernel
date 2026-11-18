@@ -1,23 +1,23 @@
 # kernel-pytouch-optimize (`ptopt`)
 
-> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster** and cuts peak **VRAM by up to 47% (-4.32 GB)** without touching a single line of user model code, altering `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `src/`.
+> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster training** / **4.78x faster inference** and slashes peak **VRAM by up to 47%–65%** (or up to **-5.55 GB** with auto activation checkpointing) without modifying user model code, altering stored `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `src/`.
 >
 > **Precision Transparency Notice (`supersafe` / `safe` / `balanced` / `aggressive`):**
 > - `--profile supersafe` (Strict Exact FP32): Keeps `TF32=False`, `AMP=False` (`fp32` end-to-end), and `compile=False` while enabling fused optimizers and `inference_mode()` (`0.0` numerical drift across all workloads).
 > - `--profile safe` (FP32 Weights + TF32 Tensor Cores): Keeps all weights/activations stored in **`FP32`** (no BF16/FP16 AMP, no compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last` (`>= 128x128` Conv2d) — verified at **`1.88x`** (`1e-06` drift) on `transformer_lm` and **`1.50x`** on `deep_mlp` on NVIDIA L4.
-> - `--profile balanced` / `aggressive` (Standard Mixed Precision): Adds **`BF16`/`FP16` AMP**, `torch.compile`, CUDA Graphs, and Triton kernels (`~0.003%` / `3e-05` loss drift on `transformer_lm:large` at `4.41x`; `4e-6–6e-6` on `transformer_lm:medium` at `3.80x–3.89x`; `~0.04%–0.22%` on `cnn_vision` and `deep_mlp:medium`). Deep unresidualized MLPs (e.g., 24-layer `deep_mlp:large` at `~2.17%`) or strict scientific PDE/PINN workloads should use `--profile supersafe`.
+> - `--profile balanced` / `aggressive` (Standard Mixed Precision): Adds **`BF16`/`FP16` AMP**, `torch.compile`, **Training & Inference CUDA Graphs**, **Triton kernels** (including Fused Linear+CrossEntropy), and **auto activation checkpointing** (`auto` VRAM threshold guard) — delivering **`4.41x`** on `transformer_lm:large` (`3e-05` loss drift) and **`3.75x–3.84x`** on `transformer_lm:medium` (`4e-6–9e-6` drift). Deep unresidualized MLPs or strict scientific PDE/PINN workloads should use `--profile supersafe`.
 
 ---
 
 ## Why `ptopt` Outperforms Pure PyTorch
 
-By default, **Pure PyTorch** prioritizes conservative cross-hardware defaults and leaves performance optimizations to manual boilerplate (enabling TF32, configuring `autocast` + `GradScaler`, tuning `DataLoader`, converting `channels_last`, enabling `fused=True` optimizers, wiring `torch.compile`, or capturing CUDA Graphs). Applying them ad-hoc is also error-prone—for example, enabling TF32/BF16 on T4 (`sm_75`), spawning DataLoader workers under small `/dev/shm`, hitting FP8 precision drift on small matrices, or breaking checkpoints with `_orig_mod.` prefixes.
+By default, **Pure PyTorch** prioritizes conservative cross-hardware defaults and leaves performance optimizations to manual boilerplate (enabling TF32, configuring `autocast` + `GradScaler`, tuning `DataLoader` and CUDA prefetch streams, converting `channels_last`, enabling `fused=True` optimizers, wiring `torch.compile`, capturing CUDA Graphs, or applying activation checkpointing near OOM). Applying them ad-hoc is also error-prone—for example, enabling TF32/BF16 on T4 (`sm_75`), spawning DataLoader workers under small `/dev/shm`, hitting compile overhead on tiny/dynamic models, getting FP8 drift on small matrices, or breaking checkpoints with `_orig_mod.` prefixes.
 
 **`ptopt` automates the entire stack before `import torch` runs:**
 1. **Zero-Code Injection**: Wraps existing commands (`ptopt -- python3 train.py`) via `sitecustomize` and propagates automatically to `DataLoader` worker subprocesses.
-2. **Hardware-Aware Auto-Tuning**: Probes GPU SM architecture (`T4 sm_75`, `A100 sm_80`, `L4 sm_89`, `H100 sm_90`, Apple Silicon MPS, or CPU), VRAM headroom, CPU cores, and `/dev/shm` size to apply only safe, profitable passes.
-3. **Model & Checkpoint Transparency**: Never modifies `nn.Parameter` dtypes/shapes permanently, strips `_orig_mod.` prefixes, restores contiguous `NCHW` weights on `state_dict()`, and re-syncs injected `fused=True` flags and 4D optimizer buffers (`exp_avg`, `exp_avg_sq`) on `load_state_dict()` and `channels_last` conversion — verified across a full 5×5 checkpoint cross-load matrix.
-4. **Fail-Safe Guards, Cache Isolation & Diagnostics**: Protects runs with an AMP `NaN` watchdog, `/dev/shm` & pickle checks, `requires_grad` guards on eval, dynamic-shape compilation fallback, legacy v0 config auto-migration, `(gpu_arch, torch_version, triton_version)` Inductor/Triton cache isolation, plus `ptopt --doctor` and `--fallback-report --save-report`.
+2. **Hardware- & Shape-Aware Auto-Tuning**: Probes GPU SM architecture (`T4 sm_75`, `A100 sm_80`, `L4 sm_89`, `H100 sm_90`, Apple Silicon MPS, or CPU), VRAM headroom, CPU cores, and `/dev/shm` size, plus parameter/input-element/dynamic-shape gates so small or dynamic workloads never suffer compile regressions (`0.95x–1.00x`).
+3. **Model & Checkpoint Transparency**: Never modifies `nn.Parameter` dtypes/shapes permanently, strips `_orig_mod.` and checkpoint-wrapper prefixes, restores contiguous `NCHW` weights on `state_dict()`, and re-syncs injected `fused=True` flags and 4D optimizer buffers (`exp_avg`, `exp_avg_sq`) on `load_state_dict()` and `channels_last` conversion — verified across a full 5×5 checkpoint cross-load matrix.
+4. **Fail-Safe Guards, Cache Isolation & Diagnostics**: Protects runs with an AMP `NaN` watchdog, `/dev/shm` & pickle checks, `requires_grad` guards on eval, dynamic-shape & tiny-model compile guards, auto OOM-preventive activation checkpointing (`>82%` VRAM pressure), legacy v0 config auto-migration, `(gpu_arch, torch_version, triton_version)` Inductor/Triton cache isolation, plus `ptopt --doctor` and `--fallback-report --save-report`.
 
 ---
 
@@ -27,7 +27,7 @@ By default, **Pure PyTorch** prioritizes conservative cross-hardware defaults an
 flowchart TD
     UserCmd["User Command: ptopt --profile balanced -- python3 train.py"] --> CLI["CLI Launcher (src/cli/main.py)"]
     CLI --> Detect["Hardware Probe (src/detect: GPU SM, VRAM, CPU, /dev/shm)"]
-    Detect --> Resolver["Config Resolver (src/config: safe / balanced / aggressive + overrides)"]
+    Detect --> Resolver["Config Resolver (src/config: supersafe / safe / balanced / aggressive + overrides)"]
     Resolver --> PreEnv["Pre-Launch Env (src/passes/memory_allocator.py: ALLOC_CONF, OMP, Cache Dirs)"]
     PreEnv --> Spawn["Subprocess with PYTHONPATH Bootstrap"]
 
@@ -36,17 +36,18 @@ flowchart TD
     LazyHook --> HookMgr["HookManager + Checkpoint Compat (src/hooks/manager.py, checkpoint_compat.py)"]
 
     HookMgr --> RuntimePasses["Runtime & Memory Passes (runtime.flags TF32/SDPA, memory_allocator)"]
-    RuntimePasses --> DataPass["Data & Optim Passes (dataloader.auto_tune + async H2D, optimizer.fusion)"]
-    DataPass --> ModuleWrappers["In-Place nn.Module Execution Stack (outer to inner)"]
+    RuntimePasses --> DataPass["Data & Optim Passes (dataloader.auto_tune + async CUDA stream prefetch, optimizer.fusion)"]
+    DataPass --> ModuleWrappers["In-Place nn.Module Execution Stack"]
 
     subgraph ModuleStack ["Transparent Forward Wrapping Stack"]
         direction TB
-        InferOpt["1. inference.opt (inference_mode, CUDA Graphs, Fused Triton FP8)"]
+        InferOpt["1. inference.opt (inference_mode, CUDA Graphs, Compiled FP8 + optional weight drop)"]
         AmpWrap["2. amp.auto (BF16 / FP16 + GradScaler + Functional Loss FP32 Guard)"]
         LayoutWrap["3. runtime.channels_last (Conv2d spatial >= 128x128)"]
-        CompileWrap["4. compile.auto (In-place mod._call_impl + dynamic shape guard)"]
-        KernelWrap["5. kernels.auto (Custom Triton RMSNorm / CrossEntropy + Compile-Aware Gate)"]
-        InferOpt --> AmpWrap --> LayoutWrap --> CompileWrap --> KernelWrap
+        CompileWrap["4. compile.auto (In-place compile, tiny/dynamic guard, static Training CUDA Graphs)"]
+        ActCkpt["5. runtime.activation_checkpointing (auto >82% VRAM / always)"]
+        KernelWrap["6. kernels.auto (Triton RMSNorm / CrossEntropy / Fused Linear+CE + Compile-Aware Gate)"]
+        InferOpt --> AmpWrap --> LayoutWrap --> CompileWrap --> ActCkpt --> KernelWrap
     end
 
     ModuleWrappers --> ModuleStack
@@ -57,16 +58,16 @@ flowchart TD
 
 ## Difference Matrix: Pure PyTorch vs. `ptopt`
 
-| Optimization Area | What Pure PyTorch Does (Default / Ad-Hoc) | What `ptopt` Does Instead | Why `ptopt` Is Better (Colab L4 Results) |
+| Optimization Area | What Pure PyTorch Does (Default / Ad-Hoc) | What `ptopt` Does Instead | Verified Impact (Colab NVIDIA L4 `sm_89`) |
 | :--- | :--- | :--- | :--- |
-| **1. Tensor Cores & Attention (`TF32` / `AMP` / `SDPA`)** | Keeps `allow_tf32=False`, runs `Linear`/`Conv` in **FP32 SIMT**, leaves functional losses unpromoted outside `autocast`, and suffers heavy dtype `cast churn` on deep LayerNorm MLPs. | Enables `TF32` (`sm >= 80`) + Flash/Mem-Efficient SDPA, wraps top-level `nn.Module` in `BF16` (`L4`/`A100`) or `FP16 + GradScaler` (`T4`), promotes functional losses to `fp32`, and skips eager AMP on cast-heavy MLPs. | **`3.08x`** eager speedup on `transformer_lm:large` (`777.6 -> 252.6 ms`) and nearly halves activation VRAM (`-2.85 GB`). |
-| **2. Graph Fusion & `torch.compile`** | Executes **eager op-by-op** (`RMSNorm`, `SwiGLU`, `GELU` write intermediates to HBM separately); manual `torch.compile(model)` mutates `state_dict()` keys with `_orig_mod.`. | Compiles `mod._call_impl` **in-place** (no `_orig_mod.` keys exposed), auto-switches once to `dynamic=True` on shape shifts, and persists graph caches. | Flips `transformer_lm:small` from `0.96x` to **`2.05x–2.08x`**; boosts `transformer_lm:large` to **`4.39x–4.41x`** and cuts VRAM **`-4.32 GB`**. |
-| **3. Memory Layout (`Conv2d`)** | Stores 4D weights/activations in `NCHW`, forcing cuDNN to insert `nchwToNhwc` / `nhwcToNchw` transposes on every conv (~13.7% of GPU time). | Auto-converts weights and 4D inputs to `torch.channels_last` only for CUDA `Conv2d` with spatial size `>= 128x128`, restoring `contiguous` layout on `state_dict()`. | Eliminates `nchwToNhwc` kernels completely -> `cnn_vision:medium` **`3.04x`**, `large` **`2.90x`** (VRAM `-1.73 GB`). |
-| **4. Optimizer (`Adam` / `AdamW` / `SGD`)** | Launches per-tensor / multi-tensor update kernels (`_foreach_mul_`, `_foreach_addcdiv_`, `_foreach_lerp_`) accounting for up to **66% of step time** in deep models. | Injects `fused=True` (for CUDA floating-point params) or `foreach=True` fallback directly into `Adam`/`AdamW`/`SGD.__init__`. | Collapses optimizer updates into one `aten::_fused_adamw_` kernel -> `deep_mlp:large` Optim time drops **35.02 ms -> 12.80 ms**. |
-| **5. DataLoader & Host-to-Device Copy** | Defaults to `num_workers=0`, `pin_memory=False`, and synchronous blocking `.to(device)` / `.cuda()` host transfers. | Checks `/dev/shm` & fast picklability before tuning `num_workers`, enables `pin_memory=True` + `persistent_workers=True`, and auto-promotes pinned CPU->CUDA `.to()`/`.cuda()` calls to `non_blocking=True`. | `cnn_vision:large` Data/Other phase drops **16.77 ms -> 2.40 ms (~7x)** while preventing `/dev/shm` crashes. |
-| **6. Custom Triton Kernels & Compile Cooperation** | Eager `RMSNorm` and `CrossEntropy` launch multiple HBM-bound kernels; naive `autograd.Function` custom ops inserted inside compiled graphs trigger graph breaks. | Ships fused Triton `RMSNorm`, online-softmax `CrossEntropy` (zero `.item()` CPU-GPU sync), `SwiGLU`, and `LayerNorm` for eager speedup (**3.81x–4.11x**), plus a **Compile-Aware Gate** that defers internal module wrappers (`rmsnorm`, `layernorm`, `swiglu`) to Inductor when compiling so zero graph breaks occur. | Standalone micro-benchmarks beat both Eager & `torch.compile`: `RMSNorm [large]` **`7.39x vs Eager`** (`0.592 ms` / `105.8 GB/s`), `CrossEntropy [large]` **`3.55x vs Eager`** (`3.362 ms`), and E2E `aggressive_full` reaches **`4.41x`**. |
-| **7. Inference Latency (`bs=1`) & FP8 (`sm >= 89`)** | Runs `.eval()` with autograd tracking and Python kernel dispatch overhead; naive eager FP8 drifts on small tensors and spends >50% GPU time quantizing. | Enters `torch.inference_mode()` (guarded against `requires_grad`/`enable_grad`), uses `reduce-overhead` CUDA Graphs for static shapes, and gates opt-in FP8 (`m_rows >= 512`) with a fused Triton 2-pass quantizer + lazy weight cache (zero bloat on `bs=1`). | `bs=1` latency drops `1.55 ->` **`0.49 ms` (`3.18x`)**; `bs=64` reaches **`4.16x`** (`89.89 ms`); Fused FP8 `bs=64` hits **`2.48x`** with only `+0.2–2.2 MB` overhead on `bs=1`. |
-| **8. Allocator, Cache Isolation & Diagnostics** | Default CUDA allocator risks segment fragmentation; Inductor/Triton compile caches collide across GPU arch/PyTorch upgrades; setup failures happen silently. | Configures `expandable_segments:True`, physical-core `OMP/MKL_NUM_THREADS`, scopes `TORCHINDUCTOR_CACHE_DIR` & `TRITON_CACHE_DIR` by `(gpu_arch, torch_version, triton_version)`, and adds `ptopt --doctor` + `--fallback-report --save-report`. | Achieves `num_alloc_retries=0`, cuts Warm Step-0 compile time **24.9s -> 6.2s**, and passes full **14/14 L4 GPU Regression Gate** ([Phase 4 Final](report/211155_20261117-phase-4.txt)). |
+| **1. Tensor Cores & Attention (`TF32` / `AMP` / `SDPA`)** | Keeps `allow_tf32=False`, runs matmuls/convs in **FP32 SIMT**, leaves functional losses unpromoted outside `autocast`, and hits dtype `cast churn` on deep LayerNorm MLPs. | Enables `TF32` (`sm >= 80`) + Flash/Mem-Efficient SDPA, wraps top-level `nn.Module` in `BF16` (`L4`/`A100`/`H100`) or `FP16 + GradScaler` (`T4`), promotes functional losses to `fp32`, and skips eager AMP on cast-heavy MLPs. | **`3.08x`** eager speedup on `transformer_lm:large` (`780.1 → 252.9 ms`) and **`-2.85 GB`** activation VRAM. |
+| **2. Graph Fusion, `torch.compile` & Guardrails** | Executes eager op-by-op, or mutates `state_dict()` with `_orig_mod.` and slows down tiny/dynamic workloads via compile & shape-guard overhead (`0.69x–0.87x`). | Compiles in-place (zero `_orig_mod.` keys), enforces parameter/element/dynamic-shape profitability gates (`skip` when unprofitable), auto-switches on dynamic shapes, and isolates caches per `(gpu_arch, torch, triton)`. | Flips `transformer_lm:small` to **`2.05x–2.08x`** & `large` to **`4.41x`** (`-4.32 GB`); restores tiny/dynamic edge cases from `0.81x` back to **`0.95x–1.00x`** ([Phase 5.1](report/051102_20261118-phase-5.1.txt)). |
+| **3. Training & Inference CUDA Graphs** | Launch-bound static training/eval loops pay Python & CUDA kernel launch latency every step even after `torch.compile`. | Uses `reduce-overhead` CUDA Graphs for static inference (`aggressive`) and `compile.train_cuda_graphs` (`sm >= 80`, `VRAM >= 16 GB`, static training without stochastic Dropout mismatch). | Static training jumps over `compile=default`: `deep_mlp` **`2.12x`** (`1.83x vs compile`), `cnn_vision_small` **`2.01x`**, `transformer_lm_small` **`2.58x`** ([Phase 5.4](report/065346_20261118-phase-5.4.txt)); `bs=1` infer hits **`3.18x` (`0.49 ms`)**. |
+| **4. Memory Layout (`Conv2d`) & Optimizers** | Uses `NCHW` (forcing cuDNN `nchwToNhwc` transposes) and multi-tensor optimizer loops (`_foreach_*`) taking up to 66% of step time in deep models. | Auto-converts weights/4D inputs to `channels_last` for Conv2d `>= 128x128` (restoring `NCHW` on `state_dict()`), and injects `fused=True` (`foreach=True` fallback) into `Adam`/`AdamW`/`SGD`. | Eliminates transpose kernels -> `cnn_vision:medium` **`3.30x`**, `cnn_vision_224` **`3.37x`** (`-1.69 GB` VRAM); fused optimizers collapse multi-tensor loops into single `fused` kernels. |
+| **5. DataLoader & Async CUDA Stream Prefetch** | Defaults to `num_workers=0`, `pin_memory=False`, and synchronous blocking host-to-device copies on the compute stream. | Probes `/dev/shm` & dataset picklability before enabling `num_workers` + `pin_memory` + `persistent_workers` + `non_blocking=True`; opt-in `dataloader.cuda_prefetch` stages batches ahead on a dedicated CUDA stream. | Cuts `cnn_vision_224` `Data/Other` (`4.11 → 3.35 ms`) and E2E time from **`30.35s → 16.74s`** (`3.37x` steady step, [Phase 5.5](report/074734_20261118-phase-5.5.txt)). |
+| **6. Custom Triton Kernels & Fused Linear+CE** | Naive `nn.Linear + CrossEntropyLoss` materializes massive `[B*S, V]` FP32 logits in HBM (OOM risk on large vocab); custom ops inside `torch.compile` trigger graph breaks. | Ships Triton `RMSNorm`, `LayerNorm`, `CrossEntropy`, `SwiGLU`, a **Compile-Aware Gate** (zero graph breaks), and chunked **Fused Linear+CrossEntropy** (`src/kernels/fused_linear_cross_entropy.py`). | Micro `Linear+CE` (`4096x1024, V=65536`) saves **`81.4%` VRAM (`-2,736 MB`)**; E2E `vocab32k` hits **`3.34x`** with **`-2,287 MB` (`-65.3%`)** VRAM & E2E `9.24s` vs `24.13s` ([Phase 5.2](report/053832_20261118-phase-5.2.txt)). |
+| **7. Auto Activation Checkpointing** | High-activation models (`no_ckpt`) hit VRAM limits or OOM unless users manually wrap Transformer/ResNet blocks with `torch.utils.checkpoint`. | `runtime.activation_checkpointing="auto"` (default in `balanced`/`aggressive`) monitors VRAM pressure (`>82%` threshold) or `"always"` mode to checkpoint eligible blocks cleanly. | Cuts high-activation VRAM by an extra **`45.6%`** (`lm_act_med`: `1,171.8 MB`) and **`53.5%`** (`lm_act_large`: `1,684.1 MB`, **`-5,547.2 MB` vs baseline**) at `1.35x–1.36x` ([Phase 5.5](report/074734_20261118-phase-5.5.txt)). |
+| **8. Inference FP8 (`sm >= 89`) & Weight Drop** | Naive eager FP8 spends >50% GPU time quantizing and drifts on small batches; duplicate BF16 weights stay resident in VRAM during eval. | Supports compiled FP8 (`torch.compile` + `_scaled_mm` gated by `m_rows * n_cols >= work_gate`) plus opt-in `PTOPT_FP8_DROP_BF16_EVAL=1` to release BF16 copies after FP8 quantization. | `infer_bs64_large` reaches **`4.78x` (`77.41 ms`, `826.8 samp/s`)**; `drop_w` drops peak VRAM down to **`411.4 MB` (`-355.5 MB`, `4.74x`)** ([Phase 5.3](report/061553_20261118-phase-5.3.txt)). |
 
 ---
 
@@ -77,37 +78,55 @@ flowchart TD
 - **`--profile supersafe` (Strict FP32)**: Keeps `TF32=False`, `AMP=False` (`fp32`), and `channels_last` opt-in for exact FP32 math (`0.0` drift) with `fused` optimizers and `inference_mode()`.
 - **`--profile safe` (FP32 + TF32 Tensor Cores)**: Keeps `AMP=False` (`fp32` tensors, zero compile warmup) while enabling **`TF32` Tensor Core matmuls (`sm >= 80`)**, `DataLoader` auto-tuning + async H2D, and auto `channels_last`.
 - **`--profile balanced` & `--profile aggressive` (Standard Mixed Precision)**:
-  - On Ampere/Ada/Hopper (`sm >= 80`), uses hardware **`TF32`** (for FP32 matmuls) and **`BF16`** (`bfloat16`, which keeps FP32's full 8-bit exponent range), while master weights, optimizer states (`AdamW`), functional losses, and internal Triton reductions (`RMSNorm`, `LayerNorm`, `CrossEntropy`, `SwiGLU`) compute in **`FP32`**. Measured loss drift vs. pure FP32 on `transformer_lm:large` (`4.41x`) is only **`0.00003` (`MaxRelDiff = 3e-05`)**.
+  - On Ampere/Ada/Hopper (`sm >= 80`), uses hardware **`TF32`** and **`BF16`** (`bfloat16`, which keeps FP32's full 8-bit exponent range), while master weights, optimizer states (`AdamW`), functional losses, and internal Triton reductions (`RMSNorm`, `LayerNorm`, `CrossEntropy`, `Fused Linear+CE`, `SwiGLU`) compute in **`FP32`**. Measured loss drift vs. pure FP32 on `transformer_lm:large` (`4.41x`) is **`0.00003` (`MaxRelDiff = 3e-05`)** and `Linear+CE` parity is `0.00e+00–1.53e-05`.
   - On older GPUs (`sm_70–79`, e.g., T4), `TF32` stays disabled and standard **`FP16 + GradScaler`** is used.
-  - Built-in **NaN/Inf Watchdog** and **Functional Loss FP32 Guards** automatically protect numerical stability, and deep unresidualized LayerNorm MLPs (`>= 6` layers) skip eager AMP automatically.
-- **FP8 / INT8 Quantization Is Strict Opt-In Only (`OFF` by default)**: `PTOPT_INFERENCE_FP8=1` and `PTOPT_INFERENCE_QUANT=int8` never run during training or under any default profile, only activate inside `.eval()` when explicitly requested, keep original `nn.Parameter` weights untouched, and guard small matrices (`m_rows < 512` skipped for FP8).
+  - Built-in **NaN/Inf Watchdog** and **Functional Loss FP32 Guards** protect numerical stability, and deep unresidualized LayerNorm MLPs (`>= 6` layers) skip eager AMP automatically.
+- **FP8 / INT8 Quantization Is Strict Opt-In Only (`OFF` by default)**: `PTOPT_INFERENCE_FP8=1` and `PTOPT_INFERENCE_QUANT=int8` never run during training or under any default profile, only activate inside `.eval()`, and guard small workloads via shape/work gates.
 
 ---
 
 ## Verified Benchmarks (`NVIDIA L4 sm_89` on Google Colab)
 
-All metrics below are directly measured from the reports in [`report/`](report/):
+All metrics below are directly observed from the Colab reports in [`report/`](report/).
 
-### Training Benchmarks
-| Workload & Scale | Baseline | `ptopt` Optimized | Speedup | Peak VRAM Delta | Report |
+### 1. Training: Transformer LLM (`Small` / `Medium` / `Large`, Large-Vocab & High-Activation)
+| Workload & Variant | Baseline | `ptopt` Optimized | Speedup | Peak VRAM (Base → Wrap) | Report |
 | :--- | :---: | :---: | :---: | :---: | :--- |
-| **`transformer_lm:large`** | 793.86 ms | **180.14 ms** (`aggressive_full`) | **4.41x** | **-4,316.0 MB** (`9,174 -> 4,858 MB`) | [181819](report/181819_20261117-phase-3.7.txt) |
-| **`transformer_lm:medium`** | 99.73 ms | **25.95 ms** (`aggressive_full`) | **3.84x** | **-779.5 MB** | [181819](report/181819_20261117-phase-3.7.txt) |
-| **`transformer_lm:small`** | 11.91 ms | **5.82 ms** (`aggressive_full`) | **2.05x** | **-121.9 MB** | [181819](report/181819_20261117-phase-3.7.txt) |
-| **`cnn_vision:medium`** | 65.75 ms | **21.66 ms** | **3.04x** | **-385.6 MB** | [141819](report/141819_20261117-phase-3.4.txt) |
-| **`cnn_vision:large`** | 280.96 ms | **96.84 ms** | **2.90x** | **-1,728.1 MB** | [144108](report/144108_20261117-phase-3.5.txt) |
+| **`transformer_lm:small` (`train_cuda_graphs`)** | 12.28 ms | **4.75 ms** (vs `6.94 ms` compile) | **2.58x** (`1.46x` vs compile) | `355.3 → 217.2 MB` (**-138.1 MB**) | [065346](report/065346_20261118-phase-5.4.txt) |
+| **`transformer_lm:small` (`aggressive_full`)** | 11.91 ms | **5.82 ms** | **2.05x** | `355.3 → 233.4 MB` (**-121.9 MB**) | [181819](report/181819_20261117-phase-3.7.txt) |
+| **`transformer_lm:medium` (`safe / balanced / aggressive`)** | 97.00 ms | **51.54 / 25.87 / 25.42 ms** | **1.88x / 3.75x / 3.82x** | `1,734.8 → 955.4 MB` (**-779.5 MB** aggr.) | [051102](report/051102_20261118-phase-5.1.txt) |
+| **`transformer_lm:large` (`aggressive_full`)** | 793.86 ms | **180.14 ms** | **4.41x** | `9,174.4 → 4,858.4 MB` (**-4,316.0 MB**) | [181819](report/181819_20261117-phase-3.7.txt) |
+| **`vocab8k` (`fused_lce_eager`)** | 76.23 ms | **21.03 ms** (E2E `8.91s` vs `23.63s`) | **3.62x** | `1,679.5 → 814.5 MB` (**-865.0 MB**) | [053832](report/053832_20261118-phase-5.2.txt) |
+| **`vocab32k` (`fused_lce_eager`)** | 123.01 ms | **36.78 ms** (E2E `9.24s` vs `24.13s`) | **3.34x** | `3,501.5 → 1,214.5 MB` (**-2,287.0 MB / -65.3%**) | [053832](report/053832_20261118-phase-5.2.txt) |
+| **`lm_act_med` (`no_ckpt` / `act_ckpt`)** | — | **63.24 ms** / 190.04 ms | **4.08x** / 1.36x | `4,066.0 → 2,153.1` / **1,171.8 MB (-45.6% vs no_ckpt)** | [074734](report/074734_20261118-phase-5.5.txt) |
+| **`lm_act_large` (`no_ckpt` / `act_ckpt`)** | — | **120.71 ms** / 372.01 ms | **4.17x** / 1.35x | `7,231.3 → 3,623.3` / **1,684.1 MB (-5,547.2 MB vs base)** | [074734](report/074734_20261118-phase-5.5.txt) |
+
+### 2. Training: Vision CNN & Deep MLP (`Small` / `Medium` / `Large`)
+| Workload & Variant | Baseline | `ptopt` Optimized | Speedup | Peak VRAM (Base → Wrap) | Report |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **`cnn_vision:small` (`train_cuda_graphs`)** | 9.48 ms | **4.71 ms** (vs `7.22 ms` compile) | **2.01x** (`1.53x` vs compile) | `161.4 → 91.2 MB` (**-70.2 MB**) | [065346](report/065346_20261118-phase-5.4.txt) |
+| **`cnn_vision:medium` (`64x64`, `balanced` / `aggressive`)** | 65.90 ms | **21.27 / 19.96 ms** | **3.10x / 3.30x** | `839.4 → 450.2 MB` (**-389.2 MB** balanced) | [211155](report/211155_20261117-phase-4.txt) |
+| **`cnn_vision:large` (`3.5b_compile_warm`)** | 280.96 ms | **96.84 ms** | **2.90x** | `3,300.9 → 1,572.8 MB` (**-1,728.1 MB**) | [144108](report/144108_20261117-phase-3.5.txt) |
+| **`cnn_vision_224` (`dl_cuda_prefetch`)** | — | **75.60 ms** (`Data/Other 4.11 → 3.35 ms`) | **3.37x** (E2E `16.74s` vs `30.35s`) | `3,301.8 → 1,611.3 MB` (**-1,690.5 MB**) | [074734](report/074734_20261118-phase-5.5.txt) |
+| **`deep_mlp:small` (`train_cuda_graphs`)** | 9.01 ms | **4.25 ms** (vs `7.77 ms` compile) | **2.12x** (`1.83x` vs compile) | `46.8 → 40.7 MB` (**-6.0 MB**) | [065346](report/065346_20261118-phase-5.4.txt) |
+| **`deep_mlp:medium` (`3.5b_compile_warm` / `balanced`)** | 16.40 ms | **9.20 ms** | **1.78x** | `498.5 → 404.2 MB` (**-94.3 MB**) | [144108](report/144108_20261117-phase-3.5.txt) |
 | **`deep_mlp:large`** | 50.45 ms | **22.10 ms** | **2.28x** | **-382.6 MB** | [141819](report/141819_20261117-phase-3.4.txt) |
 
-### Inference, Consolidated 4-Profile Gate & Standalone Triton Kernels
-| Benchmark Case | Baseline | `ptopt` Optimized | Gain | Report |
-| :--- | :---: | :---: | :---: | :--- |
-| **`infer_bs1_small` (Latency)** | 1.55 ms | **0.49 ms** (`CUDA Graphs`) | **3.18x** (`2,053 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
-| **`infer_bs1_medium` (Latency)** | 2.91 ms | **1.26 ms** (`CUDA Graphs`) | **2.32x** (`796.2 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
-| **`infer_bs64_medium` (Throughput)** | 44.56 ms | **12.25 ms** (`BF16 + Compile`) | **3.64x** (`-63.9 MB` VRAM) | [181115](report/181115_20261117-phase-3.6.txt) |
-| **`infer_bs64_large` (Throughput)** | 373.94 ms | **89.89 ms** (`BF16 + Compile`) | **4.16x** (`-187.5 MB` VRAM) | [181115](report/181115_20261117-phase-3.6.txt) |
-| **`RMSNorm [large]` (8192x1025)** | 4.374 ms (Eager) | **0.592 ms** (Triton) vs 0.656 ms (Compile) | **7.39x vs Eager** (`105.8 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
-| **`CrossEntropy [large]` (8192x8192)** | 11.937 ms (Eager) | **3.362 ms** (Triton) vs 3.375 ms (Compile) | **3.55x vs Eager** (`74.4 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
-| **Phase 4 Final Gate (NVIDIA L4)** | `14/14` suites, `24/24` smoke runs | `supersafe` `1.00–1.54x` (`0.0`), `safe` `1.88x` LLM, `balanced` `3.80x`, `aggressive` `3.89x` / `3.06x bs=1` | **PASS** (`605.66s`) | [211155](report/211155_20261117-phase-4.txt) |
+### 3. Inference (`BS=1` Latency & `BS=32/64` Throughput), Edge Cases & Kernels
+| Benchmark Case | Baseline | `ptopt` Optimized | Gain & VRAM / Throughput | Report |
+| :--- | :---: | :---: | :--- | :--- |
+| **`infer_bs1_small` (`CUDA Graphs`)** | 1.55 ms | **0.49 ms** | **3.18x** (`2,053.4 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
+| **`infer_bs1_medium` (`CUDA Graphs`)** | 2.91 ms | **1.26 ms** | **2.32x** (`796.2 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
+| **`infer_bs1_large` (`CUDA Graphs`)** | 7.13 ms | **3.04 ms** | **2.35x** (`329.4 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
+| **`infer_bs32_small` (`aggressive`)** | 2.39 ms | **0.88 ms** | **2.73x** (`-7.5 MB` VRAM) | [211155](report/211155_20261117-phase-4.txt) |
+| **`infer_bs64_small` (`CUDA Graphs`)** | 4.22 ms | **1.24 ms** | **3.39x** (`51,488.3 samp/s`) | [181115](report/181115_20261117-phase-3.6.txt) |
+| **`infer_bs64_medium` (`BF16 + Compile`)** | 44.56 ms | **12.25 ms** | **3.64x** (`-63.9 MB` VRAM) | [181115](report/181115_20261117-phase-3.6.txt) |
+| **`infer_bs64_large` (`fp8_compile`)** | 370.01 ms | **77.41 ms** (vs `88.73 ms` BF16+Comp) | **4.78x** (`826.8 samp/s`, `-137.2 MB`, `MaxRelDiff 0.006976`) | [061553](report/061553_20261118-phase-5.3.txt) |
+| **`infer_bs64_large` (`fp8_compile_drop_w`)** | 370.01 ms | **78.08 ms** | **4.74x** (`819.7 samp/s`, `411.4 MB` VRAM / **-355.5 MB**) | [061553](report/061553_20261118-phase-5.3.txt) |
+| **`edge_dynamic_only` / `edge_all` (Tiny+Dynamic)** | 1.48 / 1.44 ms | **1.48 / 1.45 ms** (`balanced`) | **1.00x** (no regression across `safe`/`balanced`/`aggressive`) | [051102](report/051102_20261118-phase-5.1.txt) |
+| **Micro `Linear+CE` (`4096x1024 -> V=65536`)** | 64.60 ms | **52.27 ms** (`fused_lce`) | **1.24x**, **`3,361.2 → 625.2 MB (-81.4% VRAM)`**, `LossDiff 1.53e-05` | [053832](report/053832_20261118-phase-5.2.txt) |
+| **Micro `RMSNorm [large]` (`8192x1025`)** | 4.374 ms | **0.592 ms** (Triton) vs `0.656 ms` (Compile) | **7.39x vs Eager** (`105.8 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
+| **Micro `CrossEntropy [large]` (`8192x8192`)** | 11.937 ms | **3.362 ms** (Triton) vs `3.375 ms` (Compile) | **3.55x vs Eager** (`74.4 GB/s`) | [181819](report/181819_20261117-phase-3.7.txt) |
 
 ---
 
@@ -121,7 +140,7 @@ pip install --no-deps -e .
 
 ### 2. Wrap Any Existing PyTorch Script (Zero Code Changes)
 ```bash
-# Recommended balanced profile (safe + fast across training & inference)
+# Recommended balanced profile (safe + fast across training & inference, auto act-ckpt above 82% VRAM)
 ptopt --profile balanced -- python3 your_train_script.py --epochs 10
 
 # Pure FP32 parity (0.0 numerical drift, fused optimizer + inference_mode only)
@@ -130,7 +149,7 @@ ptopt --profile supersafe -- python3 your_train_script.py
 # FP32 tensors + TF32 Tensor Core matmuls (sm>=80) + DataLoader tuning (zero compile warmup)
 ptopt --profile safe -- python3 your_train_script.py
 
-# Maximum optimization (enables CUDA Graphs on static eval + custom Triton kernels)
+# Maximum optimization (enables Training & Inference CUDA Graphs, max-autotune, and Triton kernels)
 ptopt --profile aggressive -- python3 your_train_script.py
 ```
 
@@ -146,9 +165,10 @@ ptopt --explain
 # Supported presets: t4, sm_75, low_shm_t4, a100, sm_80, sm_86, l4, sm_89, h100, sm_90, cpu, mps
 ptopt --target-arch l4 --profile balanced --explain
 
-# Disable a specific pass or override fields via dotted path
-ptopt --profile balanced --no-compile -- python3 short_finetune.py
-ptopt --profile aggressive --override compile.mode=reduce-overhead -- python3 eval.py
+# Override specific passes (examples: training CUDA graphs, async CUDA prefetch, always act-ckpt)
+ptopt --profile balanced --override compile.train_cuda_graphs=true -- python3 small_static_train.py
+ptopt --profile balanced --override dataloader.cuda_prefetch=true -- python3 vision_train.py
+ptopt --profile balanced --override runtime.activation_checkpointing=always -- python3 high_vram_train.py
 
 # Print applied/skipped/fallback audit summary & save structured run report
 ptopt --fallback-report --save-report report/ -- python3 your_script.py
@@ -165,8 +185,12 @@ python3 scripts/run_gate.py --mode full
 ```
 
 ### Opt-In Environment Flags
-- `PTOPT_INFERENCE_FP8=1`: Enables FP8 `_scaled_mm` inference with fused Triton quantization for `nn.Linear` (`m_rows >= 512`) on `sm >= 89` (L4/H100).
+- `PTOPT_INFERENCE_FP8=1`: Enables FP8 `_scaled_mm` inference (including `torch.compile` fusion) on `sm >= 89` (L4/H100).
+- `PTOPT_FP8_DROP_BF16_EVAL=1`: Drops duplicate BF16 linear weights during FP8 `.eval()` to cut peak inference VRAM (`411.4 MB` on `infer_bs64_large`).
 - `PTOPT_INFERENCE_QUANT=int8`: Enables CPU INT8 dynamic quantization during `.eval()`.
+- `PTOPT_TRAIN_CUDA_GRAPHS=1`: Enables static Training CUDA Graphs (`compile.train_cuda_graphs`); combine with `PTOPT_TRAIN_CG_ALLOW_DROPOUT=1` if deterministic replay is acceptable with Dropout.
+- `PTOPT_ACTIVATION_CKPT=auto|always|off`: Controls auto activation checkpointing (defaults to `auto` in `balanced`/`aggressive`, triggering above `PTOPT_ACT_CKPT_VRAM_THRESHOLD`, default `0.82`).
+- `PTOPT_CUDA_PREFETCH=1`: Enables async CUDA stream DataLoader prefetch (`dataloader.cuda_prefetch`).
 - `PTOPT_FORCE_ALL_KERNELS=1`: Forces all custom Triton kernels even when `torch.compile` is enabled.
 - `PTOPT_CHANNELS_LAST=1`: Forces `channels_last` conversion even for small spatial CNN inputs.
 
@@ -175,10 +199,10 @@ python3 scripts/run_gate.py --mode full
 ## Repository Structure
 
 - [`src/detect/`](src/detect/): Hardware fingerprinting (GPU SM, VRAM, CPU ISA/cores, `/dev/shm`, PyTorch/Triton/CUDA).
-- [`src/config/`](src/config/): Schema v1 dataclasses, built-in hardware rules, `--override` resolver, v0 auto-migrator (`migrator.py`), and `(gpu_arch, torch_version, triton_version)` cache isolation.
+- [`src/config/`](src/config/): Schema v1 dataclasses (`schema.py`), built-in hardware/profile rules (`rules_builtin.py`), `--override` & env resolver (`resolver.py`), v0 auto-migrator (`migrator.py`), and `(gpu_arch, torch_version, triton_version)` cache isolation.
 - [`src/cli/`](src/cli/): CLI launcher (`main.py`), `--explain`/`--target-arch` (`explain.py`), and `--doctor` environment diagnostics (`doctor.py`).
-- [`src/hooks/`](src/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, checkpoint `_orig_mod.`/`channels_last`/`fused` compatibility, `fallback_reporter.py`, and Deep Debug Profiler telemetry.
-- [`src/passes/`](src/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune`, `optimizer_fusion`, `auto_amp`, `channels_last`, `auto_compile`, `inference_opt`).
-- [`src/kernels/`](src/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `swiglu`) with `KernelSpec` & `FallbackRegistry`.
-- [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md) and root-cause / profiler writeups ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
-- [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`), verification scripts (`verify_phase*.py`), unit/3-axis migrate matrices, and CI workflow.
+- [`src/hooks/`](src/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, checkpoint prefix/layout/optimizer compatibility (`checkpoint_compat.py`), `fallback_reporter.py`, and Deep Debug Profiler telemetry.
+- [`src/passes/`](src/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune` w/ CUDA stream prefetch, `optimizer_fusion`, `auto_amp`, `channels_last`, `auto_compile` w/ tiny/dynamic gates & `train_cuda_graphs`, `inference_opt` w/ compiled FP8, `activation_checkpoint`).
+- [`src/kernels/`](src/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `fused_linear_cross_entropy`, `swiglu`) with `KernelSpec`, compile-aware routing, & `FallbackRegistry`.
+- [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md) and root-cause / optimization architecture docs ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
+- [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`), Phase 5 verification scripts (`verify_phase5*.py`), unit/3-axis migrate matrices, and CI workflow.
