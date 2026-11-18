@@ -362,13 +362,13 @@ def main() -> int:
             )
 
         # Deep Debug + Torch Profiler comparison (dynamic vs static FP8)
-        for dbg_name, ovr, d_env, d_cache in variants:
+        for dbg_name, dbg_prof, ovr, d_env, d_cache in variants:
             rec_d, _, tel_d = run_workload_variant(
                 case_label=case_label,
                 wl_name="infer_runner_bs32",
                 steps=12 if is_cuda else 5,
                 device=device,
-                profile="balanced",
+                profile=dbg_prof,
                 variant_name=f"{dbg_name}_dbg",
                 batch_size=bs,
                 extra_args=extra_args,
