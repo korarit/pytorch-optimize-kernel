@@ -148,7 +148,7 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
         # Mock CUDA checks cleanly on CPU so registry end-to-end hook dispatch runs in CPU CI too
         fake_w = model.head.weight
         try:
-            with patch("src.kernels.registry.os.environ.get", side_effect=lambda k, d=None: "4096" if k == "PTOPT_FUSED_LCE_MIN_VOCAB" else os.environ.get(k, d)):
+            with patch.dict(os.environ, {"PTOPT_FUSED_LCE_MIN_VOCAB": "4096"}):
                 # Force head.weight.is_cuda check only via patched helper or run directly when CUDA available
                 if torch.cuda.is_available():
                     model = model.cuda()
