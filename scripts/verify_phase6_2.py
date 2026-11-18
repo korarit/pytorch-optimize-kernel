@@ -2,18 +2,19 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import time
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+BENCH_DIR = Path(__file__).resolve().parent.parent / "pipline-for-test"
+REPO_ROOT = BENCH_DIR.parent
+for _p in (str(REPO_ROOT), str(BENCH_DIR), str(Path(__file__).resolve().parent)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
-from scripts.phase5_report_helper import (  # noqa: E402
+from phase5_report_helper import (  # noqa: E402
     extract_allocator_row,
     extract_phase_breakdown_row,
     extract_step0_and_p99,
@@ -21,15 +22,11 @@ from scripts.phase5_report_helper import (  # noqa: E402
     format_torch_profiler_block,
     run_workload_variant,
 )
-from src.bench.parity import check_parity  # noqa: E402
-from src.bench.stats import compute_speedup, compute_vram_delta  # noqa: E402
-from src.cache import detect_runtime_cache_key  # noqa: E402
-from src.kernels.fused_linear_cross_entropy import (  # noqa: E402
-    create_lazy_linear_logits,
-    fused_linear_cross_entropy,
-)
-from src.probe.fingerprint import collect_fingerprint  # noqa: E402
-from src.probe.report import TextReportBuilder  # noqa: E402
+from src.common.text_report import TextReportBuilder  # noqa: E402
+from src.config import detect_runtime_cache_key  # noqa: E402
+from src.detect import collect_fingerprint  # noqa: E402
+from src.kernels.fused_linear_cross_entropy import fused_linear_cross_entropy  # noqa: E402
+from telemetry import check_parity, compute_speedup, compute_vram_delta  # noqa: E402
 
 
 def _run_unit_file(rel_path: str) -> tuple[bool, float, str, str]:
@@ -81,7 +78,7 @@ def _bench_linear_ce_micro(is_cuda: bool) -> list[list[object]]:
             for _ in range(warmup):
                 x.grad = w.grad = b.grad = None
                 if fused:
-                    loss = fused_linear_cross_entropy(create_lazy_linear_logits(x, w, b), y)
+                    loss = fused_linear_cross_entropy(x, w, y, bias=b)
                 else:
                     loss = F.cross_entropy(F.linear(x, w, b).float(), y)
                 loss.backward()
@@ -93,7 +90,7 @@ def _bench_linear_ce_micro(is_cuda: bool) -> list[list[object]]:
             for _ in range(iters):
                 x.grad = w.grad = b.grad = None
                 if fused:
-                    loss = fused_linear_cross_entropy(create_lazy_linear_logits(x, w, b), y)
+                    loss = fused_linear_cross_entropy(x, w, y, bias=b)
                 else:
                     loss = F.cross_entropy(F.linear(x, w, b).float(), y)
                 loss.backward()
