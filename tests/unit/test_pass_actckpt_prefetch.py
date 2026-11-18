@@ -270,21 +270,41 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
         with self.assertRaises(StopIteration):
             next(it)
 
-        # Verify CPU fallback skips cuda_prefetch cleanly in DataLoader hook
+        # Verify DataLoader hook applies cuda_prefetch on CUDA and skips cleanly when CUDA is unavailable
         cfg = OptimizeConfig(profile="balanced")
         cfg.dataloader.auto_tune = True
         cfg.dataloader.cuda_prefetch = True
-        mgr = HookManager()
-        install_dataloader_hook(cfg, mgr, torch)
-        try:
-            ds = torch.utils.data.TensorDataset(torch.randn(8, 4))
-            dl = torch.utils.data.DataLoader(ds, batch_size=4, num_workers=0)
-            batches = list(dl)
-            self.assertEqual(len(batches), 2)
-            self.assertTrue(any(ev.pass_name == "dataloader.cuda_prefetch" and ev.status == "SKIPPED" for ev in mgr.events))
-        finally:
-            uninstall_dataloader_hook(torch)
-            mgr.reset()
+        ds = torch.utils.data.TensorDataset(torch.randn(8, 4))
+
+        if torch.cuda.is_available():
+            mgr_gpu = HookManager()
+            install_dataloader_hook(cfg, mgr_gpu, torch)
+            try:
+                dl_gpu = torch.utils.data.DataLoader(ds, batch_size=4, num_workers=0)
+                batches_gpu = list(dl_gpu)
+                self.assertEqual(len(batches_gpu), 2)
+                self.assertTrue(batches_gpu[0][0].is_cuda)
+                self.assertTrue(
+                    any(ev.pass_name == "dataloader.cuda_prefetch" and ev.status == "APPLIED" for ev in mgr_gpu.events)
+                )
+            finally:
+                uninstall_dataloader_hook(torch)
+                mgr_gpu.reset()
+
+        mgr_cpu = HookManager()
+        with patch.object(torch.cuda, "is_available", return_value=False):
+            install_dataloader_hook(cfg, mgr_cpu, torch)
+            try:
+                dl_cpu = torch.utils.data.DataLoader(ds, batch_size=4, num_workers=0)
+                batches_cpu = list(dl_cpu)
+                self.assertEqual(len(batches_cpu), 2)
+                self.assertFalse(batches_cpu[0][0].is_cuda)
+                self.assertTrue(
+                    any(ev.pass_name == "dataloader.cuda_prefetch" and ev.status == "SKIPPED" for ev in mgr_cpu.events)
+                )
+            finally:
+                uninstall_dataloader_hook(torch)
+                mgr_cpu.reset()
 
 
 if __name__ == "__main__":
