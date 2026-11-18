@@ -1,0 +1,110 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.2 REPORT: FUSED CHUNKED LINEAR + CROSS-ENTROPY (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 12:34:20 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 7acb0ca
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu (sm_0)
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+Unit (fused_lce)   : Ran 5 tests in 0.300s (1.59s) -> PASS
+Unit (registry)    : Ran 8 tests in 0.483s (2.05s) -> PASS
+Overall Phase 5.2  : PASS
+
+[MICRO-BENCHMARK: EAGER LINEAR+CE VS FUSED CHUNKED LINEAR+CE]
+------------------------------------------------------------------------------
+Shape (N x H -> V) | Eager ms | Fused ms | Speedup | Eager VRAM MB | Fused VRAM MB | VRAM Delta        | LossAbsDiff
+-------------------+----------+----------+---------+---------------+---------------+-------------------+------------
+128x64 -> V=4096   | 1.84     | 4.28     | 0.43x   | 0.0           | 0.0           | +0.0 (0.0% saved) | 0.00e+00   
+256x128 -> V=8192  | 10.99    | 17.57    | 0.62x   | 0.0           | 0.0           | +0.0 (0.0% saved) | 3.81e-06   
+
+[END-TO-END LARGE-VOCAB TRANSFORMER_LM (BASELINE VS COMPILE VS FUSED_LCE)]
+------------------------------------------------------------------------------
+Scale       | Variant          | Step0 ms | Base ms | Wrap ms | Wrap P95 | Wrap P99 | E2E s (B/W) | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+------------+------------------+----------+---------+---------+----------+----------+-------------+---------+-----------------+------------+-------
+vocab4k_cpu | balanced_compile | 877.8    | 17.93   | 16.39   | 17.32    | 17.40    | 2.39/3.69s  | 1.09x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+vocab4k_cpu | fused_lce_eager  | 984.1    | 17.93   | 19.88   | 21.82    | 21.99    | 2.39/3.91s  | 0.90x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Scale       | Mode          | Step0 ms | Steady ms | Data/Other  | Forward      | Loss/Clip   | Backward     | Optim       
+------------+---------------+----------+-----------+-------------+--------------+-------------+--------------+-------------
+vocab4k_cpu | baseline_dbg  | 874.91   | 17.73     | 0.25 (1.4%) | 3.91 (22.1%) | 0.67 (3.8%) | 8.46 (47.7%) | 4.44 (25.1%)
+vocab4k_cpu | compile_dbg   | 879.01   | 16.01     | 0.21 (1.3%) | 3.32 (20.7%) | 0.61 (3.8%) | 7.02 (43.9%) | 4.85 (30.3%)
+vocab4k_cpu | fused_lce_dbg | 866.10   | 18.77     | 0.23 (1.2%) | 4.02 (21.4%) | 0.63 (3.3%) | 8.86 (47.2%) | 5.03 (26.8%)
+
+[TOP PYTORCH PROFILER OPS (BASELINE VS COMPILE VS FUSED_LCE)]
+------------------------------------------------------------------------------
+[vocab4k_cpu | baseline_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=31.88ms (top_cpu_ops):
+  aten::mm                                         calls=66    self= 12.618ms (39.6%) total= 12.641ms
+  aten::mul_                                       calls=72    self=  1.454ms ( 4.6%) total=  1.636ms
+  aten::mul                                        calls=112   self=  1.398ms ( 4.4%) total=  1.519ms
+  aten::sqrt                                       calls=36    self=  1.265ms ( 4.0%) total=  1.265ms
+  aten::lerp_                                      calls=36    self=  1.253ms ( 3.9%) total=  1.253ms
+  aten::div                                        calls=46    self=  1.152ms ( 3.6%) total=  1.285ms
+  aten::_log_softmax_backward_data                 calls=2     self=  1.144ms ( 3.6%) total=  1.144ms
+  aten::addcdiv_                                   calls=36    self=  1.056ms ( 3.3%) total=  1.056ms
+[vocab4k_cpu | compile_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=30.867ms (top_cpu_ops):
+  aten::mm                                         calls=66    self= 10.775ms (34.9%) total= 10.789ms
+  aten::mul                                        calls=184   self=  2.762ms ( 8.9%) total=  2.971ms
+  aten::sqrt                                       calls=36    self=  1.897ms ( 6.1%) total=  1.897ms
+  aten::addcmul_                                   calls=36    self=  1.651ms ( 5.3%) total=  1.651ms
+  aten::lerp_                                      calls=36    self=  1.491ms ( 4.8%) total=  1.491ms
+  aten::addcdiv_                                   calls=36    self=  1.407ms ( 4.6%) total=  1.407ms
+  aten::_log_softmax_backward_data                 calls=2     self=  0.969ms ( 3.1%) total=  0.969ms
+  aten::fill_                                      calls=52    self=  0.945ms ( 3.1%) total=  0.945ms
+[vocab4k_cpu | fused_lce_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=34.709ms (top_cpu_ops):
+  aten::mm                                         calls=66    self= 12.547ms (36.2%) total= 12.566ms
+  aten::mul                                        calls=184   self=  2.880ms ( 8.3%) total=  3.192ms
+  aten::sqrt                                       calls=36    self=  1.842ms ( 5.3%) total=  1.842ms
+  aten::lerp_                                      calls=36    self=  1.769ms ( 5.1%) total=  1.769ms
+  aten::addcdiv_                                   calls=36    self=  1.597ms ( 4.6%) total=  1.597ms
+  aten::_log_softmax_backward_data                 calls=2     self=  1.400ms ( 4.0%) total=  1.400ms
+  autograd::engine::evaluate_function: MmBackward0 calls=22    self=  1.259ms ( 3.6%) total=  9.717ms
+  aten::addcmul_                                   calls=36    self=  1.025ms ( 3.0%) total=  1.025ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[vocab4k_cpu | baseline] step0=22.83ms | steady_med=17.93ms | s0=22.83ms, s1=17.93ms, s2=17.32ms, s3=18.16ms
+[vocab4k_cpu | balanced_compile] step0=877.78ms | steady_med=16.39ms | s0=877.78ms, s1=16.39ms, s2=17.43ms, s3=13.95ms
+[vocab4k_cpu | fused_lce_eager] step0=984.12ms | steady_med=19.88ms | s0=984.12ms, s1=18.90ms, s2=22.03ms, s3=19.88ms
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- vocab4k_cpu (balanced_compile): med=16.39ms (1.09x), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- vocab4k_cpu (fused_lce_eager): med=19.88ms (0.90x), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] vocab4k_cpu (balanced_compile) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] vocab4k_cpu (balanced_compile) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] vocab4k_cpu (balanced_compile) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] vocab4k_cpu (balanced_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab4k_cpu (balanced_compile) -> compile.auto: compile.enabled is False
+[SKIPPED] vocab4k_cpu (balanced_compile) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] vocab4k_cpu (balanced_compile) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] vocab4k_cpu (balanced_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] vocab4k_cpu (balanced_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] vocab4k_cpu (balanced_compile) -> optimizer.AdamW: foreach=True
+[APPLIED] vocab4k_cpu (fused_lce_eager) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] vocab4k_cpu (fused_lce_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> compile.auto: compile.enabled is False
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] vocab4k_cpu (fused_lce_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.rmsnorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.layernorm: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.cross_entropy: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.swiglu: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.fused_linear_cross_entropy: Triton unavailable; falling back to PyTorch native op
+[SKIPPED] vocab4k_cpu (fused_lce_eager) -> kernels.auto: no kernels passed capability gate (fallback to PyTorch native)
+[APPLIED] vocab4k_cpu (fused_lce_eager) -> optimizer.AdamW: foreach=True
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Peak VRAM savings (40%-75% on large vocab) & Deep Debug traces on Colab L4 before Plan 5.3)
+==============================================================================

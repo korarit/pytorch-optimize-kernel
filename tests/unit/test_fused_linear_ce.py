@@ -32,8 +32,8 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
     """Exact forward & backward gradient parity across reductions, ignore_index, and chunk splits."""
 
     def test_optimal_chunk_size_caps_memory_budget(self) -> None:
-        self.assertEqual(compute_optimal_chunk_size(4096, 32768, torch.bfloat16), 256)
-        self.assertEqual(compute_optimal_chunk_size(4096, 65536, torch.bfloat16), 128)
+        self.assertEqual(compute_optimal_chunk_size(4096, 32768, torch.bfloat16), 1024)
+        self.assertEqual(compute_optimal_chunk_size(4096, 65536, torch.bfloat16), 512)
         self.assertEqual(compute_optimal_chunk_size(90, 32768, torch.float32), 90)
 
     def test_forward_backward_parity_mean_sum_none_with_ignore_index(self) -> None:
@@ -83,6 +83,29 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
                     self.assertTrue(torch.allclose(h_ref.grad.float(), h_fused.grad.float(), rtol=1e-2, atol=atol_grad))
                     self.assertTrue(torch.allclose(w_ref.grad.float(), w_fused.grad.float(), rtol=1e-2, atol=atol_grad))
                     self.assertTrue(torch.allclose(b_ref.grad.float(), b_fused.grad.float(), rtol=1e-2, atol=atol_grad))
+
+    def test_bfloat16_multi_chunk_addmm_parity(self) -> None:
+        torch.manual_seed(11)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        h_ref = torch.randn(300, 32, device=device, dtype=torch.bfloat16, requires_grad=True)
+        w_ref = torch.randn(128, 32, device=device, dtype=torch.bfloat16, requires_grad=True)
+        b_ref = torch.randn(128, device=device, dtype=torch.bfloat16, requires_grad=True)
+        tgt = torch.randint(0, 128, (300,), device=device)
+
+        h_f = h_ref.detach().clone().requires_grad_(True)
+        w_f = w_ref.detach().clone().requires_grad_(True)
+        b_f = b_ref.detach().clone().requires_grad_(True)
+
+        l_ref = ref_linear_cross_entropy(h_ref, w_ref, b_ref, tgt)
+        l_ref.backward()
+        l_f = fused_linear_cross_entropy(h_f, w_f, tgt, bias=b_f, chunk_size=100)
+        l_f.backward()
+
+        self.assertTrue(torch.allclose(l_ref.float(), l_f.float(), rtol=1e-2, atol=1e-2))
+        assert w_ref.grad is not None and w_f.grad is not None
+        assert b_ref.grad is not None and b_f.grad is not None
+        self.assertTrue(torch.allclose(w_ref.grad.float(), w_f.grad.float(), rtol=1e-2, atol=5e-2))
+        self.assertTrue(torch.allclose(b_ref.grad.float(), b_f.grad.float(), rtol=1e-2, atol=5e-2))
 
     def test_all_ignored_targets_safe_no_nan(self) -> None:
         h = torch.randn(12, 8, requires_grad=True)

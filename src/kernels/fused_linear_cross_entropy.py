@@ -13,11 +13,11 @@ from src.kernels.cross_entropy import HAS_TRITON, triton
 _cross_entropy_fwd_kernel = getattr(_ce_mod, "_cross_entropy_fwd_kernel", None)
 _cross_entropy_bwd_kernel = getattr(_ce_mod, "_cross_entropy_bwd_kernel", None)
 
-_TARGET_CHUNK_BYTES = 16 * 1024 * 1024
+_TARGET_CHUNK_BYTES = 64 * 1024 * 1024
 
 
 def compute_optimal_chunk_size(num_rows: int, vocab_size: int, dtype: torch.dtype, explicit_chunk: int | None = None) -> int:
-    """Choose row chunk size keeping temporary `[chunk, vocab_size]` logits within ~16 MB."""
+    """Choose row chunk size keeping temporary `[chunk, vocab_size]` logits within ~64 MB."""
     if num_rows <= 0:
         return 1
     if explicit_chunk is not None and explicit_chunk > 0:
@@ -145,15 +145,17 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
         mm_dtype = dtype_map.get(matmul_dtype_code, _active_linear_dtype(hidden_2d, weight))
 
         h_2d = hidden_2d.contiguous()
+        h_in_dtype = h_2d.dtype
+        h_mm = h_2d if h_in_dtype == mm_dtype else h_2d.to(mm_dtype)
         tgt_1d = targets_1d.contiguous()
-        n_rows, _h_dim = h_2d.shape
+        n_rows, _h_dim = h_mm.shape
         vocab = int(weight.shape[0])
 
         chunk = compute_optimal_chunk_size(n_rows, vocab, mm_dtype, chunk_size)
-        losses = torch.empty((n_rows,), dtype=torch.float32, device=h_2d.device)
-        lse = torch.empty((n_rows,), dtype=torch.float32, device=h_2d.device)
+        losses = torch.empty((n_rows,), dtype=torch.float32, device=h_mm.device)
+        lse = torch.empty((n_rows,), dtype=torch.float32, device=h_mm.device)
 
-        if HAS_TRITON and triton is not None and h_2d.is_cuda:
+        if HAS_TRITON and triton is not None and h_mm.is_cuda:
             block_v = min(4096, max(128, triton.next_power_of_2(vocab)))
             warps = 8 if block_v >= 2048 else 4
         else:
@@ -165,10 +167,7 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
 
         for start in range(0, n_rows, chunk):
             end = min(start + chunk, n_rows)
-            h_c = h_2d[start:end]
-            if h_c.dtype != mm_dtype:
-                h_c = h_c.to(mm_dtype)
-            logits_c = torch.mm(h_c, w_t)
+            logits_c = torch.mm(h_mm[start:end], w_t)
             if b_mm is not None:
                 logits_c.add_(b_mm)
             _chunk_ce_fwd(
@@ -187,7 +186,8 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
             valid_mask = (tgt_1d != ignore_index) & (tgt_1d >= 0) & (tgt_1d < vocab)
             valid_count_t = valid_mask.sum().to(torch.float32).clamp(min=1.0)
 
-        ctx.save_for_backward(h_2d, weight, bias, tgt_1d, lse, valid_count_t)
+        ctx.save_for_backward(h_mm, weight, bias, tgt_1d, lse, valid_count_t)
+        ctx.h_in_dtype = h_in_dtype
         ctx.ignore_index = ignore_index
         ctx.reduction = reduction
         ctx.chunk = chunk
@@ -204,17 +204,23 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
 
     @staticmethod
     def backward(ctx: Any, grad_out: torch.Tensor) -> tuple[Any, ...]:
-        h_2d, weight, bias, tgt_1d, lse, valid_count_t = ctx.saved_tensors
-        n_rows, _h_dim = h_2d.shape
-        vocab = int(weight.shape[0])
+        h_mm, weight, bias, tgt_1d, lse, valid_count_t = ctx.saved_tensors
+        n_rows, h_dim = h_mm.shape
         mm_dtype = ctx.mm_dtype
+        h_in_dtype = ctx.h_in_dtype
 
         need_h = bool(ctx.needs_input_grad[0])
         need_w = bool(ctx.needs_input_grad[1])
         need_b = bias is not None and bool(ctx.needs_input_grad[2])
 
-        d_hidden = torch.empty_like(h_2d) if need_h else None
-        d_weight = torch.zeros(weight.shape, dtype=torch.float32, device=weight.device) if need_w else None
+        n_chunks = (n_rows + ctx.chunk - 1) // ctx.chunk
+        # Use direct cuBLAS addmm_ accumulation in mm_dtype when safe (fp32 always, or bf16 <= 16 chunks)
+        # to eliminate per-chunk [V, H] temp allocations, fp32 casts, and separate add_ kernels.
+        use_addmm_w = mm_dtype == torch.float32 or (mm_dtype == torch.bfloat16 and n_chunks <= 16)
+        d_weight_dtype = mm_dtype if use_addmm_w else torch.float32
+
+        d_hidden = torch.empty((n_rows, h_dim), dtype=h_in_dtype, device=h_mm.device) if need_h else None
+        d_weight = torch.empty(weight.shape, dtype=d_weight_dtype, device=weight.device) if need_w else None
         d_bias = torch.zeros(bias.shape, dtype=torch.float32, device=bias.device) if need_b else None
 
         is_scalar = ctx.reduction in ("mean", "sum")
@@ -232,9 +238,7 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
 
         for start in range(0, n_rows, ctx.chunk):
             end = min(start + ctx.chunk, n_rows)
-            h_c = h_2d[start:end]
-            if h_c.dtype != mm_dtype:
-                h_c = h_c.to(mm_dtype)
+            h_c = h_mm[start:end]
 
             logits_c = torch.mm(h_c, w_t)
             if b_mm is not None:
@@ -254,16 +258,26 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
             dl_mm = dlogits_c.to(mm_dtype) if dlogits_c.dtype != mm_dtype else dlogits_c
 
             if d_hidden is not None:
-                dh_c = torch.mm(dl_mm, w_mm)
-                d_hidden[start:end] = dh_c.to(h_2d.dtype) if dh_c.dtype != h_2d.dtype else dh_c
+                if h_in_dtype == mm_dtype:
+                    torch.mm(dl_mm, w_mm, out=d_hidden[start:end])
+                else:
+                    d_hidden[start:end].copy_(torch.mm(dl_mm, w_mm))
             if d_weight is not None:
-                d_weight.add_(torch.mm(dl_mm.t(), h_c).float())
+                if use_addmm_w:
+                    if start == 0:
+                        torch.mm(dl_mm.t(), h_c, out=d_weight)
+                    else:
+                        d_weight.addmm_(dl_mm.t(), h_c)
+                elif start == 0:
+                    d_weight.copy_(torch.mm(dl_mm.t(), h_c))
+                else:
+                    d_weight.add_(torch.mm(dl_mm.t(), h_c).float())
             if d_bias is not None:
-                d_bias.add_(dl_mm.float().sum(dim=0))
+                d_bias.add_(dl_mm.sum(dim=0, dtype=torch.float32))
             del logits_c, dlogits_c
 
-        dw_out = d_weight.to(weight.dtype) if d_weight is not None else None
-        db_out = d_bias.to(bias.dtype) if (d_bias is not None and bias is not None) else None
+        dw_out = (d_weight if d_weight.dtype == weight.dtype else d_weight.to(weight.dtype)) if d_weight is not None else None
+        db_out = (d_bias if d_bias.dtype == bias.dtype else d_bias.to(bias.dtype)) if (d_bias is not None and bias is not None) else None
         return d_hidden, dw_out, db_out, None, None, None, None, None
 
 
