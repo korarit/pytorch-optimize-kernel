@@ -49,6 +49,10 @@ def _is_compilable_module(mod_self: Any, torch_mod: Any) -> bool:
     return False
 
 
+_DEFAULT_DYNAMIC_MIN_PARAMS = 250_000
+_DEFAULT_DYNAMIC_MIN_INPUT_ELEMS = 65_536
+
+
 def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> tuple[Any, ...]:
     """Build lightweight shape+dtype signature of input tensors to detect dynamic-shape workloads."""
     tensor_cls = getattr(torch_mod, "Tensor", None)
@@ -57,6 +61,51 @@ def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: A
         if tensor_cls is not None and isinstance(item, tensor_cls):
             sig.append((tuple(item.shape), str(item.dtype), str(getattr(item, "device", ""))))
     return tuple(sig)
+
+
+def _is_worth_dynamic_compile(
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    rt: "AutoCompileRuntime",
+) -> tuple[bool, str]:
+    """Return True if recompiling with `dynamic=True` is likely faster than eager fallback."""
+    if rt.dynamic is True or os.environ.get("PTOPT_COMPILE_DYNAMIC_SMALL") == "1":
+        return True, "dynamic compile explicitly requested"
+
+    try:
+        min_params = int(os.environ.get("PTOPT_COMPILE_DYNAMIC_MIN_PARAMS", str(_DEFAULT_DYNAMIC_MIN_PARAMS)))
+    except ValueError:
+        min_params = _DEFAULT_DYNAMIC_MIN_PARAMS
+    try:
+        min_elems = int(os.environ.get("PTOPT_COMPILE_DYNAMIC_MIN_ELEMS", str(_DEFAULT_DYNAMIC_MIN_INPUT_ELEMS)))
+    except ValueError:
+        min_elems = _DEFAULT_DYNAMIC_MIN_INPUT_ELEMS
+
+    total_params = 0
+    if hasattr(mod_self, "parameters"):
+        try:
+            total_params = sum(int(p.numel()) for p in mod_self.parameters())
+        except Exception:  # noqa: BLE001
+            total_params = 0
+
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    input_elems = 0
+    if tensor_cls is not None:
+        for item in (*args, *kwargs.values()):
+            if isinstance(item, tensor_cls):
+                try:
+                    input_elems += int(item.numel())
+                except Exception:  # noqa: BLE001
+                    pass
+
+    if total_params < min_params and input_elems < min_elems:
+        return (
+            False,
+            f"params={total_params} < {min_params} and input_elems={input_elems} < {min_elems}",
+        )
+    return True, f"params={total_params}, input_elems={input_elems}"
 
 
 def _configure_cache_and_dynamo(cfg: OptimizeConfig, torch_mod: Any, strict: bool) -> str | None:
@@ -221,18 +270,30 @@ def install_auto_compile_hook(
                         seen.add(sig)
                         cur_dyn = getattr(mod_self, "_ptopt_compile_dynamic", rt.dynamic)
                         if len(seen) == 2 and cur_dyn is not True and auto_dynamic_on_change:
-                            manager.record_event(
-                                "compile.auto",
-                                "FALLBACK",
-                                f"Dynamic input shapes detected on {type(mod_self).__name__}; switching to dynamic=True",
-                            )
-                            _attempt_compile_module(
-                                mod_self,
-                                rt,
-                                torch_mod,
-                                dynamic_override=True,
-                                reason_tag="Recompiled(dynamic)",
-                            )
+                            worth_dyn, dyn_reason = _is_worth_dynamic_compile(mod_self, args, kwargs, torch_mod, rt)
+                            if not worth_dyn:
+                                mod_self._compiled_call_impl = None
+                                mod_self._ptopt_compile_active = False
+                                mod_self._ptopt_compile_ineligible = True
+                                rt.fallback_count += 1
+                                manager.record_event(
+                                    "compile.auto",
+                                    "FALLBACK",
+                                    f"Small dynamic-shape module {type(mod_self).__name__} reverted to eager for profitability ({dyn_reason})",
+                                )
+                            else:
+                                manager.record_event(
+                                    "compile.auto",
+                                    "FALLBACK",
+                                    f"Dynamic input shapes detected on {type(mod_self).__name__}; switching to dynamic=True",
+                                )
+                                _attempt_compile_module(
+                                    mod_self,
+                                    rt,
+                                    torch_mod,
+                                    dynamic_override=True,
+                                    reason_tag="Recompiled(dynamic)",
+                                )
 
             try:
                 return orig_mod_call(mod_self, *args, **kwargs)

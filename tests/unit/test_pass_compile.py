@@ -121,7 +121,39 @@ class TestAutoCompilePass(unittest.TestCase):
                 uninstall_auto_compile_hook(torch)
                 mgr.reset()
 
-    def test_dynamic_shape_switches_once_to_dynamic_true(self) -> None:
+    def test_tiny_dynamic_shape_reverts_to_eager_and_large_switches_to_dynamic_true(self) -> None:
+        # 1. Tiny module (`nn.Linear(4, 2)` = 10 params): static compile on step 0, revert to eager on shape change
+        cfg_tiny = OptimizeConfig(profile="balanced")
+        cfg_tiny.compile.enabled = True
+        cfg_tiny.compile.dynamic = False
+        mgr_tiny = HookManager()
+        tiny_flags: list[object] = []
+
+        def _spy_tiny(fn: object, **kwargs: object) -> object:
+            tiny_flags.append(kwargs.get("dynamic"))
+            return lambda *a, **kw: fn(*a, **kw)
+
+        tiny_model = nn.Linear(4, 2)
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
+            torch, "compile", side_effect=_spy_tiny
+        ):
+            rt = install_auto_compile_hook(cfg_tiny, mgr_tiny, torch)
+            assert rt is not None
+            try:
+                tiny_model(torch.randn(2, 4))
+                tiny_model(torch.randn(3, 4))
+                tiny_model(torch.randn(5, 4))
+                self.assertEqual(tiny_flags, [False])
+                self.assertIsNone(tiny_model._compiled_call_impl)
+                self.assertEqual(rt.fallback_count, 1)
+                self.assertTrue(
+                    any(ev.status == "FALLBACK" and "reverted to eager" in ev.reason for ev in mgr_tiny.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr_tiny.reset()
+
+        # 2. Larger module (>= 250k params): static compile on step 0, adapt once to dynamic=True on shape change
         cfg = OptimizeConfig(profile="balanced")
         cfg.compile.enabled = True
         cfg.compile.dynamic = False
@@ -132,17 +164,17 @@ class TestAutoCompilePass(unittest.TestCase):
             dynamic_flags.append(kwargs.get("dynamic"))
             return fn
 
-        model = nn.Linear(4, 2)
+        large_model = nn.Linear(512, 512)  # 262,656 params > 250,000 threshold
         with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
             torch, "compile", side_effect=_spy_compile
         ):
             rt = install_auto_compile_hook(cfg, mgr, torch)
             assert rt is not None
             try:
-                model(torch.randn(2, 4))
-                model(torch.randn(3, 4))
-                model(torch.randn(5, 4))
-                model(torch.randn(7, 4))
+                large_model(torch.randn(2, 512))
+                large_model(torch.randn(3, 512))
+                large_model(torch.randn(5, 512))
+                large_model(torch.randn(7, 512))
                 # Step 0 compiles static (False); step 1 adapts once to dynamic=True; steps 2-3 reuse
                 self.assertEqual(dynamic_flags, [False, True])
             finally:

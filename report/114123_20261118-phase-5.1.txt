@@ -1,0 +1,41 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.1 REPORT: TINY DYNAMIC-SHAPE COMPILE BYPASS
+==============================================================================
+Timestamp          : 2026-11-18 11:41:23 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 3c763b9
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu (sm_0)
+Unit Test (5.1)    : Ran 5 tests in 0.855s (2.19s) -> PASS
+Overall Phase 5.1  : PASS
+
+[Dynamic-Shape Bypass & Regression Check]
+------------------------------------------------------------------------------
+Case              | Profile    | Base ms | Wrap ms | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+------------------+------------+---------+---------+---------+-----------------+------------+-------
+edge_dynamic_only | safe       | 0.66    | 0.73    | 0.91x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_dynamic_only | balanced   | 0.66    | 0.57    | 1.16x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_dynamic_only | aggressive | 0.66    | 0.52    | 1.26x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_all          | safe       | 0.63    | 0.60    | 1.05x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_all          | balanced   | 0.63    | 0.56    | 1.12x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+edge_all          | aggressive | 0.63    | 0.66    | 0.96x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | safe       | 58.05   | 55.62   | 1.04x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | balanced   | 58.05   | 59.26   | 0.98x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm    | aggressive | 58.05   | 57.11   | 1.02x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[Compile Decision Audit (`compile.auto`)]
+------------------------------------------------------------------------------
+[SKIPPED] edge_dynamic_only (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_dynamic_only (balanced) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_dynamic_only (aggressive) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_all (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_all (balanced) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_all (aggressive) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm (balanced) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm (aggressive) -> compile.auto: compile.enabled is False
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify `edge_cases` speedup recovery on Google Colab GPU before advancing to Plan 5.2)
+==============================================================================
