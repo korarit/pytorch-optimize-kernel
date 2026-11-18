@@ -222,6 +222,36 @@ class TestAutoCompilePass(unittest.TestCase):
         finally:
             uninstall_checkpoint_compat_hooks(torch)
 
+    def test_step0_static_tiny_module_bypass_skips_compile_entirely(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        compile_calls = 0
+
+        def _spy_compile(fn: object, **_kwargs: object) -> object:
+            nonlocal compile_calls
+            compile_calls += 1
+            return fn
+
+        tiny_model = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 8))  # 9,352 params
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_STATIC_MIN_PARAMS": "50000"},
+        ), patch.object(torch, "compile", side_effect=_spy_compile):
+            rt = install_auto_compile_hook(cfg, mgr, torch)
+            assert rt is not None
+            try:
+                out = tiny_model(torch.randn(8, 64))
+                self.assertEqual(out.shape, (8, 8))
+                self.assertEqual(compile_calls, 0)
+                self.assertTrue(getattr(tiny_model, "_ptopt_compile_ineligible", False))
+                self.assertTrue(
+                    any(ev.status == "SKIPPED" and "Tiny module" in ev.reason for ev in mgr.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

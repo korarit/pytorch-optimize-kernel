@@ -114,10 +114,7 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
         func_mod._ptopt_amp_orig_losses = orig_losses
 
 
-def _is_cast_heavy_eager_mlp(mod_self: Any, cfg: OptimizeConfig, torch_mod: Any) -> bool:
-    """Detect deep LayerNorm-interleaved MLPs (no Conv2d/Attention) where eager AMP cast churn hurts."""
-    if cfg.compile.enabled or os.environ.get("PTOPT_AMP_FORCE") == "1":
-        return False
+def _has_conv_or_attention(mod_self: Any, torch_mod: Any) -> bool:
     nn_ns = getattr(torch_mod, "nn", None)
     if nn_ns is None or not hasattr(mod_self, "modules"):
         return False
@@ -125,23 +122,59 @@ def _is_cast_heavy_eager_mlp(mod_self: Any, cfg: OptimizeConfig, torch_mod: Any)
         t for t in (getattr(nn_ns, "Conv1d", None), getattr(nn_ns, "Conv2d", None), getattr(nn_ns, "Conv3d", None))
         if t is not None
     )
-    ln_cls = getattr(nn_ns, "LayerNorm", None)
     mha_cls = getattr(nn_ns, "MultiheadAttention", None)
-    if ln_cls is None:
-        return False
-
-    ln_count = 0
     for sub in mod_self.modules():
         if conv_types and isinstance(sub, conv_types):
-            return False
+            return True
         if mha_cls is not None and isinstance(sub, mha_cls):
-            return False
+            return True
         cls_name = type(sub).__name__.lower()
         if "attention" in cls_name or "attn" in cls_name:
-            return False
-        if isinstance(sub, ln_cls):
-            ln_count += 1
+            return True
+    return False
+
+
+def _is_cast_heavy_eager_mlp(mod_self: Any, cfg: OptimizeConfig, torch_mod: Any) -> bool:
+    """Detect deep LayerNorm-interleaved MLPs (no Conv2d/Attention) where eager AMP cast churn hurts."""
+    if cfg.compile.enabled or os.environ.get("PTOPT_AMP_FORCE") == "1":
+        return False
+    if _has_conv_or_attention(mod_self, torch_mod):
+        return False
+    nn_ns = getattr(torch_mod, "nn", None)
+    ln_cls = getattr(nn_ns, "LayerNorm", None) if nn_ns is not None else None
+    if ln_cls is None or not hasattr(mod_self, "modules"):
+        return False
+    ln_count = sum(1 for sub in mod_self.modules() if isinstance(sub, ln_cls))
     return ln_count >= 6
+
+
+def _is_tiny_uncompiled_mlp(
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+) -> bool:
+    """Return True if an uncompiled tiny MLP has too few params/elems to profit from eager autocast."""
+    if os.environ.get("PTOPT_AMP_FORCE") == "1":
+        return False
+    if _has_conv_or_attention(mod_self, torch_mod):
+        return False
+    total_params = 0
+    if hasattr(mod_self, "parameters"):
+        try:
+            total_params = sum(int(p.numel()) for p in mod_self.parameters())
+        except Exception:  # noqa: BLE001
+            total_params = 0
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    input_elems = 0
+    if tensor_cls is not None:
+        for item in (*args, *kwargs.values()):
+            if isinstance(item, tensor_cls):
+                try:
+                    input_elems += int(item.numel())
+                except Exception:  # noqa: BLE001
+                    pass
+    return 0 < total_params < 50_000 and input_elems < 32_768
 
 
 class AutoAmpRuntime:
@@ -273,6 +306,18 @@ def install_auto_amp_hook(
                         "SKIPPED",
                         "Skipped eager AMP for deep LayerNorm MLP without Conv2d/Attention (cast overhead > compute)",
                     )
+            if (
+                eligible
+                and (getattr(mod_self, "_ptopt_compile_ineligible", False) or getattr(mod_self, "_ptopt_compile_failed", False))
+                and _is_tiny_uncompiled_mlp(mod_self, args, kwargs, torch_mod)
+            ):
+                eligible = False
+                mod_self._ptopt_amp_eligible = False
+                manager.record_event(
+                    "amp.auto",
+                    "SKIPPED",
+                    f"Skipped eager AMP for tiny uncompiled module {type(mod_self).__name__} (autocast overhead > compute)",
+                )
             if not eligible:
                 rt._last_forward_skipped_amp = True
                 return orig_mod_call(mod_self, *args, **kwargs)

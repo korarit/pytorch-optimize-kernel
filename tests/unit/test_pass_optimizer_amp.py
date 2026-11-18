@@ -356,6 +356,35 @@ class TestAutoAmpPass(unittest.TestCase):
             uninstall_auto_amp_hook(torch)
             mgr.reset()
 
+    def test_eager_amp_skips_tiny_uncompiled_mlp(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+
+        entered: list[object] = []
+
+        def _fake_autocast(device_type: str = "cuda", dtype: object = None, **_kw: object):
+            entered.append((device_type, dtype))
+            return nullcontext()
+
+        tiny_mlp = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 8))
+        tiny_mlp._ptopt_compile_ineligible = True  # type: ignore[attr-defined]
+        try:
+            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+                torch.amp, "autocast", side_effect=_fake_autocast
+            ):
+                out = tiny_mlp(torch.randn(8, 64))
+            self.assertEqual(out.shape, (8, 8))
+            self.assertEqual(len(entered), 0)
+            self.assertTrue(any(ev.status == "SKIPPED" and "tiny uncompiled module" in ev.reason for ev in mgr.events))
+        finally:
+            uninstall_auto_amp_hook(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

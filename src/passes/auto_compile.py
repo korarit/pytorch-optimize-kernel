@@ -49,6 +49,8 @@ def _is_compilable_module(mod_self: Any, torch_mod: Any) -> bool:
     return False
 
 
+_DEFAULT_STATIC_TINY_MIN_PARAMS = 50_000
+_DEFAULT_STATIC_TINY_MIN_INPUT_ELEMS = 32_768
 _DEFAULT_DYNAMIC_MIN_PARAMS = 250_000
 _DEFAULT_DYNAMIC_MIN_INPUT_ELEMS = 65_536
 
@@ -61,6 +63,66 @@ def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: A
         if tensor_cls is not None and isinstance(item, tensor_cls):
             sig.append((tuple(item.shape), str(item.dtype), str(getattr(item, "device", ""))))
     return tuple(sig)
+
+
+def _count_module_params_and_elems(
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+) -> tuple[int, int]:
+    total_params = 0
+    if hasattr(mod_self, "parameters"):
+        try:
+            total_params = sum(int(p.numel()) for p in mod_self.parameters())
+        except Exception:  # noqa: BLE001
+            total_params = 0
+
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    input_elems = 0
+    if tensor_cls is not None:
+        for item in (*args, *kwargs.values()):
+            if isinstance(item, tensor_cls):
+                try:
+                    input_elems += int(item.numel())
+                except Exception:  # noqa: BLE001
+                    pass
+    return total_params, input_elems
+
+
+def _is_worth_static_compile(
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    allow_cpu: bool,
+) -> tuple[bool, str]:
+    """Skip compiling tiny CUDA modules whose JIT/guard overhead outweighs compute."""
+    if os.environ.get("PTOPT_COMPILE_TINY") == "1":
+        return True, "tiny compile explicitly enabled"
+
+    default_params = "0" if allow_cpu else str(_DEFAULT_STATIC_TINY_MIN_PARAMS)
+    try:
+        min_params = int(os.environ.get("PTOPT_COMPILE_STATIC_MIN_PARAMS", default_params))
+    except ValueError:
+        min_params = 0 if allow_cpu else _DEFAULT_STATIC_TINY_MIN_PARAMS
+    if min_params <= 0:
+        return True, "static tiny gate disabled"
+
+    try:
+        min_elems = int(
+            os.environ.get("PTOPT_COMPILE_STATIC_MIN_ELEMS", str(_DEFAULT_STATIC_TINY_MIN_INPUT_ELEMS))
+        )
+    except ValueError:
+        min_elems = _DEFAULT_STATIC_TINY_MIN_INPUT_ELEMS
+
+    total_params, input_elems = _count_module_params_and_elems(mod_self, args, kwargs, torch_mod)
+    if total_params < min_params and input_elems < min_elems:
+        return (
+            False,
+            f"params={total_params} < {min_params} and input_elems={input_elems} < {min_elems}",
+        )
+    return True, f"params={total_params}, input_elems={input_elems}"
 
 
 def _is_worth_dynamic_compile(
@@ -83,22 +145,7 @@ def _is_worth_dynamic_compile(
     except ValueError:
         min_elems = _DEFAULT_DYNAMIC_MIN_INPUT_ELEMS
 
-    total_params = 0
-    if hasattr(mod_self, "parameters"):
-        try:
-            total_params = sum(int(p.numel()) for p in mod_self.parameters())
-        except Exception:  # noqa: BLE001
-            total_params = 0
-
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    input_elems = 0
-    if tensor_cls is not None:
-        for item in (*args, *kwargs.values()):
-            if isinstance(item, tensor_cls):
-                try:
-                    input_elems += int(item.numel())
-                except Exception:  # noqa: BLE001
-                    pass
+    total_params, input_elems = _count_module_params_and_elems(mod_self, args, kwargs, torch_mod)
 
     if total_params < min_params and input_elems < min_elems:
         return (
@@ -254,14 +301,24 @@ def install_auto_compile_hook(
                         f"CPU-only module {type(mod_self).__name__} skipped (set PTOPT_COMPILE_CPU=1 to force)",
                     )
                 else:
-                    mod_self._ptopt_seen_shapes = {_shape_signature(args, kwargs, torch_mod)}
-                    _attempt_compile_module(
-                        mod_self,
-                        rt,
-                        torch_mod,
-                        dynamic_override=rt.dynamic,
-                        reason_tag="Compiled",
-                    )
+                    worth_static, static_reason = _is_worth_static_compile(mod_self, args, kwargs, torch_mod, allow_cpu)
+                    if not worth_static:
+                        mod_self._ptopt_compile_ineligible = True
+                        mod_self._ptopt_compile_active = False
+                        manager.record_event(
+                            "compile.auto",
+                            "SKIPPED",
+                            f"Tiny module {type(mod_self).__name__} skipped compile for profitability ({static_reason})",
+                        )
+                    else:
+                        mod_self._ptopt_seen_shapes = {_shape_signature(args, kwargs, torch_mod)}
+                        _attempt_compile_module(
+                            mod_self,
+                            rt,
+                            torch_mod,
+                            dynamic_override=rt.dynamic,
+                            reason_tag="Compiled",
+                        )
             elif getattr(mod_self, "_ptopt_compile_active", False) and not getattr(mod_self, "_ptopt_compile_failed", False):
                 seen = getattr(mod_self, "_ptopt_seen_shapes", None)
                 if seen is not None and len(seen) < 8:
