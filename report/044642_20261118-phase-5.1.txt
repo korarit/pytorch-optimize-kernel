@@ -1,0 +1,55 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.1 REPORT: TINY DYNAMIC-SHAPE COMPILE BYPASS
+==============================================================================
+Timestamp          : 2026-11-18 04:46:42 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 102d6c8
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Unit Test (5.1)    : Ran 5 tests in 5.795s (9.42s) -> PASS
+Overall Phase 5.1  : PASS
+
+[Dynamic-Shape Bypass & Regression Check]
+------------------------------------------------------------------------------
+Case              | Profile    | Base ms | Wrap ms | Speedup | VRAM MB (B/W/d)        | MaxRelDiff | Status
+------------------+------------+---------+---------+---------+------------------------+------------+-------
+edge_dynamic_only | safe       | 1.50    | 1.48    | 1.01x   | 16.9/16.9 (+0.0)       | 1.8e-05    | PASS  
+edge_dynamic_only | balanced   | 1.50    | 1.86    | 0.81x   | 16.9/64.3 (+47.5)      | 0.000182   | PASS  
+edge_dynamic_only | aggressive | 1.50    | 1.79    | 0.84x   | 16.9/16.7 (-0.2)       | 0.000182   | PASS  
+edge_all          | safe       | 1.45    | 1.48    | 0.98x   | 16.9/16.9 (-0.1)       | 0.000112   | PASS  
+edge_all          | balanced   | 1.45    | 1.67    | 0.87x   | 16.9/64.6 (+47.7)      | 3.3e-05    | PASS  
+edge_all          | aggressive | 1.45    | 1.64    | 0.89x   | 16.9/17.1 (+0.2)       | 3.3e-05    | PASS  
+transformer_lm    | safe       | 97.79   | 51.98   | 1.88x   | 1734.8/1730.9 (-4.0)   | 1e-06      | PASS  
+transformer_lm    | balanced   | 97.79   | 26.11   | 3.75x   | 1734.8/1033.4 (-701.5) | 7e-06      | PASS  
+transformer_lm    | aggressive | 97.79   | 25.36   | 3.85x   | 1734.8/955.4 (-779.5)  | 6e-06      | PASS  
+
+[Compile Decision Audit (`compile.auto`)]
+------------------------------------------------------------------------------
+[SKIPPED] edge_dynamic_only (safe) -> compile.auto: compile.enabled is False
+[APPLIED] edge_dynamic_only (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/edge_dynamic_only)
+[APPLIED] edge_dynamic_only (balanced) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_dynamic_only (balanced) -> compile.auto: Small dynamic-shape module Sequential reverted to eager for profitability (params=9352 < 250000 and input_elems=5376 < 65536)
+[APPLIED] edge_dynamic_only (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/edge_dynamic_only)
+[APPLIED] edge_dynamic_only (aggressive) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_dynamic_only (aggressive) -> compile.auto: Small dynamic-shape module Sequential reverted to eager for profitability (params=9352 < 250000 and input_elems=5376 < 65536)
+[SKIPPED] edge_all (safe) -> compile.auto: compile.enabled is False
+[APPLIED] edge_all (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/edge_all)
+[APPLIED] edge_all (balanced) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[APPLIED] edge_all (balanced) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_all (balanced) -> compile.auto: Small dynamic-shape module Sequential reverted to eager for profitability (params=9352 < 250000 and input_elems=5376 < 65536)
+[APPLIED] edge_all (balanced) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[APPLIED] edge_all (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/edge_all)
+[APPLIED] edge_all (aggressive) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[APPLIED] edge_all (aggressive) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[FALLBACK] edge_all (aggressive) -> compile.auto: Small dynamic-shape module Sequential reverted to eager for profitability (params=9352 < 250000 and input_elems=5376 < 65536)
+[APPLIED] edge_all (aggressive) -> compile.auto: Compiled Sequential (mode=default, dynamic=False)
+[SKIPPED] transformer_lm (safe) -> compile.auto: compile.enabled is False
+[APPLIED] transformer_lm (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/transformer_lm)
+[APPLIED] transformer_lm (balanced) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] transformer_lm (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpoo8rgjva/transformer_lm)
+[APPLIED] transformer_lm (aggressive) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify `edge_cases` speedup recovery on Google Colab GPU before advancing to Plan 5.2)
+==============================================================================
