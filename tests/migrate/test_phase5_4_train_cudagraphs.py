@@ -69,10 +69,57 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
         common = ["--steps", str(_STEPS), "--batch-size", bs, "--seed", "42", "--device", _DEVICE, *extra]
 
         base = _run_summary([sys.executable, script, *common])
+        wrap = _run_summary([
+            sys.executable,
+            "-m",
+            "src.cli.main",
+            "--profile",
+            "balanced",
+            "--override",
+            "compile.train_cuda_graphs=true",
+            "--",
+            sys.executable,
+            script,
+            *common,
+        ])
+        parity_cont = check_parity(base["losses"], wrap["losses"], profile="balanced")
+        self.assertTrue(parity_cont.passed, f"transformer_lm train_cuda_graphs parity failed: {parity_cont.reason}")
+
         with tempfile.TemporaryDirectory() as tmp:
-            ckpt_path = str(Path(tmp) / "cg_ckpt.pt")
+            ckpt_wrap = str(Path(tmp) / "cg_wrap.pt")
+            ckpt_base = str(Path(tmp) / "cg_base.pt")
             half = max(3, _STEPS // 2)
-            part1 = _run_summary([
+            base_p1 = _run_summary([
+                sys.executable,
+                script,
+                "--steps",
+                str(half),
+                "--batch-size",
+                bs,
+                "--seed",
+                "42",
+                "--device",
+                _DEVICE,
+                "--save-ckpt",
+                ckpt_base,
+                *extra,
+            ])
+            base_p2 = _run_summary([
+                sys.executable,
+                script,
+                "--steps",
+                str(_STEPS - half),
+                "--batch-size",
+                bs,
+                "--seed",
+                "42",
+                "--device",
+                _DEVICE,
+                "--load-ckpt",
+                ckpt_base,
+                *extra,
+            ])
+            wrap_p1 = _run_summary([
                 sys.executable,
                 "-m",
                 "src.cli.main",
@@ -92,10 +139,15 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
                 "--device",
                 _DEVICE,
                 "--save-ckpt",
-                ckpt_path,
+                ckpt_wrap,
                 *extra,
             ])
-            part2 = _run_summary([
+            payload = torch.load(ckpt_wrap, map_location="cpu", weights_only=False)
+            model_keys = list(payload["model_state_dict"].keys())
+            self.assertTrue(model_keys)
+            self.assertFalse(any("_orig_mod." in k for k in model_keys))
+
+            wrap_p2 = _run_summary([
                 sys.executable,
                 "-m",
                 "src.cli.main",
@@ -115,12 +167,13 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
                 "--device",
                 _DEVICE,
                 "--load-ckpt",
-                ckpt_path,
+                ckpt_wrap,
                 *extra,
             ])
-            combined_losses = list(part1["losses"]) + list(part2["losses"])  # type: ignore[arg-type]
-        parity = check_parity(base["losses"], combined_losses, profile="balanced")
-        self.assertTrue(parity.passed, f"transformer_lm train_cuda_graphs ckpt roundtrip failed: {parity.reason}")
+            base_combined = list(base_p1["losses"]) + list(base_p2["losses"])  # type: ignore[arg-type]
+            wrap_combined = list(wrap_p1["losses"]) + list(wrap_p2["losses"])  # type: ignore[arg-type]
+        parity_ckpt = check_parity(base_combined, wrap_combined, profile="balanced")
+        self.assertTrue(parity_ckpt.passed, f"transformer_lm train_cuda_graphs ckpt roundtrip failed: {parity_ckpt.reason}")
 
 
 if __name__ == "__main__":
