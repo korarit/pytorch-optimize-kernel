@@ -284,9 +284,19 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
     drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
     triton_quant = _get_triton_fp8_quantizer()
 
+    # nn.MultiheadAttention passes out_proj.weight directly into F.multi_head_attention_forward
+    # instead of invoking out_proj.forward(); never patch or drop source weights on it.
+    mha_cls = getattr(nn_ns, "MultiheadAttention", None)
+    skip_linear_ids: set[int] = set()
+    for mod in module.modules():
+        if mha_cls is not None and isinstance(mod, mha_cls) and hasattr(mod, "out_proj"):
+            skip_linear_ids.add(id(mod.out_proj))
+
     patched = 0
     for sub in module.modules():
         if not isinstance(sub, linear_cls) or getattr(sub, "_ptopt_fp8_patched", False):
+            continue
+        if id(sub) in skip_linear_ids or type(sub).__name__ == "NonDynamicallyQuantizableLinear":
             continue
         if sub.in_features < 128 or sub.in_features % 16 != 0 or sub.out_features % 16 != 0:
             continue
