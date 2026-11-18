@@ -32,7 +32,7 @@ from telemetry import check_parity, compute_speedup, compute_vram_delta  # noqa:
 def _run_unit_file(rel_path: str) -> tuple[bool, float, str, str]:
     t0 = time.perf_counter()
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", rel_path, "-v"],
+        [sys.executable, str(REPO_ROOT / rel_path), "-v"],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

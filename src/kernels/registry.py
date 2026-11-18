@@ -137,6 +137,11 @@ def _builtin_specs() -> dict[str, KernelSpec]:
     }
 
 
+def _is_checkpoint_control_flow(exc: BaseException) -> bool:
+    """Propagate PyTorch `checkpoint(..., early_stop=True)` internal stop signals untouched."""
+    return type(exc).__name__ == "_StopRecomputationError"
+
+
 def _patch_functional_cross_entropy(
     torch_mod: Any,
     reg: KernelRegistry,
@@ -191,6 +196,8 @@ def _patch_functional_cross_entropy(
                         matmul_dtype=mm_dt,
                     )
                 except Exception as exc:  # noqa: BLE001
+                    if _is_checkpoint_control_flow(exc):
+                        raise
                     if fallback_on_error and not manager.strict:
                         reg.fallback_registry.record("fused_linear_cross_entropy", "FALLBACK", f"Runtime fallback: {exc}")
                         manager.record_event("kernels.fused_linear_cross_entropy", "FALLBACK", "Fallback to native F.cross_entropy", str(exc))
@@ -216,6 +223,8 @@ def _patch_functional_cross_entropy(
             try:
                 return triton_cross_entropy(inp, target, ignore_index=ignore_index, reduction=reduction)
             except Exception as exc:  # noqa: BLE001
+                if _is_checkpoint_control_flow(exc):
+                    raise
                 if fallback_on_error and not manager.strict:
                     reg.fallback_registry.record("cross_entropy", "FALLBACK", f"Runtime fallback: {exc}")
                     manager.record_event("kernels.cross_entropy", "FALLBACK", "Runtime fallback to native F.cross_entropy", str(exc))
@@ -289,8 +298,8 @@ def _patch_module_submodules(
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
                                 return triton_rmsnorm(x, m.weight, eps=float(getattr(m, "eps", 1e-6)))
-                            except Exception:  # noqa: BLE001
-                                if not fallback_on_error or manager.strict:
+                            except Exception as exc:  # noqa: BLE001
+                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
                         return base_f(x)
 
@@ -314,8 +323,8 @@ def _patch_module_submodules(
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
                                 return triton_layernorm(x, m.weight, getattr(m, "bias", None), eps=float(m.eps))
-                            except Exception:  # noqa: BLE001
-                                if not fallback_on_error or manager.strict:
+                            except Exception as exc:  # noqa: BLE001
+                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
                         return base_f(x)
 
@@ -343,8 +352,8 @@ def _patch_module_submodules(
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
                                 return m.w_down(triton_swiglu(m.w_gate(x), m.w_up(x)))
-                            except Exception:  # noqa: BLE001
-                                if not fallback_on_error or manager.strict:
+                            except Exception as exc:  # noqa: BLE001
+                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
                         return base_f(x)
 
@@ -388,8 +397,8 @@ def _patch_module_submodules(
                         ):
                             try:
                                 return create_lazy_linear_logits(x, m.weight, getattr(m, "bias", None))
-                            except Exception:  # noqa: BLE001
-                                if not fallback_on_error or manager.strict:
+                            except Exception as exc:  # noqa: BLE001
+                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
                         return base_f(x)
 

@@ -452,6 +452,43 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                 uninstall_activation_checkpoint_hook(torch)
                 mgr_strict.reset()
 
+    def test_checkpoint_early_stop_control_flow_not_swallowed_by_kernel_wrappers(self) -> None:
+        from src.kernels.registry import _is_checkpoint_control_flow
+
+        stop_cls = getattr(torch.utils.checkpoint, "_StopRecomputationError", None)
+        if stop_cls is not None:
+            self.assertTrue(_is_checkpoint_control_flow(stop_cls()))
+        self.assertFalse(_is_checkpoint_control_flow(RuntimeError("boom")))
+
+        class _SavedTensorFn(torch.autograd.Function):
+            @staticmethod
+            def forward(ctx: object, x: torch.Tensor) -> torch.Tensor:
+                ctx.save_for_backward(x)  # type: ignore[attr-defined]
+                return x * 2.0
+
+            @staticmethod
+            def backward(ctx: object, grad_out: torch.Tensor) -> torch.Tensor:
+                (x,) = ctx.saved_tensors  # type: ignore[attr-defined]
+                return grad_out * (2.0 + x * 0.0)
+
+        lin = nn.Linear(16, 16)
+
+        def _block_fwd(inp: torch.Tensor) -> torch.Tensor:
+            h = torch.relu(lin(inp))
+            try:
+                # Last op inside checkpointed region triggers _StopRecomputationError during recompute
+                return _SavedTensorFn.apply(h)  # type: ignore[return-value]
+            except Exception as exc:  # noqa: BLE001
+                if _is_checkpoint_control_flow(exc):
+                    raise
+                return h * 2.0
+
+        x = torch.randn(4, 16, requires_grad=True)
+        out = torch.utils.checkpoint.checkpoint(_block_fwd, x, use_reentrant=False)
+        out.sum().backward()
+        self.assertIsNotNone(x.grad)
+        self.assertIsNotNone(lin.weight.grad)
+
 
 if __name__ == "__main__":
     unittest.main()

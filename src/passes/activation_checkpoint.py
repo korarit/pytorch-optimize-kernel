@@ -249,7 +249,7 @@ def patch_module_activation_checkpointing(
                 try:
                     return live_ckpt(_guarded_base_fwd, *args, **ckpt_kw)
                 except Exception as exc:  # noqa: BLE001
-                    if _is_oom_error(exc, torch_mod):
+                    if _is_oom_error(exc, torch_mod) or type(exc).__name__ == "_StopRecomputationError":
                         raise
                     sub_blk._ptopt_act_ckpt_failed = True
                     sub_blk.forward = base_fwd
