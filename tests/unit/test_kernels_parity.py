@@ -77,7 +77,7 @@ class TestKernelCapabilityGate(unittest.TestCase):
             reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=75)
             assert reg is not None
             try:
-                self.assertEqual(len(reg.fallback_registry.entries), 4)
+                self.assertEqual(len(reg.fallback_registry.entries), 5)
                 self.assertTrue(all(e.status == "SKIPPED" for e in reg.fallback_registry.entries.values()))
                 self.assertTrue(all(ev.status == "SKIPPED" for ev in mgr.events))
             finally:
@@ -104,6 +104,7 @@ class TestKernelCapabilityGate(unittest.TestCase):
                 self.assertEqual(entries["rmsnorm"].status, "SKIPPED")
                 self.assertEqual(entries["layernorm"].status, "SKIPPED")
                 self.assertEqual(entries["swiglu"].status, "SKIPPED")
+                self.assertEqual(entries["fused_linear_cross_entropy"].status, "SKIPPED")
                 self.assertIn("Inductor", entries["rmsnorm"].reason)
                 self.assertIn("Inductor", entries["layernorm"].reason)
             finally:

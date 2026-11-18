@@ -1,0 +1,427 @@
+"""Fused Chunked Linear + CrossEntropy kernel avoiding full `[N, V]` logits allocation in VRAM."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import torch
+import torch.nn.functional as F
+
+import src.kernels.cross_entropy as _ce_mod
+from src.kernels.cross_entropy import HAS_TRITON, triton
+
+_cross_entropy_fwd_kernel = getattr(_ce_mod, "_cross_entropy_fwd_kernel", None)
+_cross_entropy_bwd_kernel = getattr(_ce_mod, "_cross_entropy_bwd_kernel", None)
+
+_TARGET_CHUNK_BYTES = 16 * 1024 * 1024
+
+
+def compute_optimal_chunk_size(num_rows: int, vocab_size: int, dtype: torch.dtype, explicit_chunk: int | None = None) -> int:
+    """Choose row chunk size keeping temporary `[chunk, vocab_size]` logits within ~16 MB."""
+    if num_rows <= 0:
+        return 1
+    if explicit_chunk is not None and explicit_chunk > 0:
+        return min(num_rows, int(explicit_chunk))
+    elem_bytes = 2 if dtype in (torch.float16, torch.bfloat16) else 4
+    max_elems = _TARGET_CHUNK_BYTES // elem_bytes
+    raw = max(128, min(2048, max_elems // max(1, vocab_size)))
+    # Round down to multiple of 64 (or keep >=128) for clean GEMM tile alignment
+    aligned = max(128, (raw // 64) * 64)
+    return min(num_rows, aligned)
+
+
+def ref_linear_cross_entropy(
+    hidden: torch.Tensor,
+    weight: torch.Tensor,
+    bias: torch.Tensor | None,
+    targets: torch.Tensor,
+    *,
+    ignore_index: int = -100,
+    reduction: str = "mean",
+) -> torch.Tensor:
+    """Reference PyTorch `F.cross_entropy(F.linear(hidden, weight, bias).float(), targets)`."""
+    logits = F.linear(hidden, weight, bias)
+    return F.cross_entropy(logits.reshape(-1, weight.shape[0]).float(), targets.reshape(-1), ignore_index=ignore_index, reduction=reduction)
+
+
+def _active_linear_dtype(hidden: torch.Tensor, weight: torch.Tensor) -> torch.dtype:
+    if hidden.is_cuda and torch.is_autocast_enabled("cuda"):
+        return torch.get_autocast_dtype("cuda")
+    if weight.dtype in (torch.float16, torch.bfloat16) and hidden.dtype == weight.dtype:
+        return weight.dtype
+    return hidden.dtype if hidden.dtype in (torch.float16, torch.bfloat16) and weight.dtype in (torch.float16, torch.bfloat16) else torch.promote_types(hidden.dtype, weight.dtype)
+
+
+def _chunk_ce_fwd(
+    logits_c: torch.Tensor,
+    targets_c: torch.Tensor,
+    losses_out: torch.Tensor,
+    lse_out: torch.Tensor,
+    *,
+    ignore_index: int,
+    block_v: int,
+    warps: int,
+) -> None:
+    m_c, v_dim = logits_c.shape
+    if HAS_TRITON and _cross_entropy_fwd_kernel is not None and logits_c.is_cuda:
+        _cross_entropy_fwd_kernel[(m_c,)](
+            logits_c,
+            targets_c,
+            losses_out,
+            lse_out,
+            logits_c.stride(0),
+            v_dim,
+            ignore_index,
+            BLOCK_V=block_v,
+            num_warps=warps,
+        )
+        return
+
+    logits_f = logits_c.float()
+    lse_c = torch.logsumexp(logits_f, dim=-1)
+    valid = (targets_c != ignore_index) & (targets_c >= 0) & (targets_c < v_dim)
+    safe_tgt = torch.where(valid, targets_c, 0)
+    tgt_vals = logits_f.gather(1, safe_tgt.unsqueeze(1)).squeeze(1)
+    loss_c = torch.where(valid, lse_c - tgt_vals, 0.0)
+    losses_out.copy_(loss_c)
+    lse_out.copy_(torch.where(valid, lse_c, 0.0))
+
+
+def _chunk_ce_bwd(
+    logits_c: torch.Tensor,
+    targets_c: torch.Tensor,
+    lse_c: torch.Tensor,
+    grad_in_c: torch.Tensor,
+    *,
+    is_scalar_grad: bool,
+    ignore_index: int,
+    block_v: int,
+    warps: int,
+) -> torch.Tensor:
+    m_c, v_dim = logits_c.shape
+    if HAS_TRITON and _cross_entropy_bwd_kernel is not None and logits_c.is_cuda:
+        # In-place update into `logits_c` avoids allocating a second [chunk, V] dx buffer.
+        _cross_entropy_bwd_kernel[(m_c,)](
+            logits_c,
+            logits_c,
+            targets_c,
+            lse_c,
+            grad_in_c,
+            logits_c.stride(0),
+            logits_c.stride(0),
+            v_dim,
+            ignore_index,
+            IS_SCALAR_GRAD=is_scalar_grad,
+            BLOCK_V=block_v,
+            num_warps=warps,
+        )
+        return logits_c
+
+    probs = torch.exp(logits_c.float() - lse_c.unsqueeze(1))
+    valid = (targets_c != ignore_index) & (targets_c >= 0) & (targets_c < v_dim)
+    safe_tgt = torch.where(valid, targets_c, 0)
+    probs.scatter_add_(1, safe_tgt.unsqueeze(1), torch.full((m_c, 1), -1.0, dtype=torch.float32, device=logits_c.device))
+    g = grad_in_c.reshape(()) if is_scalar_grad else grad_in_c.unsqueeze(1)
+    dx = torch.where(valid.unsqueeze(1), probs * g, 0.0)
+    return dx.to(logits_c.dtype)
+
+
+class FusedLinearCrossEntropyFn(torch.autograd.Function):
+    """Exact chunked `Linear + CrossEntropy` without full `[N, V]` logits in VRAM."""
+
+    @staticmethod
+    def forward(
+        ctx: Any,
+        hidden_2d: torch.Tensor,
+        weight: torch.Tensor,
+        bias: torch.Tensor | None,
+        targets_1d: torch.Tensor,
+        ignore_index: int,
+        reduction: str,
+        chunk_size: int | None,
+        matmul_dtype_code: int,
+    ) -> torch.Tensor:
+        dtype_map = {0: hidden_2d.dtype, 1: torch.float32, 2: torch.float16, 3: torch.bfloat16}
+        mm_dtype = dtype_map.get(matmul_dtype_code, _active_linear_dtype(hidden_2d, weight))
+
+        h_2d = hidden_2d.contiguous()
+        tgt_1d = targets_1d.contiguous()
+        n_rows, _h_dim = h_2d.shape
+        vocab = int(weight.shape[0])
+
+        chunk = compute_optimal_chunk_size(n_rows, vocab, mm_dtype, chunk_size)
+        losses = torch.empty((n_rows,), dtype=torch.float32, device=h_2d.device)
+        lse = torch.empty((n_rows,), dtype=torch.float32, device=h_2d.device)
+
+        if HAS_TRITON and triton is not None and h_2d.is_cuda:
+            block_v = min(4096, max(128, triton.next_power_of_2(vocab)))
+            warps = 8 if block_v >= 2048 else 4
+        else:
+            block_v, warps = 1024, 4
+
+        w_mm = weight.to(mm_dtype) if weight.dtype != mm_dtype else weight
+        w_t = w_mm.t()
+        b_mm = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
+
+        for start in range(0, n_rows, chunk):
+            end = min(start + chunk, n_rows)
+            h_c = h_2d[start:end]
+            if h_c.dtype != mm_dtype:
+                h_c = h_c.to(mm_dtype)
+            logits_c = torch.mm(h_c, w_t)
+            if b_mm is not None:
+                logits_c.add_(b_mm)
+            _chunk_ce_fwd(
+                logits_c,
+                tgt_1d[start:end],
+                losses[start:end],
+                lse[start:end],
+                ignore_index=ignore_index,
+                block_v=block_v,
+                warps=warps,
+            )
+            del logits_c
+
+        valid_count_t: torch.Tensor | None = None
+        if reduction == "mean":
+            valid_mask = (tgt_1d != ignore_index) & (tgt_1d >= 0) & (tgt_1d < vocab)
+            valid_count_t = valid_mask.sum().to(torch.float32).clamp(min=1.0)
+
+        ctx.save_for_backward(h_2d, weight, bias, tgt_1d, lse, valid_count_t)
+        ctx.ignore_index = ignore_index
+        ctx.reduction = reduction
+        ctx.chunk = chunk
+        ctx.mm_dtype = mm_dtype
+        ctx.block_v = block_v
+        ctx.warps = warps
+
+        if reduction == "none":
+            return losses
+        if reduction == "sum":
+            return losses.sum()
+        assert valid_count_t is not None
+        return losses.sum() / valid_count_t
+
+    @staticmethod
+    def backward(ctx: Any, grad_out: torch.Tensor) -> tuple[Any, ...]:
+        h_2d, weight, bias, tgt_1d, lse, valid_count_t = ctx.saved_tensors
+        n_rows, _h_dim = h_2d.shape
+        vocab = int(weight.shape[0])
+        mm_dtype = ctx.mm_dtype
+
+        need_h = bool(ctx.needs_input_grad[0])
+        need_w = bool(ctx.needs_input_grad[1])
+        need_b = bias is not None and bool(ctx.needs_input_grad[2])
+
+        d_hidden = torch.empty_like(h_2d) if need_h else None
+        d_weight = torch.zeros(weight.shape, dtype=torch.float32, device=weight.device) if need_w else None
+        d_bias = torch.zeros(bias.shape, dtype=torch.float32, device=bias.device) if need_b else None
+
+        is_scalar = ctx.reduction in ("mean", "sum")
+        if ctx.reduction == "mean":
+            assert valid_count_t is not None
+            grad_in_all = grad_out.float().reshape(()) / valid_count_t
+        elif ctx.reduction == "sum":
+            grad_in_all = grad_out.float().reshape(())
+        else:
+            grad_in_all = grad_out.float().reshape(-1).contiguous()
+
+        w_mm = weight.to(mm_dtype) if weight.dtype != mm_dtype else weight
+        w_t = w_mm.t()
+        b_mm = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
+
+        for start in range(0, n_rows, ctx.chunk):
+            end = min(start + ctx.chunk, n_rows)
+            h_c = h_2d[start:end]
+            if h_c.dtype != mm_dtype:
+                h_c = h_c.to(mm_dtype)
+
+            logits_c = torch.mm(h_c, w_t)
+            if b_mm is not None:
+                logits_c.add_(b_mm)
+
+            g_c = grad_in_all if is_scalar else grad_in_all[start:end]
+            dlogits_c = _chunk_ce_bwd(
+                logits_c,
+                tgt_1d[start:end],
+                lse[start:end],
+                g_c,
+                is_scalar_grad=is_scalar,
+                ignore_index=ctx.ignore_index,
+                block_v=ctx.block_v,
+                warps=ctx.warps,
+            )
+            dl_mm = dlogits_c.to(mm_dtype) if dlogits_c.dtype != mm_dtype else dlogits_c
+
+            if d_hidden is not None:
+                dh_c = torch.mm(dl_mm, w_mm)
+                d_hidden[start:end] = dh_c.to(h_2d.dtype) if dh_c.dtype != h_2d.dtype else dh_c
+            if d_weight is not None:
+                d_weight.add_(torch.mm(dl_mm.t(), h_c).float())
+            if d_bias is not None:
+                d_bias.add_(dl_mm.float().sum(dim=0))
+            del logits_c, dlogits_c
+
+        dw_out = d_weight.to(weight.dtype) if d_weight is not None else None
+        db_out = d_bias.to(bias.dtype) if (d_bias is not None and bias is not None) else None
+        return d_hidden, dw_out, db_out, None, None, None, None, None
+
+
+def _dtype_to_code(dt: torch.dtype) -> int:
+    if dt == torch.float32:
+        return 1
+    if dt == torch.float16:
+        return 2
+    if dt == torch.bfloat16:
+        return 3
+    return 0
+
+
+def fused_linear_cross_entropy(
+    hidden: torch.Tensor,
+    weight: torch.Tensor,
+    targets: torch.Tensor,
+    *,
+    bias: torch.Tensor | None = None,
+    ignore_index: int = -100,
+    reduction: str = "mean",
+    chunk_size: int | None = None,
+    matmul_dtype: torch.dtype | None = None,
+) -> torch.Tensor:
+    """Compute exact `F.cross_entropy(F.linear(hidden, weight, bias), targets)` in chunks saving logits VRAM."""
+    if reduction not in ("mean", "sum", "none") or weight.dim() != 2 or hidden.numel() == 0:
+        return ref_linear_cross_entropy(
+            hidden,
+            weight,
+            bias,
+            targets,
+            ignore_index=ignore_index,
+            reduction=reduction,
+        )
+    hidden_shape = hidden.shape
+    h_2d = hidden.reshape(-1, int(hidden_shape[-1]))
+    tgt_1d = targets.reshape(-1)
+    if h_2d.shape[0] != tgt_1d.shape[0]:
+        return ref_linear_cross_entropy(
+            hidden,
+            weight,
+            bias,
+            targets,
+            ignore_index=ignore_index,
+            reduction=reduction,
+        )
+
+    mm_dt = matmul_dtype if matmul_dtype is not None else _active_linear_dtype(hidden, weight)
+    out = FusedLinearCrossEntropyFn.apply(
+        h_2d,
+        weight,
+        bias,
+        tgt_1d,
+        int(ignore_index),
+        reduction,
+        chunk_size,
+        _dtype_to_code(mm_dt),
+    )
+    if reduction == "none":
+        return out.reshape(hidden_shape[:-1])
+    return out
+
+
+class LazyLinearLogits(torch.Tensor):
+    """Zero-VRAM `torch.Tensor` subclass deferring `F.linear(hidden, weight, bias)` until needed or fused."""
+
+    _ptopt_lazy_linear: tuple[torch.Tensor, torch.Tensor, torch.Tensor | None, tuple[int, ...], torch.dtype]
+
+    @staticmethod
+    def __new__(
+        cls,
+        hidden: torch.Tensor,
+        weight: torch.Tensor,
+        bias: torch.Tensor | None,
+        out_shape: tuple[int, ...],
+        matmul_dtype: torch.dtype,
+    ) -> "LazyLinearLogits":
+        meta = torch.empty(out_shape, dtype=matmul_dtype, device="meta")
+        req = bool(hidden.requires_grad or weight.requires_grad or (bias is not None and bias.requires_grad))
+        obj = torch.Tensor._make_subclass(cls, meta, require_grad=req)
+        obj._ptopt_lazy_linear = (hidden, weight, bias, tuple(out_shape), matmul_dtype)
+        return obj
+
+    @property
+    def device(self) -> torch.device:  # type: ignore[override]
+        return self._ptopt_lazy_linear[0].device
+
+    @property
+    def is_cuda(self) -> bool:  # type: ignore[override]
+        return self._ptopt_lazy_linear[0].is_cuda
+
+    def materialize(self) -> torch.Tensor:
+        """Compute full `F.linear(hidden, weight, bias)` if a non-fused consumer touches logits."""
+        hidden, weight, bias, out_shape, mm_dtype = self._ptopt_lazy_linear
+        h_m = hidden.to(mm_dtype) if hidden.dtype != mm_dtype else hidden
+        w_m = weight.to(mm_dtype) if weight.dtype != mm_dtype else weight
+        b_m = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
+        return F.linear(h_m, w_m, b_m).reshape(out_shape)
+
+    @classmethod
+    def __torch_function__(cls, func: Any, types: Any, args: tuple[Any, ...] = (), kwargs: dict[str, Any] | None = None) -> Any:
+        kw = kwargs or {}
+        if func in (
+            torch.Tensor.shape.__get__,
+            torch.Tensor.ndim.__get__,
+            torch.Tensor.dtype.__get__,
+            torch.Tensor.size,
+            torch.Tensor.dim,
+            torch.Tensor.numel,
+        ):
+            with torch._C.DisableTorchFunctionSubclass():
+                return func(*args, **kw)
+
+        first = args[0] if args else None
+        if isinstance(first, LazyLinearLogits):
+            hidden, weight, bias, out_shape, mm_dtype = first._ptopt_lazy_linear
+            vocab = int(weight.shape[0])
+
+            if func is torch.Tensor.contiguous:
+                return LazyLinearLogits(hidden.contiguous(), weight, bias, out_shape, mm_dtype)
+
+            if func in (torch.Tensor.view, torch.Tensor.reshape):
+                new_shape = args[1] if (len(args) == 2 and isinstance(args[1], (tuple, list))) else args[1:]
+                with torch._C.DisableTorchFunctionSubclass():
+                    resolved = tuple(torch.empty(out_shape, device="meta").reshape(*new_shape).shape)
+                if len(resolved) >= 1 and resolved[-1] == vocab:
+                    h_reshaped = hidden.reshape(*resolved[:-1], int(hidden.shape[-1]))
+                    return LazyLinearLogits(h_reshaped, weight, bias, resolved, mm_dtype)
+
+            if func is torch.Tensor.__getitem__ and len(args) == 2:
+                idx = args[1]
+                # Preserve lazy projection when slicing only batch/sequence dimensions (not vocab dim).
+                leading_ndim = len(out_shape) - 1
+                idx_tuple = idx if isinstance(idx, tuple) else (idx,)
+                non_vocab_only = (
+                    Ellipsis not in idx_tuple
+                    and (
+                        len(idx_tuple) <= leading_ndim
+                        or (len(idx_tuple) == len(out_shape) and idx_tuple[-1] == slice(None))
+                    )
+                )
+                if non_vocab_only:
+                    h_idx = idx_tuple[:-1] if len(idx_tuple) == len(out_shape) else idx
+                    sliced_h = hidden[h_idx]
+                    new_out_shape = tuple(sliced_h.shape[:-1]) + (vocab,)
+                    return LazyLinearLogits(sliced_h, weight, bias, new_out_shape, mm_dtype)
+
+        new_args = tuple(x.materialize() if isinstance(x, LazyLinearLogits) else x for x in args)
+        new_kw = {k: (v.materialize() if isinstance(v, LazyLinearLogits) else v) for k, v in kw.items()}
+        with torch._C.DisableTorchFunctionSubclass():
+            return func(*new_args, **new_kw)
+
+
+def create_lazy_linear_logits(hidden: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor | None) -> LazyLinearLogits:
+    """Construct a `LazyLinearLogits` capturing the active autocast dtype and exact output shape."""
+    mm_dtype = _active_linear_dtype(hidden, weight)
+    out_shape = tuple(hidden.shape[:-1]) + (int(weight.shape[0]),)
+    return LazyLinearLogits(hidden, weight, bias, out_shape, mm_dtype)
+
+
+triton_fused_linear_cross_entropy = fused_linear_cross_entropy

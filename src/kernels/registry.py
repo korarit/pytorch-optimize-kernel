@@ -130,6 +130,9 @@ def _builtin_specs() -> dict[str, KernelSpec]:
         "layernorm": KernelSpec(name="layernorm", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
         "cross_entropy": KernelSpec(name="cross_entropy", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
         "swiglu": KernelSpec(name="swiglu", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
+        "fused_linear_cross_entropy": KernelSpec(
+            name="fused_linear_cross_entropy", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")
+        ),
     }
 
 
@@ -149,6 +152,7 @@ def install_custom_kernels_hooks(
         return None
 
     from src.kernels.cross_entropy import triton_cross_entropy
+    from src.kernels.fused_linear_cross_entropy import create_lazy_linear_logits, fused_linear_cross_entropy
     from src.kernels.layernorm import triton_layernorm
     from src.kernels.rmsnorm import triton_rmsnorm
     from src.kernels.rope_or_swiglu import triton_swiglu
@@ -171,7 +175,7 @@ def install_custom_kernels_hooks(
         # When torch.compile is active, Inductor fuses RMSNorm/LayerNorm/SwiGLU across
         # adjacent Linear/Residual ops without graph breaks; defer internal module kernels
         # unless explicitly requested via allow_list/env, keeping cross_entropy active.
-        if ok and compile_active and name in ("rmsnorm", "layernorm", "swiglu"):
+        if ok and compile_active and name in ("rmsnorm", "layernorm", "swiglu", "fused_linear_cross_entropy"):
             ok = False
             reason = f"{reason}; deferred to torch.compile Inductor fusion"
         eligible[name] = ok
@@ -182,9 +186,9 @@ def install_custom_kernels_hooks(
     if not any(eligible.values()):
         return reg
 
-    # 1. Patch F.cross_entropy when eligible
+    # 1. Patch F.cross_entropy when eligible (or when fused_linear_cross_entropy defers linear logits)
     func_mod = getattr(torch_mod.nn, "functional", None)
-    if eligible.get("cross_entropy") and func_mod is not None and hasattr(func_mod, "cross_entropy"):
+    if (eligible.get("cross_entropy") or eligible.get("fused_linear_cross_entropy")) and func_mod is not None and hasattr(func_mod, "cross_entropy"):
         orig_ce = func_mod.cross_entropy
         ce_min_elems = 8_388_608 if compile_active else 0
 
@@ -199,8 +203,38 @@ def install_custom_kernels_hooks(
             reduction: str = "mean",
             label_smoothing: float = 0.0,
         ) -> Any:
+            if hasattr(inp, "_ptopt_lazy_linear"):
+                if (
+                    weight is None
+                    and size_average is None
+                    and reduce is None
+                    and label_smoothing == 0.0
+                    and reduction in ("mean", "sum", "none")
+                ):
+                    try:
+                        h, lin_w, lin_b, _out_shape, mm_dt = inp._ptopt_lazy_linear
+                        return fused_linear_cross_entropy(
+                            h,
+                            lin_w,
+                            target,
+                            bias=lin_b,
+                            ignore_index=ignore_index,
+                            reduction=reduction,
+                            matmul_dtype=mm_dt,
+                        )
+                    except Exception as exc:  # noqa: BLE001
+                        if cfg.kernels.fallback_on_error and not manager.strict:
+                            reg.fallback_registry.record("fused_linear_cross_entropy", "FALLBACK", f"Runtime fallback: {exc}")
+                            manager.record_event("kernels.fused_linear_cross_entropy", "FALLBACK", "Fallback to native F.cross_entropy", str(exc))
+                            inp = inp.materialize()
+                        else:
+                            raise
+                else:
+                    inp = inp.materialize()
+
             if (
-                weight is None
+                eligible.get("cross_entropy")
+                and weight is None
                 and size_average is None
                 and reduce is None
                 and label_smoothing == 0.0
@@ -240,6 +274,13 @@ def install_custom_kernels_hooks(
     depth = [0]
     ln_cls = getattr(torch_mod.nn, "LayerNorm", None)
     rms_cls = getattr(torch_mod.nn, "RMSNorm", None)
+    lin_cls = getattr(torch_mod.nn, "Linear", None)
+    compiler_ns = getattr(torch_mod, "compiler", None)
+    is_compiling_fn = getattr(compiler_ns, "is_compiling", None)
+    try:
+        min_lce_vocab = int(os.environ.get("PTOPT_FUSED_LCE_MIN_VOCAB", "4096"))
+    except ValueError:
+        min_lce_vocab = 4096
 
     def _patch_submodules(root_mod: Any) -> int:
         patched = 0
@@ -329,6 +370,45 @@ def install_custom_kernels_hooks(
 
                     sub._ptopt_kern_orig_forward = orig_fwd
                     sub.forward = _make_swi_fwd(sub, orig_fwd)
+                    sub._ptopt_kern_patched = True
+                    patched += 1
+                    continue
+
+            # Large-vocab LM head `nn.Linear` -> deferred LazyLinearLogits for FusedLinearCrossEntropy
+            if (
+                eligible.get("fused_linear_cross_entropy")
+                and lin_cls is not None
+                and isinstance(sub, lin_cls)
+                and int(getattr(sub, "out_features", 0)) >= min_lce_vocab
+            ):
+                weight = getattr(sub, "weight", None)
+                if weight is not None and getattr(weight, "is_cuda", False):
+                    orig_fwd = sub.forward
+
+                    def _make_lce_head_fwd(m: Any, base_f: Any) -> Callable[..., Any]:
+                        @functools.wraps(base_f)
+                        def _lce_head_fwd(x: Any) -> Any:
+                            compiling = bool(is_compiling_fn()) if callable(is_compiling_fn) else False
+                            if (
+                                not compiling
+                                and getattr(m, "training", False)
+                                and getattr(torch_mod, "is_grad_enabled", lambda: False)()
+                                and getattr(x, "is_cuda", False)
+                                and x.dim() >= 2
+                                and x.numel() > 0
+                                and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16")
+                            ):
+                                try:
+                                    return create_lazy_linear_logits(x, m.weight, getattr(m, "bias", None))
+                                except Exception:  # noqa: BLE001
+                                    if not cfg.kernels.fallback_on_error or manager.strict:
+                                        raise
+                            return base_f(x)
+
+                        return _lce_head_fwd
+
+                    sub._ptopt_kern_orig_forward = orig_fwd
+                    sub.forward = _make_lce_head_fwd(sub, orig_fwd)
                     sub._ptopt_kern_patched = True
                     patched += 1
 

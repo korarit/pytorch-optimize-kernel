@@ -1,0 +1,198 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.1 REPORT: TINY DYNAMIC-SHAPE COMPILE & AMP BYPASS (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 05:11:02 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 0d98958
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (compile)     : Ran 6 tests in 1.140s (3.50s) -> PASS
+Unit (amp/optim)   : Ran 12 tests in 1.372s (3.80s) -> PASS
+Overall Phase 5.1  : PASS
+
+[DYNAMIC-SHAPE BYPASS & PERCENTILE ABLATION MATRIX]
+------------------------------------------------------------------------------
+Case              | Profile    | Step0 ms | Base ms | Wrap ms | Wrap P95 | Wrap P99 | E2E s (B/W) | Speedup | VRAM MB (B/W/d)        | MaxRelDiff | Status
+------------------+------------+----------+---------+---------+----------+----------+-------------+---------+------------------------+------------+-------
+edge_dynamic_only | safe       | 1398.9   | 1.48    | 1.51    | 1.75     | 2.14     | 3.94/5.97s  | 0.98x   | 16.9/16.9 (+0.0)       | 1.8e-05    | PASS  
+edge_dynamic_only | balanced   | 1498.0   | 1.48    | 1.48    | 1.57     | 62.49    | 3.94/6.12s  | 1.00x   | 16.9/16.9 (+0.0)       | 4.7e-05    | PASS  
+edge_dynamic_only | aggressive | 1507.0   | 1.48    | 1.56    | 1.62     | 62.82    | 3.94/6.27s  | 0.95x   | 16.9/16.9 (+0.0)       | 4.7e-05    | PASS  
+edge_all          | safe       | 1521.3   | 1.44    | 1.47    | 3.01     | 67.39    | 4.22/6.34s  | 0.99x   | 16.9/16.9 (-0.1)       | 0.000112   | PASS  
+edge_all          | balanced   | 1533.3   | 1.44    | 1.45    | 2.96     | 67.39    | 4.22/6.29s  | 1.00x   | 16.9/16.9 (-0.1)       | 0.000112   | PASS  
+edge_all          | aggressive | 1575.6   | 1.44    | 1.45    | 3.08     | 68.31    | 4.22/6.39s  | 1.00x   | 16.9/16.9 (-0.1)       | 0.000112   | PASS  
+transformer_lm    | safe       | 1794.8   | 97.00   | 51.54   | 52.11    | 52.11    | 5.67/7.18s  | 1.88x   | 1734.8/1730.9 (-4.0)   | 1e-06      | PASS  
+transformer_lm    | balanced   | 18188.5  | 97.00   | 25.87   | 26.28    | 26.31    | 5.67/24.64s | 3.75x   | 1734.8/1033.4 (-701.5) | 7e-06      | PASS  
+transformer_lm    | aggressive | 7339.2   | 97.00   | 25.42   | 26.07    | 26.27    | 5.67/15.12s | 3.82x   | 1734.8/955.4 (-779.5)  | 8e-06      | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Case              | Mode           | Step0 ms | Steady ms | Data/Other   | Forward       | Loss/Clip    | Backward      | Optim        
+------------------+----------------+----------+-----------+--------------+---------------+--------------+---------------+--------------
+edge_dynamic_only | baseline_dbg   | 1470.24  | 4.75      | 0.64 (13.4%) | 1.36 (28.7%)  | 0.56 (11.9%) | 1.29 (27.2%)  | 0.89 (18.7%) 
+edge_dynamic_only | safe_dbg       | 1408.58  | 3.07      | 0.54 (17.5%) | 0.71 (23.2%)  | 0.34 (11.1%) | 1.24 (40.4%)  | 0.24 (7.8%)  
+edge_dynamic_only | balanced_dbg   | 1508.18  | 12.80     | 0.56 (4.4%)  | 10.35 (80.9%) | 0.36 (2.8%)  | 1.29 (10.1%)  | 0.23 (1.8%)  
+edge_dynamic_only | aggressive_dbg | 1511.80  | 12.85     | 0.57 (4.4%)  | 10.40 (80.9%) | 0.38 (3.0%)  | 1.27 (9.9%)   | 0.23 (1.8%)  
+transformer_lm    | baseline_dbg   | 1867.04  | 96.04     | 0.58 (0.6%)  | 27.46 (28.6%) | 0.59 (0.6%)  | 57.41 (59.8%) | 10.00 (10.4%)
+transformer_lm    | safe_dbg       | 1788.39  | 50.87     | 0.59 (1.2%)  | 13.94 (27.4%) | 0.48 (0.9%)  | 32.02 (63.0%) | 3.83 (7.5%)  
+transformer_lm    | balanced_dbg   | 18373.61 | 26.16     | 0.71 (2.7%)  | 7.29 (27.8%)  | 0.75 (2.9%)  | 13.56 (51.8%) | 3.85 (14.7%) 
+transformer_lm    | aggressive_dbg | 7321.54  | 25.95     | 0.65 (2.5%)  | 7.22 (27.8%)  | 0.88 (3.4%)  | 13.40 (51.6%) | 3.81 (14.7%) 
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Case              | Mode           | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+------------------+----------------+----------+---------+-----------+----------+--------+--------
+edge_dynamic_only | baseline_dbg   | 16.8     | 22.0    | 5.2       | 22541.1  | 0.1%   | 0      
+edge_dynamic_only | safe_dbg       | 16.8     | 22.0    | 5.2       | 22541.1  | 0.1%   | 0      
+edge_dynamic_only | balanced_dbg   | 16.8     | 22.0    | 5.2       | 22541.1  | 0.1%   | 0      
+edge_dynamic_only | aggressive_dbg | 16.8     | 22.0    | 5.2       | 22541.1  | 0.1%   | 0      
+transformer_lm    | baseline_dbg   | 1730.8   | 1774.0  | 43.1      | 20789.1  | 7.9%   | 0      
+transformer_lm    | safe_dbg       | 1730.9   | 1770.0  | 39.1      | 20793.1  | 7.8%   | 0      
+transformer_lm    | balanced_dbg   | 1033.4   | 1090.0  | 56.6      | 21473.1  | 4.8%   | 0      
+transformer_lm    | aggressive_dbg | 955.4    | 990.0   | 34.6      | 21573.1  | 4.4%   | 0      
+
+[TOP PYTORCH PROFILER OPS (BASELINE VS SAFE VS BALANCED VS AGGRESSIVE)]
+------------------------------------------------------------------------------
+[edge_dynamic_only | baseline_dbg] Profiler window=[2, 5] self_cuda=1.435ms self_cpu=19.43ms (top_cuda_ops):
+  Optimizer.step#Adam.step                         calls=3     self=  0.885ms (61.7%) total=  0.885ms
+  aten::mm                                         calls=9     self=  0.057ms ( 4.0%) total=  0.057ms
+  aten::sum                                        calls=6     self=  0.048ms ( 3.4%) total=  0.048ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=6     self=  0.048ms ( 3.4%) total=  0.048ms
+  aten::addmm                                      calls=6     self=  0.037ms ( 2.6%) total=  0.037ms
+  ampere_sgemm_32x32_sliced1x4_tn                  calls=6     self=  0.024ms ( 1.7%) total=  0.024ms
+  aten::copy_                                      calls=9     self=  0.018ms ( 1.2%) total=  0.018ms
+  ampere_sgemm_32x32_sliced1x4_nt                  calls=3     self=  0.018ms ( 1.2%) total=  0.018ms
+[edge_dynamic_only | safe_dbg] Profiler window=[2, 5] self_cuda=0.599ms self_cpu=11.758ms (top_cuda_ops):
+  Optimizer.step#Adam.step                         calls=3     self=  0.166ms (27.8%) total=  0.166ms
+  aten::sum                                        calls=6     self=  0.048ms ( 8.0%) total=  0.048ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=6     self=  0.048ms ( 8.0%) total=  0.048ms
+  aten::mm                                         calls=9     self=  0.044ms ( 7.3%) total=  0.044ms
+  aten::addmm                                      calls=6     self=  0.030ms ( 5.0%) total=  0.030ms
+  aten::_fused_adam_                               calls=3     self=  0.020ms ( 3.4%) total=  0.020ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  0.020ms ( 3.4%) total=  0.020ms
+  aten::copy_                                      calls=9     self=  0.018ms ( 3.0%) total=  0.018ms
+[edge_dynamic_only | balanced_dbg] Profiler window=[2, 5] self_cuda=0.592ms self_cpu=11.55ms (top_cuda_ops):
+  Optimizer.step#Adam.step                         calls=3     self=  0.161ms (27.2%) total=  0.161ms
+  aten::sum                                        calls=6     self=  0.048ms ( 8.1%) total=  0.048ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=6     self=  0.048ms ( 8.1%) total=  0.048ms
+  aten::mm                                         calls=9     self=  0.044ms ( 7.4%) total=  0.044ms
+  aten::addmm                                      calls=6     self=  0.030ms ( 5.0%) total=  0.030ms
+  aten::_fused_adam_                               calls=3     self=  0.020ms ( 3.3%) total=  0.020ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  0.020ms ( 3.3%) total=  0.020ms
+  aten::copy_                                      calls=9     self=  0.017ms ( 2.9%) total=  0.017ms
+[edge_dynamic_only | aggressive_dbg] Profiler window=[2, 5] self_cuda=0.598ms self_cpu=11.399ms (top_cuda_ops):
+  Optimizer.step#Adam.step                         calls=3     self=  0.165ms (27.6%) total=  0.165ms
+  aten::sum                                        calls=6     self=  0.048ms ( 8.0%) total=  0.048ms
+  void at::native::reduce_kernel<128, 4, at::nativ calls=6     self=  0.048ms ( 8.0%) total=  0.048ms
+  aten::mm                                         calls=9     self=  0.044ms ( 7.3%) total=  0.044ms
+  aten::addmm                                      calls=6     self=  0.030ms ( 5.0%) total=  0.030ms
+  aten::_fused_adam_                               calls=3     self=  0.020ms ( 3.4%) total=  0.020ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self=  0.020ms ( 3.4%) total=  0.020ms
+  aten::copy_                                      calls=9     self=  0.018ms ( 3.1%) total=  0.018ms
+[transformer_lm | baseline_dbg] Profiler window=[2, 5] self_cuda=586.281ms self_cpu=278.544ms (top_cuda_ops):
+  aten::mm                                         calls=279   self=174.976ms (29.8%) total=174.976ms
+  ampere_sgemm_128x64_tn                           calls=93    self= 58.865ms (10.0%) total= 58.865ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=75    self= 49.151ms ( 8.4%) total= 49.151ms
+  ampere_sgemm_128x64_nn                           calls=75    self= 48.287ms ( 8.2%) total= 48.287ms
+  aten::mul                                        calls=462   self= 32.189ms ( 5.5%) total= 32.189ms
+  void at::native::vectorized_elementwise_kernel<4 calls=228   self= 28.196ms ( 4.8%) total= 28.196ms
+  Optimizer.step#AdamW.step                        calls=3     self= 28.051ms ( 4.8%) total= 28.051ms
+  ampere_sgemm_128x128_nn                          calls=18    self= 14.193ms ( 2.4%) total= 14.193ms
+[transformer_lm | safe_dbg] Profiler window=[2, 5] self_cuda=298.361ms self_cpu=142.41ms (top_cuda_ops):
+  aten::mm                                         calls=279   self= 65.310ms (21.9%) total= 65.310ms
+  aten::mul                                        calls=462   self= 29.218ms ( 9.8%) total= 29.218ms
+  void at::native::vectorized_elementwise_kernel<4 calls=228   self= 25.603ms ( 8.6%) total= 25.603ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=75    self= 19.626ms ( 6.6%) total= 19.626ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=57    self= 15.944ms ( 5.3%) total= 15.944ms
+  void cutlass::Kernel2<cutlass_80_tensorop_s1688g calls=39    self= 11.154ms ( 3.7%) total= 11.154ms
+  aten::_efficient_attention_backward              calls=18    self= 11.136ms ( 3.7%) total= 12.163ms
+  fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch calls=18    self= 11.136ms ( 3.7%) total= 11.136ms
+[transformer_lm | balanced_dbg] Profiler window=[2, 5] self_cuda=147.23ms self_cpu=79.737ms (top_cuda_ops):
+  aten::mm                                         calls=279   self= 30.094ms (20.4%) total= 30.094ms
+  Optimizer.step#AdamW.step                        calls=3     self= 10.424ms ( 7.1%) total= 10.424ms
+  aten::_fused_adamw_                              calls=3     self= 10.156ms ( 6.9%) total= 10.156ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 10.156ms ( 6.9%) total= 10.156ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=93    self=  9.774ms ( 6.6%) total=  9.774ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=57    self=  7.883ms ( 5.4%) total=  7.883ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=75    self=  7.386ms ( 5.0%) total=  7.386ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=18    self=  5.895ms ( 4.0%) total=  5.895ms
+[transformer_lm | aggressive_dbg] Profiler window=[2, 5] self_cuda=140.737ms self_cpu=78.941ms (top_cuda_ops):
+  aten::mm                                         calls=279   self= 29.670ms (21.1%) total= 29.670ms
+  Optimizer.step#AdamW.step                        calls=3     self= 10.362ms ( 7.4%) total= 10.362ms
+  aten::_fused_adamw_                              calls=3     self= 10.103ms ( 7.2%) total= 10.103ms
+  void at::native::(anonymous namespace)::multi_te calls=3     self= 10.103ms ( 7.2%) total= 10.103ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=93    self=  9.612ms ( 6.8%) total=  9.612ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=57    self=  7.822ms ( 5.6%) total=  7.822ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=75    self=  7.253ms ( 5.2%) total=  7.253ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=18    self=  5.885ms ( 4.2%) total=  5.885ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[edge_dynamic_only | baseline] step0=255.97ms | steady_med=1.50ms | s0=255.97ms, s1=2.28ms, s2=1.69ms, s3=1.62ms, s4=1.62ms, s5=1.48ms, s6=1.55ms, s7=1.41ms ...
+[edge_dynamic_only | safe] step0=1398.85ms | steady_med=1.51ms | s0=1398.85ms, s1=2.18ms, s2=1.72ms, s3=1.53ms, s4=1.63ms, s5=1.51ms, s6=1.51ms, s7=1.51ms ...
+[edge_dynamic_only | balanced] step0=1498.01ms | steady_med=1.49ms | s0=1498.01ms, s1=71.56ms, s2=1.79ms, s3=1.54ms, s4=1.55ms, s5=1.48ms, s6=1.53ms, s7=1.50ms ...
+[edge_dynamic_only | aggressive] step0=1506.97ms | steady_med=1.57ms | s0=1506.97ms, s1=71.94ms, s2=1.82ms, s3=1.62ms, s4=1.58ms, s5=1.56ms, s6=1.57ms, s7=1.59ms ...
+[edge_all | baseline] step0=341.26ms | steady_med=1.50ms | s0=341.26ms, s1=2.67ms, s2=1.96ms, s3=1.79ms, s4=1.77ms, s5=1.75ms, s6=1.83ms, s7=1.75ms ...
+[edge_all | safe] step0=1521.29ms | steady_med=1.52ms | s0=1521.29ms, s1=2.95ms, s2=2.04ms, s3=1.89ms, s4=1.87ms, s5=1.90ms, s6=1.93ms, s7=1.88ms ...
+[edge_all | balanced] step0=1533.31ms | steady_med=1.49ms | s0=1533.31ms, s1=2.89ms, s2=2.06ms, s3=1.89ms, s4=1.85ms, s5=1.87ms, s6=1.85ms, s7=1.83ms ...
+[edge_all | aggressive] step0=1575.57ms | steady_med=1.48ms | s0=1575.57ms, s1=2.98ms, s2=2.07ms, s3=1.91ms, s4=1.91ms, s5=1.89ms, s6=1.85ms, s7=1.87ms ...
+[transformer_lm | baseline] step0=409.39ms | steady_med=96.73ms | s0=409.39ms, s1=86.70ms, s2=95.86ms, s3=95.97ms, s4=96.91ms, s5=97.10ms, s6=96.10ms, s7=96.01ms ...
+[transformer_lm | safe] step0=1794.85ms | steady_med=51.45ms | s0=1794.85ms, s1=46.53ms, s2=50.65ms, s3=52.11ms, s4=51.27ms, s5=52.11ms, s6=51.20ms, s7=51.62ms ...
+[transformer_lm | balanced] step0=18188.47ms | steady_med=25.82ms | s0=18188.47ms, s1=24.01ms, s2=23.82ms, s3=24.82ms, s4=26.26ms, s5=25.88ms, s6=25.65ms, s7=26.03ms ...
+[transformer_lm | aggressive] step0=7339.21ms | steady_med=25.26ms | s0=7339.21ms, s1=23.57ms, s2=23.70ms, s3=25.07ms, s4=25.54ms, s5=25.00ms, s6=25.35ms, s7=25.80ms ...
+[edge_dynamic_only | baseline_dbg] step0=1470.25ms | steady_med=2.81ms | s0=1470.25ms, s1=2.81ms, s2=16.37ms, s3=3.87ms, s4=2.77ms, s5=3.07ms, s6=2.28ms, s7=2.10ms
+[edge_dynamic_only | safe_dbg] step0=1408.58ms | steady_med=2.44ms | s0=1408.58ms, s1=2.40ms, s2=7.49ms, s3=2.74ms, s4=2.47ms, s5=2.44ms, s6=2.05ms, s7=1.90ms
+[edge_dynamic_only | balanced_dbg] step0=1508.18ms | steady_med=2.43ms | s0=1508.18ms, s1=70.89ms, s2=7.55ms, s3=2.64ms, s4=2.43ms, s5=2.23ms, s6=1.96ms, s7=1.89ms
+[edge_dynamic_only | aggressive_dbg] step0=1511.80ms | steady_med=2.49ms | s0=1511.80ms, s1=71.19ms, s2=7.41ms, s3=2.67ms, s4=2.49ms, s5=2.22ms, s6=2.02ms, s7=1.96ms
+[transformer_lm | baseline_dbg] step0=1867.04ms | steady_med=98.56ms | s0=1867.04ms, s1=89.90ms, s2=96.63ms, s3=99.71ms, s4=99.37ms, s5=89.11ms, s6=98.56ms, s7=99.01ms
+[transformer_lm | safe_dbg] step0=1788.39ms | steady_med=51.29ms | s0=1788.39ms, s1=47.68ms, s2=52.77ms, s3=51.29ms, s4=53.48ms, s5=47.57ms, s6=50.54ms, s7=52.79ms
+[transformer_lm | balanced_dbg] step0=18373.61ms | steady_med=25.55ms | s0=18373.61ms, s1=25.55ms, s2=30.21ms, s3=25.87ms, s4=26.59ms, s5=24.96ms, s6=24.66ms, s7=25.31ms
+[transformer_lm | aggressive_dbg] step0=7321.54ms | steady_med=25.49ms | s0=7321.54ms, s1=24.37ms, s2=29.94ms, s3=25.49ms, s4=26.01ms, s5=25.28ms, s6=24.59ms, s7=26.01ms
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- edge_dynamic_only: base=1.48ms | safe=1.51ms (0.98x) | balanced=1.48ms (1.00x, VRAM +0.0MB) | aggressive=1.56ms (0.95x)
+- edge_all: base=1.44ms | safe=1.47ms (0.99x) | balanced=1.45ms (1.00x, VRAM -0.1MB) | aggressive=1.45ms (1.00x)
+- transformer_lm: base=97.00ms | safe=51.54ms (1.88x) | balanced=25.87ms (3.75x, VRAM -701.5MB) | aggressive=25.42ms (3.82x)
+
+[COMPILE & AMP DECISION AUDIT (`compile.auto` / `amp.auto`)]
+------------------------------------------------------------------------------
+[SKIPPED] edge_dynamic_only (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_dynamic_only (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_dynamic_only (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/edge_dynamic_only)
+[APPLIED] edge_dynamic_only (balanced) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[SKIPPED] edge_dynamic_only (balanced) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=9352 < 50000 and input_elems=3072 < 32768)
+[SKIPPED] edge_dynamic_only (balanced) -> amp.auto: Skipped eager AMP for tiny uncompiled module Sequential (autocast overhead > compute)
+[APPLIED] edge_dynamic_only (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/edge_dynamic_only)
+[APPLIED] edge_dynamic_only (aggressive) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[SKIPPED] edge_dynamic_only (aggressive) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=9352 < 50000 and input_elems=3072 < 32768)
+[SKIPPED] edge_dynamic_only (aggressive) -> amp.auto: Skipped eager AMP for tiny uncompiled module Sequential (autocast overhead > compute)
+[SKIPPED] edge_all (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] edge_all (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] edge_all (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/edge_all)
+[APPLIED] edge_all (balanced) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[SKIPPED] edge_all (balanced) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[SKIPPED] edge_all (balanced) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=35080 < 50000 and input_elems=1024 < 32768)
+[SKIPPED] edge_all (balanced) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=9352 < 50000 and input_elems=3072 < 32768)
+[SKIPPED] edge_all (balanced) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=4680 < 50000 and input_elems=512 < 32768)
+[APPLIED] edge_all (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/edge_all)
+[APPLIED] edge_all (aggressive) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[SKIPPED] edge_all (aggressive) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[SKIPPED] edge_all (aggressive) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=35080 < 50000 and input_elems=1024 < 32768)
+[SKIPPED] edge_all (aggressive) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=9352 < 50000 and input_elems=3072 < 32768)
+[SKIPPED] edge_all (aggressive) -> compile.auto: Tiny module Sequential skipped compile for profitability (params=4680 < 50000 and input_elems=512 < 32768)
+[SKIPPED] transformer_lm (safe) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm (safe) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm (balanced) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/transformer_lm)
+[APPLIED] transformer_lm (balanced) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm (balanced) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] transformer_lm (aggressive) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp0en3z7mw/transformer_lm)
+[APPLIED] transformer_lm (aggressive) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] transformer_lm (aggressive) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Phase 5.1 speedup, zero +47MB bloat, and Deep Debug profiler traces on Colab L4 before Plan 5.2)
+==============================================================================

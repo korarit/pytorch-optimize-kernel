@@ -61,6 +61,8 @@ def _resolve_torch_dtype(torch_mod: Any, dtype_name: str) -> Any:
 
 def _promote_half_cuda_tensor(value: Any, half_dtypes: tuple[Any, ...]) -> Any:
     """Promote CUDA fp16/bf16 tensor to fp32 so functional losses outside autocast stay finite."""
+    if hasattr(value, "_ptopt_lazy_linear"):
+        return value
     if value is not None and getattr(value, "is_cuda", False) and getattr(value, "dtype", None) in half_dtypes:
         return value.float()
     return value

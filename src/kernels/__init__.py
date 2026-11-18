@@ -25,6 +25,9 @@ _LAZY_EXPORTS: dict[str, tuple[str, str]] = {
     "triton_rmsnorm": ("src.kernels.rmsnorm", "triton_rmsnorm"),
     "ref_swiglu": ("src.kernels.rope_or_swiglu", "ref_swiglu"),
     "triton_swiglu": ("src.kernels.rope_or_swiglu", "triton_swiglu"),
+    "triton_fused_linear_cross_entropy": ("src.kernels.fused_linear_cross_entropy", "triton_fused_linear_cross_entropy"),
+    "ref_linear_cross_entropy": ("src.kernels.fused_linear_cross_entropy", "ref_linear_cross_entropy"),
+    "LazyLinearLogits": ("src.kernels.fused_linear_cross_entropy", "LazyLinearLogits"),
 }
 
 
@@ -41,14 +44,17 @@ __all__ = [
     "HAS_TRITON",
     "KernelRegistry",
     "KernelSpec",
+    "LazyLinearLogits",
     "apply_custom_kernels_pass",
     "check_kernel_capability",
     "install_custom_kernels_hooks",
     "ref_cross_entropy",
     "ref_layernorm",
+    "ref_linear_cross_entropy",
     "ref_rmsnorm",
     "ref_swiglu",
     "triton_cross_entropy",
+    "triton_fused_linear_cross_entropy",
     "triton_layernorm",
     "triton_rmsnorm",
     "triton_swiglu",
