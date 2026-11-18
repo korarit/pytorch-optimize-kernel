@@ -362,7 +362,9 @@ class TestInferenceOptPass(unittest.TestCase):
             self.assertTrue(getattr(enc.self_attn, "_ptopt_fp8_mha_patched", False))
             with patch.dict(os.environ, {"PTOPT_FP8_DROP_BF16_EVAL": "1"}):
                 built_enc = prewarm_fp8_weight_caches(enc, torch, min_work=512 * 512)
-            self.assertEqual(built_enc, 2)
+            self.assertEqual(built_enc, 4)
+            self.assertIsNotNone(getattr(enc.self_attn, "_ptopt_fp8_inproj_cache", None))
+            self.assertIsNotNone(getattr(enc.self_attn.out_proj, "_ptopt_fp8_w_cache", None))
             self.assertEqual(enc.self_attn.out_proj.weight.numel(), 512 * 512)
             self.assertEqual(enc.self_attn.in_proj_weight.numel(), 3 * 512 * 512)
             self.assertEqual(enc.linear1.weight.numel(), 0)

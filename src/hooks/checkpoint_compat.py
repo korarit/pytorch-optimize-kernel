@@ -266,21 +266,22 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
                         if isinstance(grp, dict) and "capturable" in grp:
                             grp["capturable"] = True
 
-                # Normalize `step` tensor device across CPU<->CUDA checkpoint cross-loads when capturable is toggled
+                # Normalize `step` tensor device across CPU<->CUDA checkpoint cross-loads.
+                # PyTorch CUDA fused or capturable optimizers keep `step` on param.device; standard ones keep it on CPU.
                 opt_state = getattr(opt_self, "state", None)
                 tensor_cls = getattr(torch_mod, "Tensor", None)
                 if isinstance(opt_state, dict) and tensor_cls is not None:
                     for grp in getattr(opt_self, "param_groups", ()):
                         if not isinstance(grp, dict):
                             continue
-                        wants_cap = bool(grp.get("capturable", False))
+                        needs_param_dev = bool(grp.get("capturable", False) or grp.get("fused", False))
                         for param in grp.get("params", ()):
                             ps = opt_state.get(param)
                             if not isinstance(ps, dict):
                                 continue
                             step_t = ps.get("step")
                             if isinstance(step_t, tensor_cls) and hasattr(param, "device"):
-                                target_dev = param.device if wants_cap else "cpu"
+                                target_dev = param.device if needs_param_dev else "cpu"
                                 if str(step_t.device) != str(target_dev):
                                     ps["step"] = step_t.to(device=target_dev)
 

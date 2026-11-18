@@ -404,7 +404,7 @@ def main() -> int:
         gate_status = f"{'PASS' if proc_g.returncode == 0 else 'FAIL'} ({dt_g:.1f}s)"
         if proc_g.returncode != 0:
             all_ok = False
-            err_traces.extend((proc_g.stdout + "\n" + proc_g.stderr)[-1500:].splitlines())
+            err_traces.extend((proc_g.stdout + "\n" + proc_g.stderr)[-4500:].splitlines())
 
     gpu_name = fp.primary_gpu.name if fp.primary_gpu else "CPU-only"
     report = TextReportBuilder("PHASE 6.3 REPORT: LLM KERNELS (ROPE/STRIDED), STATIC FP8 & STARTUP POLISH", REPO_ROOT)

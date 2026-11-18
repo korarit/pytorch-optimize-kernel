@@ -216,6 +216,58 @@ class TestPhase63Features(unittest.TestCase):
             opt_b.load_state_dict(sd)
             step_t = opt_b.state[p_b]["step"]
             self.assertEqual(str(step_t.device), "cpu")
+
+            # Verify fused=True (capturable=False) keeps step on param.device instead of moving to CPU
+            class _FakeTensor:
+                def __init__(self, dev: str) -> None:
+                    self.device = dev
+
+                def dim(self) -> int:
+                    return 2
+
+                def to(self, device: object = None) -> "_FakeTensor":
+                    return _FakeTensor(str(device))
+
+            p_fake = _FakeTensor("cuda:0")
+            s_cpu = _FakeTensor("cpu")
+
+            class _FakeMod:
+                def state_dict(self) -> dict[str, object]:
+                    return {}
+
+                def load_state_dict(self, sd: object) -> None:
+                    pass
+
+            class _FakeOpt:
+                def __init__(self) -> None:
+                    self.param_groups = [{"params": [p_fake], "fused": True, "capturable": False}]
+                    self.state = {p_fake: {"step": s_cpu}}
+
+                def state_dict(self) -> dict[str, object]:
+                    return {}
+
+                def load_state_dict(self, _sd: object) -> None:
+                    pass
+
+            fake_torch = SimpleNamespace(
+                nn=SimpleNamespace(Module=_FakeMod),
+                optim=SimpleNamespace(Optimizer=_FakeOpt),
+                Tensor=_FakeTensor,
+                channels_last="channels_last",
+                contiguous_format="contiguous",
+            )
+            import src.hooks.checkpoint_compat as cc
+
+            prev_flag = cc._COMPAT_INSTALLED
+            cc._COMPAT_INSTALLED = False
+            try:
+                install_checkpoint_compat_hooks(fake_torch)
+                opt_fake = _FakeOpt()
+                opt_fake.load_state_dict({})
+                self.assertEqual(str(opt_fake.state[p_fake]["step"].device), "cuda:0")
+            finally:
+                uninstall_checkpoint_compat_hooks(fake_torch)
+                cc._COMPAT_INSTALLED = prev_flag
         finally:
             uninstall_optimizer_fusion_hook(torch)
             uninstall_checkpoint_compat_hooks(torch)

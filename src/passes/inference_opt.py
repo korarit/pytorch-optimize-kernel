@@ -189,7 +189,7 @@ def _update_fp8_static_scale(
     calib_steps: int = 2,
 ) -> None:
     """Update EMA FP8 activation scale + inv_scale on `mod` and flip `_ptopt_fp8_static_ready`."""
-    cur_scale = (x_scale.detach().to(fp32_dtype).reshape(())) * headroom
+    cur_scale = (x_scale.detach().to(fp32_dtype).reshape(()) * headroom).clone()
     prev = getattr(mod, "_ptopt_fp8_x_scale", None)
     if prev is None:
         new_scale = cur_scale
@@ -197,8 +197,8 @@ def _update_fp8_static_scale(
         # Take conservative smoothed upper envelope to guard against outlier clipping
         ema = 0.5 * prev + 0.5 * cur_scale
         new_scale = ema if float(ema) >= float(cur_scale) else (0.25 * prev + 0.75 * cur_scale)
-    mod._ptopt_fp8_x_scale = new_scale
-    mod._ptopt_fp8_x_inv_scale = (1.0 / new_scale.clamp(min=1e-12)).reshape(())
+    mod._ptopt_fp8_x_scale = new_scale.clone()
+    mod._ptopt_fp8_x_inv_scale = (1.0 / new_scale.clamp(min=1e-12)).reshape(()).clone()
     seen = int(getattr(mod, "_ptopt_fp8_calib_seen", 0)) + 1
     mod._ptopt_fp8_calib_seen = seen
     if seen >= calib_steps:
@@ -298,7 +298,23 @@ def prewarm_fp8_weight_caches(module: Any, torch_mod: Any, *, min_work: int | No
     drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
     built = 0
     for sub in module.modules():
-        if not getattr(sub, "_ptopt_fp8_patched", False) or getattr(sub, "training", True):
+        if getattr(sub, "training", True):
+            continue
+        if getattr(sub, "_ptopt_fp8_mha_patched", False) and _is_cuda_tensor(getattr(sub, "in_proj_weight", None)):
+            if getattr(sub, "_ptopt_fp8_inproj_cache", None) is None:
+                sub._ptopt_fp8_inproj_cache = _build_fp8_tensor_cache(
+                    sub.in_proj_weight, getattr(sub, "in_proj_bias", None), fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
+                )
+                built += 1
+            out_p = getattr(sub, "out_proj", None)
+            if out_p is not None and _is_cuda_tensor(getattr(out_p, "weight", None)):
+                if getattr(out_p, "_ptopt_fp8_w_cache", None) is None:
+                    out_p._ptopt_fp8_w_cache = _build_fp8_tensor_cache(
+                        out_p.weight, getattr(out_p, "bias", None), fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
+                    )
+                    built += 1
+            continue
+        if not getattr(sub, "_ptopt_fp8_patched", False):
             continue
         if not (hasattr(sub, "in_features") and hasattr(sub, "out_features")):
             continue
@@ -336,85 +352,62 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
         calib_steps = max(1, int(os.environ.get("PTOPT_FP8_CALIB_STEPS", "2")))
     except ValueError:
         calib_steps = 2
-    triton_quant = _get_triton_fp8_quantizer()
+    mha_opt = os.environ.get("PTOPT_FP8_MHA", "").strip()
+    allow_mha_fp8 = mha_opt == "1" or (mha_opt != "0" and (min_work is not None))
+    triton_quant_box: list[Any] = [_get_triton_fp8_quantizer()]
 
     # nn.MultiheadAttention passes out_proj.weight directly into F.multi_head_attention_forward
-    # instead of invoking out_proj.forward(); never drop source weights on out_proj, handle via MHA wrapper.
+    # instead of invoking out_proj.forward(); never drop source weights on out_proj.
     mha_cls = getattr(nn_ns, "MultiheadAttention", None)
     skip_linear_ids: set[int] = set()
     for mod in module.modules():
         if mha_cls is not None and isinstance(mod, mha_cls) and hasattr(mod, "out_proj"):
             skip_linear_ids.add(id(mod.out_proj))
 
-    def _run_fp8_mm_cached(
+    def _run_fp8_eager_cached(
         flat: Any,
         cache_owner: Any,
         cache_attr: str,
         src_weight: Any,
         src_bias: Any,
-        out_features: int,
         is_fp16: bool,
         out_dtype: Any,
         allow_drop: bool,
     ) -> Any:
-        nonlocal triton_quant
-        if _is_dynamo_compiling(torch_mod):
-            w_cache = getattr(cache_owner, cache_attr, None)
-            if w_cache is not None:
-                _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
-            else:
-                # Fallback if not pre-warmed
-                w_t, w_scale, bias_bf16, bias_fp16 = _quantize_fp8_weight_traceable(
-                    cache_owner if hasattr(cache_owner, "weight") and cache_owner.weight is src_weight
-                    else type("_W", (), {"weight": src_weight, "bias": src_bias})(),
-                    fp8_dtype,
-                    bf16_dtype,
-                    fp16_dtype,
-                    fp32_dtype,
+        w_cache = getattr(cache_owner, cache_attr, None)
+        if w_cache is None or (not allow_drop and w_cache[0] != src_weight._version):
+            if getattr(src_weight, "numel", lambda: 0)() == 0:
+                return None
+            if allow_drop and hasattr(cache_owner, "weight") and cache_owner.weight is src_weight:
+                w_cache = _build_fp8_weight_cache(
+                    cache_owner, torch_mod, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype, drop_source_weight=True
                 )
-            if (
-                static_scale_enabled
-                and getattr(cache_owner, "_ptopt_fp8_static_ready", False)
-                and getattr(cache_owner, "_ptopt_fp8_x_scale", None) is not None
-            ):
-                x_scale = cache_owner._ptopt_fp8_x_scale
-                x_q = _quantize_fp8_static_traceable(flat, cache_owner._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
+            else:
+                w_cache = _build_fp8_tensor_cache(
+                    src_weight, src_bias, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
+                )
+            setattr(cache_owner, cache_attr, w_cache)
+        _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
+
+        if (
+            static_scale_enabled
+            and getattr(cache_owner, "_ptopt_fp8_static_ready", False)
+            and getattr(cache_owner, "_ptopt_fp8_x_scale", None) is not None
+        ):
+            x_scale = cache_owner._ptopt_fp8_x_scale
+            x_q = _quantize_fp8_static_traceable(flat, cache_owner._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
+        else:
+            tq = triton_quant_box[0]
+            if tq is not None:
+                try:
+                    x_q, x_scale = tq(flat, fp8_dtype)
+                except Exception:  # noqa: BLE001
+                    triton_quant_box[0] = None
+                    x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
             else:
                 x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
-        else:
-            w_cache = getattr(cache_owner, cache_attr, None)
-            if w_cache is None or (not allow_drop and w_cache[0] != src_weight._version):
-                if getattr(src_weight, "numel", lambda: 0)() == 0:
-                    return None
-                if allow_drop and hasattr(cache_owner, "weight") and cache_owner.weight is src_weight:
-                    w_cache = _build_fp8_weight_cache(
-                        cache_owner, torch_mod, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype, drop_source_weight=True
-                    )
-                else:
-                    w_cache = _build_fp8_tensor_cache(
-                        src_weight, src_bias, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
-                    )
-                setattr(cache_owner, cache_attr, w_cache)
-            _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
-
-            if (
-                static_scale_enabled
-                and getattr(cache_owner, "_ptopt_fp8_static_ready", False)
-                and getattr(cache_owner, "_ptopt_fp8_x_scale", None) is not None
-            ):
-                x_scale = cache_owner._ptopt_fp8_x_scale
-                x_q = _quantize_fp8_static_traceable(flat, cache_owner._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
-            else:
-                if triton_quant is not None:
-                    try:
-                        x_q, x_scale = triton_quant(flat, fp8_dtype)
-                    except Exception:  # noqa: BLE001
-                        triton_quant = None
-                        x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
-                else:
-                    x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
-                if static_scale_enabled:
-                    _update_fp8_static_scale(cache_owner, x_scale, fp32_dtype, calib_steps=calib_steps)
+            if static_scale_enabled:
+                _update_fp8_static_scale(cache_owner, x_scale, fp32_dtype, calib_steps=calib_steps)
 
         bias = bias_fp16 if is_fp16 else bias_bf16
         return torch_mod._scaled_mm(
@@ -432,6 +425,7 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
             mha_cls is not None
             and isinstance(sub, mha_cls)
             and not getattr(sub, "_ptopt_fp8_mha_patched", False)
+            and (allow_mha_fp8 or (mha_opt != "0" and int(getattr(sub, "embed_dim", 0)) >= 1024))
             and getattr(sub, "_qkv_same_embed_dim", False)
             and getattr(sub, "in_proj_weight", None) is not None
             and _is_cuda_tensor(sub.in_proj_weight)
@@ -500,14 +494,56 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
                         )
                     is_fp16 = query.dtype == fp16_dtype and fp16_dtype != bf16_dtype
                     out_dtype = fp16_dtype if is_fp16 else bf16_dtype
+                    if _is_dynamo_compiling(torch_mod):
+                        in_cache = getattr(mha_mod, "_ptopt_fp8_inproj_cache", None)
+                        out_cache = getattr(mha_mod.out_proj, "_ptopt_fp8_w_cache", None)
+                        if in_cache is None or out_cache is None:
+                            return base_fwd(
+                                query,
+                                key,
+                                value,
+                                key_padding_mask=key_padding_mask,
+                                need_weights=need_weights,
+                                attn_mask=attn_mask,
+                                average_attn_weights=average_attn_weights,
+                                is_causal=is_causal,
+                            )
+                        _, in_wt, in_ws, in_b16, in_f16 = in_cache
+                        flat_q = q_3d.reshape(m_rows, embed_dim)
+                        if static_scale_enabled and getattr(mha_mod, "_ptopt_fp8_static_ready", False):
+                            xq_scale = mha_mod._ptopt_fp8_x_scale
+                            xq = _quantize_fp8_static_traceable(flat_q, mha_mod._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
+                        else:
+                            xq, xq_scale = _quantize_fp8_traceable(flat_q, fp8_dtype, fp32_dtype)
+                        qkv_2d = torch_mod._scaled_mm(
+                            xq, in_wt, scale_a=xq_scale, scale_b=in_ws, out_dtype=out_dtype, bias=(in_f16 if is_fp16 else in_b16)
+                        )
+                        q_h, k_h, v_h = qkv_2d.reshape(bsz, seq_len, 3, num_heads, head_dim).unbind(dim=2)
+                        attn = func_ns.scaled_dot_product_attention(
+                            q_h.transpose(1, 2), k_h.transpose(1, 2), v_h.transpose(1, 2), dropout_p=0.0, is_causal=bool(is_causal)
+                        )
+                        attn_2d = attn.transpose(1, 2).contiguous().reshape(m_rows, embed_dim)
+                        _, o_wt, o_ws, o_b16, o_f16 = out_cache
+                        if static_scale_enabled and getattr(mha_mod.out_proj, "_ptopt_fp8_static_ready", False):
+                            ao_scale = mha_mod.out_proj._ptopt_fp8_x_scale
+                            aq = _quantize_fp8_static_traceable(attn_2d, mha_mod.out_proj._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
+                        else:
+                            aq, ao_scale = _quantize_fp8_traceable(attn_2d, fp8_dtype, fp32_dtype)
+                        out_2d = torch_mod._scaled_mm(
+                            aq, o_wt, scale_a=ao_scale, scale_b=o_ws, out_dtype=out_dtype, bias=(o_f16 if is_fp16 else o_b16)
+                        )
+                        out_3d = out_2d.reshape(bsz, seq_len, embed_dim)
+                        if not batch_first:
+                            out_3d = out_3d.transpose(0, 1)
+                        return (out_3d if out_3d.dtype == query.dtype else out_3d.to(query.dtype)), None
+
                     try:
-                        qkv_2d = _run_fp8_mm_cached(
+                        qkv_2d = _run_fp8_eager_cached(
                             q_3d.reshape(m_rows, embed_dim),
                             mha_mod,
                             "_ptopt_fp8_inproj_cache",
                             mha_mod.in_proj_weight,
                             getattr(mha_mod, "in_proj_bias", None),
-                            3 * embed_dim,
                             is_fp16,
                             out_dtype,
                             False,
@@ -532,13 +568,12 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
                             is_causal=bool(is_causal),
                         )
                         attn_2d = attn.transpose(1, 2).contiguous().reshape(m_rows, embed_dim)
-                        out_2d = _run_fp8_mm_cached(
+                        out_2d = _run_fp8_eager_cached(
                             attn_2d,
                             mha_mod.out_proj,
                             "_ptopt_fp8_w_cache",
                             mha_mod.out_proj.weight,
                             getattr(mha_mod.out_proj, "bias", None),
-                            embed_dim,
                             is_fp16,
                             out_dtype,
                             False,
@@ -610,14 +645,40 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
                 is_fp16 = inp.dtype == fp16_dtype and fp16_dtype != bf16_dtype
                 out_dtype = fp16_dtype if is_fp16 else bf16_dtype
 
+                # Path 1: TorchDynamo / TorchInductor compile path (0 graph breaks; fuses quantize with neighbors)
+                if _is_dynamo_compiling(torch_mod):
+                    w_cache = getattr(lin, "_ptopt_fp8_w_cache", None)
+                    if w_cache is not None:
+                        _, w_t, w_scale, bias_bf16, bias_fp16 = w_cache
+                    else:
+                        w_t, w_scale, bias_bf16, bias_fp16 = _quantize_fp8_weight_traceable(
+                            lin, fp8_dtype, bf16_dtype, fp16_dtype, fp32_dtype
+                        )
+                    if static_scale_enabled and getattr(lin, "_ptopt_fp8_static_ready", False):
+                        x_scale = lin._ptopt_fp8_x_scale
+                        x_q = _quantize_fp8_static_traceable(flat, lin._ptopt_fp8_x_inv_scale, fp8_dtype, fp32_dtype)
+                    else:
+                        x_q, x_scale = _quantize_fp8_traceable(flat, fp8_dtype, fp32_dtype)
+                    bias = bias_fp16 if is_fp16 else bias_bf16
+                    out_2d = torch_mod._scaled_mm(
+                        x_q,
+                        w_t,
+                        scale_a=x_scale,
+                        scale_b=w_scale,
+                        out_dtype=out_dtype,
+                        bias=bias,
+                    )
+                    out = out_2d.reshape(*inp.shape[:-1], lin.out_features)
+                    return out if out.dtype == inp.dtype else out.to(inp.dtype)
+
+                # Path 2: Eager mode (2-pass fused Triton activation quantizer or calibrated 1-pass static scale)
                 try:
-                    out_2d = _run_fp8_mm_cached(
+                    out_2d = _run_fp8_eager_cached(
                         flat,
                         lin,
                         "_ptopt_fp8_w_cache",
                         lin.weight,
                         getattr(lin, "bias", None),
-                        lin.out_features,
                         is_fp16,
                         out_dtype,
                         drop_w,
@@ -782,14 +843,22 @@ def install_inference_opt_hook(
                     mod_self, "_ptopt_fp8_static_calibrated", False
                 ):
                     mod_self._ptopt_fp8_static_calibrated = True
-                    inf_mode = getattr(torch_mod, "inference_mode", None)
+                    no_grad_fn = getattr(torch_mod, "no_grad", None)
+                    amp_ns = getattr(torch_mod, "amp", None)
+                    autocast_cls = getattr(amp_ns, "autocast", None) if amp_ns is not None else None
+                    amp_dtype = getattr(torch_mod, "bfloat16", None) if str(getattr(rt.cfg.amp, "dtype", "")) == "bf16" else getattr(torch_mod, "float16", None)
                     call_impl = getattr(mod_self, "_call_impl", None)
                     if callable(call_impl):
                         try:
-                            if callable(inf_mode):
-                                with inf_mode():
-                                    call_impl(*args, **kwargs)
-                            else:
+                            from contextlib import nullcontext
+
+                            g_ctx = no_grad_fn() if callable(no_grad_fn) else nullcontext()
+                            a_ctx = (
+                                autocast_cls("cuda", dtype=amp_dtype)
+                                if (callable(autocast_cls) and getattr(rt.cfg.amp, "enabled", False) and amp_dtype is not None)
+                                else nullcontext()
+                            )
+                            with g_ctx, a_ctx:
                                 call_impl(*args, **kwargs)
                             for sub_m in mod_self.modules():
                                 if getattr(sub_m, "_ptopt_fp8_x_scale", None) is not None:
