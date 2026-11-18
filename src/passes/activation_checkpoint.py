@@ -273,11 +273,19 @@ def install_activation_checkpoint_hook(
                             mod_self._ptopt_act_ckpt_active = True
                             rt.triggered_modules += 1
                             rt.patched_blocks += n_patched
-                            # If module was already compiled before VRAM crossed threshold, force clean recompile
-                            if getattr(mod_self, "_ptopt_compile_active", False):
-                                mod_self._compiled_call_impl = None
-                                mod_self._ptopt_compile_active = False
-                                mod_self._ptopt_compile_checked = False
+                            # Bypass torch.compile when checkpointing is active to avoid Dynamo forward/recompute
+                            # LRU cache conflict (PyTorch #166926) and maximize VRAM headroom.
+                            was_compiled = bool(getattr(mod_self, "_ptopt_compile_active", False))
+                            mod_self._compiled_call_impl = None
+                            mod_self._ptopt_compile_active = False
+                            mod_self._ptopt_compile_checked = True
+                            mod_self._ptopt_compile_ineligible = True
+                            if was_compiled:
+                                manager.record_event(
+                                    "compile.auto",
+                                    "FALLBACK",
+                                    f"Bypassed torch.compile on {type(mod_self).__name__} while activation checkpointing active",
+                                )
                             detail = (
                                 f"mode=always"
                                 if mode == "always"

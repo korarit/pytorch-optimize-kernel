@@ -196,9 +196,10 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                 self.assertFalse(getattr(model, "_ptopt_act_ckpt_active", False))
                 self.assertEqual(rt.triggered_modules, 0)
 
-                # Step 1: 86% VRAM >= 82% -> triggers checkpointing cleanly
+                # Step 1: 86% VRAM >= 82% -> triggers checkpointing cleanly & marks compile ineligible for #166926 safety
                 model(torch.randn(2, 128)).sum().backward()
                 self.assertTrue(getattr(model, "_ptopt_act_ckpt_active", False))
+                self.assertTrue(getattr(model, "_ptopt_compile_ineligible", False))
                 self.assertEqual(rt.triggered_modules, 1)
                 self.assertEqual(rt.patched_blocks, 2)
                 self.assertTrue(

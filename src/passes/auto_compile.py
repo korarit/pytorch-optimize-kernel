@@ -372,6 +372,13 @@ def install_auto_compile_hook(
                     )
                 elif not _is_compilable_module(mod_self, torch_mod):
                     mod_self._ptopt_compile_ineligible = True
+                elif getattr(mod_self, "_ptopt_act_ckpt_active", False):
+                    mod_self._ptopt_compile_ineligible = True
+                    manager.record_event(
+                        "compile.auto",
+                        "SKIPPED",
+                        f"Activation checkpointing active on {type(mod_self).__name__}; bypassing compile for VRAM safety",
+                    )
                 elif not allow_cpu and not _has_cuda_context(mod_self, args, kwargs, torch_mod):
                     mod_self._ptopt_compile_ineligible = True
                     manager.record_event(
