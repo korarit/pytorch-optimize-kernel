@@ -53,6 +53,80 @@ _DEFAULT_STATIC_TINY_MIN_PARAMS = 50_000
 _DEFAULT_STATIC_TINY_MIN_INPUT_ELEMS = 32_768
 _DEFAULT_DYNAMIC_MIN_PARAMS = 250_000
 _DEFAULT_DYNAMIC_MIN_INPUT_ELEMS = 65_536
+_DEFAULT_TRAIN_CG_MAX_PARAMS = 15_000_000
+
+
+def _detect_cuda_sm_for_compile(torch_mod: Any) -> int:
+    override = os.environ.get("PTOPT_CUDA_SM_OVERRIDE")
+    if override:
+        try:
+            return int(override)
+        except ValueError:
+            pass
+    try:
+        cuda_api = getattr(torch_mod, "cuda", None)
+        if not cuda_api or not cuda_api.is_available():
+            return 0
+        idx = int(cuda_api.current_device()) if hasattr(cuda_api, "current_device") else 0
+        props = cuda_api.get_device_properties(idx)
+        return int(props.major) * 10 + int(props.minor)
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _invoke_cudagraph_mark_step_begin(torch_mod: Any) -> None:
+    compiler = getattr(torch_mod, "compiler", None)
+    mark_fn = getattr(compiler, "cudagraph_mark_step_begin", None)
+    if callable(mark_fn):
+        mark_fn()
+
+
+def _has_active_dropout(mod_self: Any, torch_mod: Any) -> bool:
+    if os.environ.get("PTOPT_TRAIN_CG_ALLOW_DROPOUT") == "1" or not getattr(mod_self, "training", True):
+        return False
+    nn_ns = getattr(torch_mod, "nn", None)
+    drop_cls = getattr(nn_ns, "Dropout", None)
+    if drop_cls is None or not hasattr(mod_self, "modules"):
+        return False
+    try:
+        return any(isinstance(sub, drop_cls) and float(getattr(sub, "p", 0.0)) > 0.0 for sub in mod_self.modules())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _is_eligible_for_train_cuda_graphs(
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    rt: "AutoCompileRuntime",
+) -> tuple[bool, str]:
+    """Return `(eligible, reason)` for safe static-shape training CUDA Graphs."""
+    if not rt.train_cuda_graphs:
+        return False, "compile.train_cuda_graphs is False"
+    if not getattr(mod_self, "training", True):
+        return False, "module is in eval() mode"
+    if rt.dynamic is True:
+        return False, "compile.dynamic=True requested"
+    if getattr(getattr(rt.cfg, "amp", None), "grad_scaler", False):
+        return False, "GradScaler enabled (CPU .item() step skip hazard)"
+
+    sm_int = _detect_cuda_sm_for_compile(torch_mod)
+    if sm_int < 80 and os.environ.get("PTOPT_TRAIN_CG_FORCE") != "1":
+        return False, f"sm_{sm_int} < 80 (requires Ampere/Ada/Hopper sm>=80)"
+    if not _has_cuda_context(mod_self, args, kwargs, torch_mod) and os.environ.get("PTOPT_TRAIN_CG_FORCE") != "1":
+        return False, "non-CUDA module/input context"
+    if _has_active_dropout(mod_self, torch_mod):
+        return False, "active Dropout stochastic mask risk (set PTOPT_TRAIN_CG_ALLOW_DROPOUT=1 to override)"
+
+    try:
+        max_params = int(os.environ.get("PTOPT_TRAIN_CG_MAX_PARAMS", str(_DEFAULT_TRAIN_CG_MAX_PARAMS)))
+    except ValueError:
+        max_params = _DEFAULT_TRAIN_CG_MAX_PARAMS
+    total_params, _ = _count_module_params_and_elems(mod_self, args, kwargs, torch_mod)
+    if total_params > max_params:
+        return False, f"params={total_params} > {max_params} (large compute-bound module)"
+    return True, f"static launch-bound module (params={total_params}, sm_{sm_int})"
 
 
 def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> tuple[Any, ...]:
@@ -200,7 +274,9 @@ class AutoCompileRuntime:
         self.torch = torch_mod
         self.mode = cfg.compile.mode
         self.dynamic = cfg.compile.dynamic
+        self.train_cuda_graphs = bool(getattr(cfg.compile, "train_cuda_graphs", False))
         self.compiled_count = 0
+        self.train_cg_count = 0
         self.fallback_count = 0
         self.setup_time_ms = 0.0
         self.cache_dir = _configure_cache_and_dynamo(cfg, torch_mod, strict=manager.strict)
@@ -213,6 +289,7 @@ def _attempt_compile_module(
     *,
     dynamic_override: bool | None,
     reason_tag: str,
+    mode_override: str | None = None,
 ) -> bool:
     """Compile `mod_self._call_impl` in place via `torch.compile` with safety fallback."""
     t0 = time.perf_counter()
@@ -220,7 +297,8 @@ def _attempt_compile_module(
     if not callable(target_fn):
         return False
 
-    compile_kwargs: dict[str, Any] = {"mode": rt.mode}
+    chosen_mode = mode_override if mode_override is not None else rt.mode
+    compile_kwargs: dict[str, Any] = {"mode": chosen_mode}
     if dynamic_override is not None:
         compile_kwargs["dynamic"] = dynamic_override
 
@@ -230,10 +308,11 @@ def _attempt_compile_module(
         rt.setup_time_ms += (time.perf_counter() - t0) * 1000.0
         mod_self._ptopt_compile_active = True
         mod_self._ptopt_compile_dynamic = dynamic_override
+        mod_self._ptopt_compile_mode = chosen_mode
         rt.manager.record_event(
             "compile.auto",
             "APPLIED",
-            f"{reason_tag} {type(mod_self).__name__} (mode={rt.mode}, dynamic={dynamic_override})",
+            f"{reason_tag} {type(mod_self).__name__} (mode={chosen_mode}, dynamic={dynamic_override})",
         )
         return True
     except Exception as exc:  # noqa: BLE001
@@ -312,19 +391,69 @@ def install_auto_compile_hook(
                         )
                     else:
                         mod_self._ptopt_seen_shapes = {_shape_signature(args, kwargs, torch_mod)}
+                        mod_self._ptopt_cg_stable_steps = 1
+                        mod_self._ptopt_train_cg_active = False
+                        init_mode = "default" if (rt.train_cuda_graphs and rt.mode == "reduce-overhead") else rt.mode
                         _attempt_compile_module(
                             mod_self,
                             rt,
                             torch_mod,
                             dynamic_override=rt.dynamic,
+                            mode_override=init_mode,
                             reason_tag="Compiled",
                         )
             elif getattr(mod_self, "_ptopt_compile_active", False) and not getattr(mod_self, "_ptopt_compile_failed", False):
                 seen = getattr(mod_self, "_ptopt_seen_shapes", None)
-                if seen is not None and len(seen) < 8:
-                    sig = _shape_signature(args, kwargs, torch_mod)
+                sig = _shape_signature(args, kwargs, torch_mod)
+                if seen is not None and sig and sig in seen:
+                    stable = int(getattr(mod_self, "_ptopt_cg_stable_steps", 1)) + 1
+                    mod_self._ptopt_cg_stable_steps = stable
+                    if (
+                        rt.train_cuda_graphs
+                        and stable >= 2
+                        and not getattr(mod_self, "_ptopt_train_cg_checked", False)
+                        and not getattr(mod_self, "_ptopt_train_cg_failed", False)
+                    ):
+                        mod_self._ptopt_train_cg_checked = True
+                        ok_cg, reason_cg = _is_eligible_for_train_cuda_graphs(mod_self, args, kwargs, torch_mod, rt)
+                        if ok_cg:
+                            cur_mode = getattr(mod_self, "_ptopt_compile_mode", rt.mode)
+                            ok_recomp = True
+                            if cur_mode not in ("reduce-overhead", "max-autotune"):
+                                ok_recomp = _attempt_compile_module(
+                                    mod_self,
+                                    rt,
+                                    torch_mod,
+                                    dynamic_override=False,
+                                    mode_override="reduce-overhead",
+                                    reason_tag="Promoted(train_cuda_graphs)",
+                                )
+                            if ok_recomp:
+                                mod_self._ptopt_train_cg_active = True
+                                rt.train_cg_count += 1
+                                manager.record_event(
+                                    "compile.train_cuda_graphs",
+                                    "APPLIED",
+                                    f"Enabled training CUDA Graphs on {type(mod_self).__name__} ({reason_cg})",
+                                )
+                        else:
+                            manager.record_event(
+                                "compile.train_cuda_graphs",
+                                "SKIPPED",
+                                f"Training CUDA Graphs skipped on {type(mod_self).__name__}: {reason_cg}",
+                            )
+                elif seen is not None and len(seen) < 8:
                     if sig and sig not in seen:
                         seen.add(sig)
+                        if getattr(mod_self, "_ptopt_train_cg_active", False):
+                            mod_self._ptopt_train_cg_active = False
+                            mod_self._ptopt_train_cg_failed = True
+                            rt.fallback_count += 1
+                            manager.record_event(
+                                "compile.train_cuda_graphs",
+                                "FALLBACK",
+                                f"Dynamic shape detected on {type(mod_self).__name__}; demoted CUDA Graphs to mode=default",
+                            )
                         cur_dyn = getattr(mod_self, "_ptopt_compile_dynamic", rt.dynamic)
                         if len(seen) == 2 and cur_dyn is not True and auto_dynamic_on_change:
                             worth_dyn, dyn_reason = _is_worth_dynamic_compile(mod_self, args, kwargs, torch_mod, rt)
@@ -349,12 +478,39 @@ def install_auto_compile_hook(
                                     rt,
                                     torch_mod,
                                     dynamic_override=True,
+                                    mode_override="default",
                                     reason_tag="Recompiled(dynamic)",
                                 )
+
+            if getattr(mod_self, "_ptopt_train_cg_active", False) and getattr(mod_self, "training", True):
+                _invoke_cudagraph_mark_step_begin(torch_mod)
 
             try:
                 return orig_mod_call(mod_self, *args, **kwargs)
             except Exception as exc:  # noqa: BLE001
+                if getattr(mod_self, "_ptopt_train_cg_active", False) and not getattr(mod_self, "_ptopt_train_cg_failed", False):
+                    mod_self._ptopt_train_cg_active = False
+                    mod_self._ptopt_train_cg_failed = True
+                    rt.fallback_count += 1
+                    manager.record_event(
+                        "compile.train_cuda_graphs",
+                        "FALLBACK",
+                        f"Training CUDA Graphs runtime error on {type(mod_self).__name__}; reverting to mode=default",
+                        str(exc),
+                    )
+                    recomp_ok = _attempt_compile_module(
+                        mod_self,
+                        rt,
+                        torch_mod,
+                        dynamic_override=rt.dynamic,
+                        mode_override="default",
+                        reason_tag="Fallback(default)",
+                    )
+                    if recomp_ok:
+                        try:
+                            return orig_mod_call(mod_self, *args, **kwargs)
+                        except Exception:  # noqa: BLE001
+                            pass
                 if getattr(mod_self, "_ptopt_compile_active", False) and not getattr(mod_self, "_ptopt_compile_failed", False):
                     mod_self._compiled_call_impl = None
                     mod_self._ptopt_compile_active = False

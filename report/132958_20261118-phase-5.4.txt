@@ -1,0 +1,212 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.4 REPORT: TRAINING CUDA GRAPHS (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 13:29:58 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 57943cc
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu (sm_0)
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+Unit (compile)     : Ran 8 tests in 1.850s (3.44s) -> PASS
+Migrate (phase5.4) : Ran 2 tests in 15.405s (16.60s) -> PASS
+Overall Phase 5.4  : PASS
+
+[TRAINING CUDA GRAPHS ABLATION (BASELINE VS COMPILE=DEFAULT VS TRAIN_CUDA_GRAPHS)]
+------------------------------------------------------------------------------
+Case               | Variant           | Step0 ms | Base ms | Wrap ms | Wrap P95 | Wrap P99 | E2E s (B/W) | vs Base | vs Comp | VRAM MB (B/W/d) | MaxRelDiff | Status
+-------------------+-------------------+----------+---------+---------+----------+----------+-------------+---------+---------+-----------------+------------+-------
+deep_mlp_cpu       | compile_default   | 839.6    | 1.77    | 1.26    | 1.41     | 1.42     | 2.33/3.53s  | 1.40x   | 1.00x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+deep_mlp_cpu       | train_cuda_graphs | 838.2    | 1.77    | 1.60    | 1.77     | 1.79     | 2.33/3.47s  | 1.11x   | 0.79x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision_cpu     | compile_default   | 846.0    | 9.49    | 7.67    | 7.96     | 7.99     | 2.44/3.66s  | 1.24x   | 1.00x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+cnn_vision_cpu     | train_cuda_graphs | 801.8    | 9.49    | 7.90    | 8.66     | 8.76     | 2.44/3.47s  | 1.20x   | 0.97x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm_cpu | compile_default   | 839.5    | 4.30    | 4.11    | 5.02     | 5.14     | 2.30/3.53s  | 1.04x   | 1.00x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+transformer_lm_cpu | train_cuda_graphs | 828.4    | 4.30    | 4.78    | 4.89     | 4.89     | 2.30/3.48s  | 0.90x   | 0.86x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Case               | Mode                | Step0 ms | Steady ms | Data/Other   | Forward      | Loss/Clip   | Backward     | Optim       
+-------------------+---------------------+----------+-----------+--------------+--------------+-------------+--------------+-------------
+deep_mlp_cpu       | baseline_dbg        | 853.93   | 2.85      | 0.16 (5.6%)  | 0.54 (18.9%) | 0.12 (4.1%) | 0.76 (26.8%) | 1.27 (44.5%)
+deep_mlp_cpu       | compile_default_dbg | 823.62   | 2.93      | 0.17 (5.6%)  | 0.52 (17.8%) | 0.12 (4.2%) | 0.98 (33.3%) | 1.14 (38.9%)
+deep_mlp_cpu       | train_cg_dbg        | 832.04   | 2.08      | 0.14 (6.5%)  | 0.41 (19.7%) | 0.09 (4.1%) | 0.65 (31.1%) | 0.80 (38.5%)
+cnn_vision_cpu     | baseline_dbg        | 807.51   | 7.52      | 0.75 (10.0%) | 2.72 (36.1%) | 0.14 (1.8%) | 3.35 (44.5%) | 0.56 (7.5%) 
+cnn_vision_cpu     | compile_default_dbg | 902.74   | 8.94      | 0.77 (8.6%)  | 3.08 (34.5%) | 0.16 (1.7%) | 4.20 (46.9%) | 0.74 (8.3%) 
+cnn_vision_cpu     | train_cg_dbg        | 868.15   | 8.45      | 0.87 (10.3%) | 3.02 (35.8%) | 0.14 (1.6%) | 3.95 (46.8%) | 0.47 (5.5%) 
+transformer_lm_cpu | baseline_dbg        | 834.63   | 5.08      | 0.19 (3.8%)  | 1.32 (26.0%) | 0.17 (3.4%) | 2.05 (40.4%) | 1.34 (26.3%)
+transformer_lm_cpu | compile_default_dbg | 903.72   | 5.90      | 0.20 (3.4%)  | 1.49 (25.2%) | 0.27 (4.5%) | 2.45 (41.5%) | 1.50 (25.4%)
+transformer_lm_cpu | train_cg_dbg        | 837.15   | 5.60      | 0.18 (3.3%)  | 1.44 (25.8%) | 0.20 (3.5%) | 2.40 (42.8%) | 1.38 (24.6%)
+
+[TOP PYTORCH PROFILER OPS (CHECK self_cpu_ms & cudaGraphLaunch)]
+------------------------------------------------------------------------------
+[deep_mlp_cpu | baseline_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=4.213ms (top_cpu_ops):
+  Optimizer.step#AdamW.step                        calls=2     self=  0.785ms (18.6%) total=  3.070ms
+  aten::_to_copy                                   calls=260   self=  0.260ms ( 6.2%) total=  0.535ms
+  aten::gelu_backward                              calls=12    self=  0.247ms ( 5.9%) total=  0.247ms
+  aten::mul_                                       calls=104   self=  0.203ms ( 4.8%) total=  0.448ms
+  aten::gelu                                       calls=12    self=  0.199ms ( 4.7%) total=  0.199ms
+  aten::copy_                                      calls=274   self=  0.185ms ( 4.4%) total=  0.185ms
+  aten::add_                                       calls=104   self=  0.179ms ( 4.3%) total=  0.446ms
+  aten::addmm                                      calls=14    self=  0.148ms ( 3.5%) total=  0.194ms
+[deep_mlp_cpu | compile_default_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=4.741ms (top_cpu_ops):
+  aten::native_layer_norm_backward                 calls=12    self=  0.568ms (12.0%) total=  0.598ms
+  Optimizer.step#AdamW.step                        calls=2     self=  0.507ms (10.7%) total=  2.750ms
+  aten::gelu_backward                              calls=12    self=  0.269ms ( 5.7%) total=  0.269ms
+  aten::_to_copy                                   calls=208   self=  0.232ms ( 4.9%) total=  0.444ms
+  aten::add_                                       calls=104   self=  0.221ms ( 4.7%) total=  0.347ms
+  aten::gelu                                       calls=12    self=  0.202ms ( 4.3%) total=  0.202ms
+  aten::mul                                        calls=104   self=  0.170ms ( 3.6%) total=  0.445ms
+  aten::addmm                                      calls=14    self=  0.158ms ( 3.3%) total=  0.205ms
+[deep_mlp_cpu | train_cg_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=3.078ms (top_cpu_ops):
+  Optimizer.step#AdamW.step                        calls=2     self=  0.381ms (12.4%) total=  1.805ms
+  aten::gelu_backward                              calls=12    self=  0.234ms ( 7.6%) total=  0.234ms
+  aten::_to_copy                                   calls=208   self=  0.166ms ( 5.4%) total=  0.295ms
+  aten::gelu                                       calls=12    self=  0.150ms ( 4.9%) total=  0.150ms
+  aten::mul                                        calls=104   self=  0.114ms ( 3.7%) total=  0.312ms
+  aten::addmm                                      calls=14    self=  0.112ms ( 3.7%) total=  0.146ms
+  aten::mm                                         calls=26    self=  0.112ms ( 3.6%) total=  0.116ms
+  aten::add_                                       calls=104   self=  0.107ms ( 3.5%) total=  0.188ms
+[cnn_vision_cpu | baseline_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=12.613ms (top_cpu_ops):
+  aten::convolution_backward                       calls=20    self=  4.461ms (35.4%) total=  4.677ms
+  aten::mkldnn_convolution                         calls=20    self=  2.276ms (18.0%) total=  2.351ms
+  enumerate(DataLoader)#_SingleProcessDataLoaderIt calls=1     self=  0.940ms ( 7.5%) total=  1.176ms
+  aten::native_batch_norm                          calls=20    self=  0.707ms ( 5.6%) total=  0.781ms
+  aten::add_                                       calls=156   self=  0.408ms ( 3.2%) total=  0.408ms
+  Optimizer.step#SGD.step                          calls=2     self=  0.373ms ( 3.0%) total=  1.243ms
+  aten::threshold_backward                         calls=20    self=  0.342ms ( 2.7%) total=  0.342ms
+  aten::native_batch_norm_backward                 calls=20    self=  0.268ms ( 2.1%) total=  0.336ms
+[cnn_vision_cpu | compile_default_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=15.375ms (top_cpu_ops):
+  aten::convolution_backward                       calls=20    self=  6.022ms (39.2%) total=  6.197ms
+  aten::mkldnn_convolution                         calls=20    self=  3.068ms (20.0%) total=  3.146ms
+  enumerate(DataLoader)#_SingleProcessDataLoaderIt calls=1     self=  0.830ms ( 5.4%) total=  1.060ms
+  aten::native_batch_norm                          calls=20    self=  0.740ms ( 4.8%) total=  0.841ms
+  aten::add_                                       calls=156   self=  0.454ms ( 3.0%) total=  0.454ms
+  aten::mul                                        calls=64    self=  0.388ms ( 2.5%) total=  0.564ms
+  Optimizer.step#SGD.step                          calls=2     self=  0.319ms ( 2.1%) total=  1.602ms
+  aten::threshold_backward                         calls=20    self=  0.297ms ( 1.9%) total=  0.297ms
+[cnn_vision_cpu | train_cg_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=15.255ms (top_cpu_ops):
+  aten::convolution_backward                       calls=20    self=  5.849ms (38.3%) total=  6.009ms
+  aten::mkldnn_convolution                         calls=20    self=  3.267ms (21.4%) total=  3.357ms
+  enumerate(DataLoader)#_SingleProcessDataLoaderIt calls=1     self=  1.118ms ( 7.3%) total=  1.405ms
+  aten::native_batch_norm                          calls=20    self=  0.730ms ( 4.8%) total=  0.801ms
+  aten::add_                                       calls=156   self=  0.409ms ( 2.7%) total=  0.409ms
+  Optimizer.step#SGD.step                          calls=2     self=  0.313ms ( 2.1%) total=  1.175ms
+  aten::threshold_backward                         calls=20    self=  0.300ms ( 2.0%) total=  0.300ms
+  aten::native_batch_norm_backward                 calls=20    self=  0.294ms ( 1.9%) total=  0.359ms
+[transformer_lm_cpu | baseline_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=7.573ms (top_cpu_ops):
+  aten::mm                                         calls=66    self=  1.170ms (15.5%) total=  1.182ms
+  Optimizer.step#AdamW.step                        calls=2     self=  0.608ms ( 8.0%) total=  2.909ms
+  aten::mul                                        calls=112   self=  0.568ms ( 7.5%) total=  0.627ms
+  aten::mul_                                       calls=72    self=  0.364ms ( 4.8%) total=  0.499ms
+  aten::div                                        calls=46    self=  0.326ms ( 4.3%) total=  0.418ms
+  aten::lerp_                                      calls=36    self=  0.250ms ( 3.3%) total=  0.250ms
+  aten::sqrt                                       calls=36    self=  0.220ms ( 2.9%) total=  0.220ms
+  aten::_to_copy                                   calls=230   self=  0.202ms ( 2.7%) total=  0.416ms
+[transformer_lm_cpu | compile_default_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=9.477ms (top_cpu_ops):
+  aten::mm                                         calls=66    self=  1.563ms (16.5%) total=  1.579ms
+  aten::mul                                        calls=184   self=  1.017ms (10.7%) total=  1.276ms
+  Optimizer.step#AdamW.step                        calls=2     self=  0.563ms ( 5.9%) total=  3.621ms
+  aten::lerp_                                      calls=36    self=  0.339ms ( 3.6%) total=  0.339ms
+  aten::sqrt                                       calls=36    self=  0.321ms ( 3.4%) total=  0.321ms
+  aten::addcdiv_                                   calls=36    self=  0.259ms ( 2.7%) total=  0.259ms
+  aten::_to_copy                                   calls=194   self=  0.236ms ( 2.5%) total=  0.473ms
+  aten::div_                                       calls=46    self=  0.223ms ( 2.3%) total=  0.367ms
+[transformer_lm_cpu | train_cg_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=8.939ms (top_cpu_ops):
+  aten::mm                                         calls=66    self=  1.608ms (18.0%) total=  1.623ms
+  aten::mul                                        calls=184   self=  0.966ms (10.8%) total=  1.228ms
+  Optimizer.step#AdamW.step                        calls=2     self=  0.437ms ( 4.9%) total=  3.155ms
+  aten::addcdiv_                                   calls=36    self=  0.270ms ( 3.0%) total=  0.270ms
+  aten::lerp_                                      calls=36    self=  0.250ms ( 2.8%) total=  0.250ms
+  aten::sqrt                                       calls=36    self=  0.244ms ( 2.7%) total=  0.244ms
+  aten::_to_copy                                   calls=194   self=  0.231ms ( 2.6%) total=  0.466ms
+  aten::div_                                       calls=46    self=  0.216ms ( 2.4%) total=  0.355ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[deep_mlp_cpu | baseline] step0=3.52ms | steady_med=1.77ms | s0=3.52ms, s1=2.80ms, s2=1.94ms, s3=1.77ms, s4=1.74ms, s5=1.61ms
+[deep_mlp_cpu | compile_default] step0=839.55ms | steady_med=1.26ms | s0=839.55ms, s1=1.42ms, s2=1.35ms, s3=1.26ms, s4=1.25ms, s5=1.19ms
+[deep_mlp_cpu | train_cuda_graphs] step0=838.24ms | steady_med=1.60ms | s0=838.24ms, s1=1.80ms, s2=1.60ms, s3=1.56ms, s4=1.51ms, s5=1.65ms
+[cnn_vision_cpu | baseline] step0=16.26ms | steady_med=9.49ms | s0=16.26ms, s1=9.49ms, s2=9.76ms, s3=9.69ms, s4=9.46ms, s5=8.76ms
+[cnn_vision_cpu | compile_default] step0=846.01ms | steady_med=7.67ms | s0=846.01ms, s1=7.67ms, s2=7.99ms, s3=6.81ms, s4=7.84ms, s5=6.88ms
+[cnn_vision_cpu | train_cuda_graphs] step0=801.82ms | steady_med=7.90ms | s0=801.82ms, s1=8.78ms, s2=8.17ms, s3=7.90ms, s4=7.74ms, s5=7.87ms
+[transformer_lm_cpu | baseline] step0=6.82ms | steady_med=4.30ms | s0=6.82ms, s1=4.86ms, s2=4.39ms, s3=4.20ms, s4=4.11ms
+[transformer_lm_cpu | compile_default] step0=839.46ms | steady_med=4.11ms | s0=839.46ms, s1=4.08ms, s2=4.15ms, s3=5.17ms, s4=3.69ms
+[transformer_lm_cpu | train_cuda_graphs] step0=828.36ms | steady_med=4.78ms | s0=828.36ms, s1=4.68ms, s2=4.89ms, s3=4.88ms, s4=4.08ms
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- deep_mlp_cpu (compile_default): med=1.26ms (1.40x vs base, 1.00x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- deep_mlp_cpu (train_cuda_graphs): med=1.60ms (1.11x vs base, 0.79x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- cnn_vision_cpu (compile_default): med=7.67ms (1.24x vs base, 1.00x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- cnn_vision_cpu (train_cuda_graphs): med=7.90ms (1.20x vs base, 0.97x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- transformer_lm_cpu (compile_default): med=4.11ms (1.04x vs base, 1.00x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+- transformer_lm_cpu (train_cuda_graphs): med=4.78ms (0.90x vs base, 0.86x vs compile=default), VRAM 0.0 -> 0.0 MB (+0.0 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] deep_mlp_cpu (compile_default) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp_cpu (compile_default) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp_cpu (compile_default) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp_cpu (compile_default) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] deep_mlp_cpu (compile_default) -> compile.auto: compile.enabled is False
+[SKIPPED] deep_mlp_cpu (compile_default) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp_cpu (compile_default) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp_cpu (compile_default) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] deep_mlp_cpu (compile_default) -> kernels.auto: kernels.enabled is False
+[APPLIED] deep_mlp_cpu (compile_default) -> optimizer.AdamW: foreach=True
+[APPLIED] deep_mlp_cpu (train_cuda_graphs) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] deep_mlp_cpu (train_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> compile.auto: compile.enabled is False
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] deep_mlp_cpu (train_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] deep_mlp_cpu (train_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] deep_mlp_cpu (train_cuda_graphs) -> optimizer.AdamW: foreach=True
+[APPLIED] cnn_vision_cpu (compile_default) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision_cpu (compile_default) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision_cpu (compile_default) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision_cpu (compile_default) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision_cpu (compile_default) -> compile.auto: compile.enabled is False
+[SKIPPED] cnn_vision_cpu (compile_default) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision_cpu (compile_default) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision_cpu (compile_default) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] cnn_vision_cpu (compile_default) -> kernels.auto: kernels.enabled is False
+[APPLIED] cnn_vision_cpu (compile_default) -> optimizer.SGD: foreach=True
+[APPLIED] cnn_vision_cpu (train_cuda_graphs) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision_cpu (train_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> compile.auto: compile.enabled is False
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision_cpu (train_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] cnn_vision_cpu (train_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] cnn_vision_cpu (train_cuda_graphs) -> optimizer.SGD: foreach=True
+[APPLIED] transformer_lm_cpu (compile_default) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm_cpu (compile_default) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm_cpu (compile_default) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm_cpu (compile_default) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] transformer_lm_cpu (compile_default) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm_cpu (compile_default) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm_cpu (compile_default) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm_cpu (compile_default) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] transformer_lm_cpu (compile_default) -> kernels.auto: kernels.enabled is False
+[APPLIED] transformer_lm_cpu (compile_default) -> optimizer.AdamW: foreach=True
+[APPLIED] transformer_lm_cpu (train_cuda_graphs) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] transformer_lm_cpu (train_cuda_graphs) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> compile.auto: compile.enabled is False
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] transformer_lm_cpu (train_cuda_graphs) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] transformer_lm_cpu (train_cuda_graphs) -> kernels.auto: kernels.enabled is False
+[APPLIED] transformer_lm_cpu (train_cuda_graphs) -> optimizer.AdamW: foreach=True
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Training CUDA Graphs speedup (15%-40% vs compile=default on deep_mlp/transformer_lm_small) on Colab L4 before Plan 5.5)
+==============================================================================

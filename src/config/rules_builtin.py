@@ -65,6 +65,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "compile.mode": "default",
                 "compile.dynamic": False,
                 "compile.cache_dir": ".torch_inductor_cache",
+                "compile.train_cuda_graphs": False,
                 "optimizer.fused": False,
                 "optimizer.foreach": True,
                 "attention.flash_sdp": False,
@@ -150,6 +151,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "attention.mem_efficient_sdp": False,
                 "dataloader.pin_memory": False,
                 "inference.cuda_graphs": False,
+                "compile.train_cuda_graphs": False,
                 "kernels.enabled": False,
             },
         ),
@@ -167,6 +169,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "attention.mem_efficient_sdp": False,
                 "dataloader.pin_memory": False,
                 "inference.cuda_graphs": False,
+                "compile.train_cuda_graphs": False,
                 "kernels.enabled": False,
             },
         ),
@@ -193,6 +196,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "amp.grad_scaler": True,
                 "attention.flash_sdp": False,
                 "attention.mem_efficient_sdp": True,
+                "compile.train_cuda_graphs": False,
             },
         ),
         ConfigRule(
@@ -241,6 +245,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "runtime.alloc_conf": "expandable_segments:True",
                 "compile.mode": "default",
                 "inference.cuda_graphs": False,
+                "compile.train_cuda_graphs": False,
             },
         ),
         ConfigRule(
@@ -353,6 +358,7 @@ def get_builtin_rules() -> list[ConfigRule]:
             updates={
                 "compile.mode": "max-autotune",
                 "inference.cuda_graphs": True,
+                "compile.train_cuda_graphs": True,
             },
         ),
         ConfigRule(

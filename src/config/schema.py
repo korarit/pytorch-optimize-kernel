@@ -38,6 +38,7 @@ class CompileConfig:
     mode: str = "default"
     dynamic: bool | None = False
     cache_dir: str = ".torch_inductor_cache"
+    train_cuda_graphs: bool = False
 
 
 @dataclass
@@ -204,6 +205,7 @@ def validate_config(cfg: OptimizeConfig, backend: str | None = None) -> None:
         _require_bool(cfg.compile.dynamic, "compile.dynamic")
     if not isinstance(cfg.compile.cache_dir, str) or not cfg.compile.cache_dir.strip():
         raise ConfigValidationError("Field 'compile.cache_dir' must be a non-empty string.")
+    _require_bool(cfg.compile.train_cuda_graphs, "compile.train_cuda_graphs")
 
     # optimizer & attention
     _require_bool(cfg.optimizer.fused, "optimizer.fused")

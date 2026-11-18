@@ -252,6 +252,144 @@ class TestAutoCompilePass(unittest.TestCase):
                 uninstall_auto_compile_hook(torch)
                 mgr.reset()
 
+    def test_train_cuda_graphs_2step_promotion_mark_step_and_dynamic_fallback(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        cfg.compile.mode = "default"
+        cfg.compile.dynamic = False
+        cfg.compile.train_cuda_graphs = True
+        mgr = HookManager()
+
+        compile_modes: list[tuple[object, object]] = []
+        mark_calls = 0
+
+        def _spy_compile(fn: object, **kwargs: object) -> object:
+            compile_modes.append((kwargs.get("mode"), kwargs.get("dynamic")))
+            return fn
+
+        def _spy_mark() -> None:
+            nonlocal mark_calls
+            mark_calls += 1
+
+        model = nn.Sequential(nn.Linear(512, 512), nn.LayerNorm(512), nn.GELU(), nn.Linear(512, 16))  # >250k params
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89", "PTOPT_TRAIN_CG_FORCE": "1"},
+        ), patch.object(torch, "compile", side_effect=_spy_compile), patch.object(
+            torch.compiler, "cudagraph_mark_step_begin", side_effect=_spy_mark, create=True
+        ):
+            rt = install_auto_compile_hook(cfg, mgr, torch)
+            assert rt is not None
+            try:
+                x_static = torch.randn(32, 512)
+                # Step 0: default compile; Step 1: 2nd static step promotes -> reduce-overhead + calls mark_step_begin
+                # Step 2: 3rd static step keeps reduce-overhead + calls mark_step_begin
+                model(x_static)
+                model(x_static)
+                model(x_static)
+                self.assertEqual(compile_modes, [("default", False), ("reduce-overhead", False)])
+                self.assertTrue(getattr(model, "_ptopt_train_cg_active", False))
+                self.assertEqual(mark_calls, 2)
+                self.assertTrue(
+                    any(ev.pass_name == "compile.train_cuda_graphs" and ev.status == "APPLIED" for ev in mgr.events)
+                )
+
+                # Dynamic shape change on Step 3 demotes CUDA Graphs back to default/dynamic=True
+                model(torch.randn(16, 512))
+                self.assertFalse(getattr(model, "_ptopt_train_cg_active", False))
+                self.assertTrue(getattr(model, "_ptopt_train_cg_failed", False))
+                self.assertEqual(compile_modes[-1], ("default", True))
+                self.assertTrue(
+                    any(ev.pass_name == "compile.train_cuda_graphs" and ev.status == "FALLBACK" for ev in mgr.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
+    def test_train_cuda_graphs_skips_grad_scaler_dropout_and_runtime_error_fallback(self) -> None:
+        # 1. GradScaler active skips train_cuda_graphs
+        cfg_gs = OptimizeConfig(profile="balanced")
+        cfg_gs.compile.enabled = True
+        cfg_gs.compile.train_cuda_graphs = True
+        cfg_gs.amp.enabled = True
+        cfg_gs.amp.dtype = "fp16"
+        cfg_gs.amp.grad_scaler = True
+        mgr_gs = HookManager()
+        modes_gs: list[object] = []
+
+        model_gs = nn.Sequential(nn.Linear(256, 256), nn.Linear(256, 16))
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89", "PTOPT_TRAIN_CG_FORCE": "1"},
+        ), patch.object(torch, "compile", side_effect=lambda fn, **kw: (modes_gs.append(kw.get("mode")) or fn)):
+            install_auto_compile_hook(cfg_gs, mgr_gs, torch)
+            try:
+                x = torch.randn(16, 256)
+                model_gs(x)
+                model_gs(x)
+                self.assertEqual(modes_gs, ["default"])
+                self.assertTrue(
+                    any(ev.pass_name == "compile.train_cuda_graphs" and ev.status == "SKIPPED" and "GradScaler" in ev.reason for ev in mgr_gs.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr_gs.reset()
+
+        # 2. Dropout model skips train_cuda_graphs by default
+        cfg_do = OptimizeConfig(profile="balanced")
+        cfg_do.compile.enabled = True
+        cfg_do.compile.train_cuda_graphs = True
+        mgr_do = HookManager()
+        model_do = nn.Sequential(nn.Linear(256, 256), nn.Dropout(0.1), nn.Linear(256, 16))
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89", "PTOPT_TRAIN_CG_FORCE": "1"},
+        ), patch.object(torch, "compile", side_effect=lambda fn, **_kw: fn):
+            install_auto_compile_hook(cfg_do, mgr_do, torch)
+            try:
+                x = torch.randn(16, 256)
+                model_do(x)
+                model_do(x)
+                self.assertFalse(getattr(model_do, "_ptopt_train_cg_active", False))
+                self.assertTrue(
+                    any(ev.pass_name == "compile.train_cuda_graphs" and ev.status == "SKIPPED" and "Dropout" in ev.reason for ev in mgr_do.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr_do.reset()
+
+        # 3. Simulated runtime CUDAGraph error reverts cleanly to mode="default" without crashing user script
+        cfg_err = OptimizeConfig(profile="balanced")
+        cfg_err.compile.enabled = True
+        cfg_err.compile.train_cuda_graphs = True
+        mgr_err = HookManager()
+        model_err = nn.Sequential(nn.Linear(256, 256), nn.Linear(256, 16))
+
+        def _compile_fail_on_ro(fn: object, **kwargs: object) -> object:
+            if kwargs.get("mode") == "reduce-overhead":
+                def _boom(*_a: object, **_kw: object) -> object:
+                    raise RuntimeError("Error: CUDAGraph tensor overwritten by subsequent run")
+                return _boom
+            return fn
+
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89", "PTOPT_TRAIN_CG_FORCE": "1"},
+        ), patch.object(torch, "compile", side_effect=_compile_fail_on_ro):
+            install_auto_compile_hook(cfg_err, mgr_err, torch)
+            try:
+                x = torch.randn(16, 256)
+                model_err(x)
+                out = model_err(x)
+                self.assertEqual(out.shape, (16, 16))
+                self.assertFalse(getattr(model_err, "_ptopt_train_cg_active", False))
+                self.assertTrue(
+                    any(ev.pass_name == "compile.train_cuda_graphs" and ev.status == "FALLBACK" for ev in mgr_err.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr_err.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

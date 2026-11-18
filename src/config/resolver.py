@@ -30,6 +30,7 @@ _ENV_PARSERS: dict[str, tuple[str, Any]] = {
     "PTOPT_GRAD_SCALER": ("amp.grad_scaler", _parse_bool_env),
     "PTOPT_COMPILE": ("compile.enabled", _parse_bool_env),
     "PTOPT_COMPILE_MODE": ("compile.mode", lambda v, _n: v.strip().lower()),
+    "PTOPT_TRAIN_CUDA_GRAPHS": ("compile.train_cuda_graphs", _parse_bool_env),
     "PTOPT_FUSED_OPTIMIZER": ("optimizer.fused", _parse_bool_env),
     "PTOPT_FLASH_SDP": ("attention.flash_sdp", _parse_bool_env),
     "PTOPT_DATALOADER_AUTO": ("dataloader.auto_tune", _parse_bool_env),

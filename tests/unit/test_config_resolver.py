@@ -137,6 +137,7 @@ class TestConfigResolverMatrix(unittest.TestCase):
         self.assertTrue(cfg.runtime.tf32)
         self.assertEqual(cfg.amp.dtype, "bf16")
         self.assertEqual(cfg.compile.mode, "max-autotune")
+        self.assertTrue(cfg.compile.train_cuda_graphs)
         self.assertTrue(cfg.inference.cuda_graphs)
         self.assertTrue(cfg.kernels.enabled)
         self.assertIn("gpu_cuda_ada_sm89", res.matched_rules)
