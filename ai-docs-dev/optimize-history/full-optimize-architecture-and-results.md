@@ -5,6 +5,7 @@
 > **ดูรายละเอียดการไล่จับคอขวดทีละรอบเพิ่มเติม:**
 > - [Phase 3.1 – 3.5 Root Cause & Gains](./phase-3.1-to-3.5-root-cause-and-gains.md)
 > - [Phase 3.6 – 3.7 Inference, Kernels & Tuning](./phase-3.6-to-3.7-inference-kernels-and-tuning.md)
+> - [Phase 5.1 – 5.5 Kernel, Compile & Pipeline Refinements](./phase-5-kernel-compile-and-pipeline-refinements.md)
 
 ---
 
