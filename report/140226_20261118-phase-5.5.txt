@@ -1,0 +1,121 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 5.5 REPORT: AUTO ACTIVATION CHECKPOINTING & ASYNC CUDA PREFETCH (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 14:02:26 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize
+Git Branch/Commit  : main @ 5591a7c
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu (sm_0)
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+Unit (actckpt+pf)  : Ran 4 tests in 0.991s (2.44s) -> PASS
+Unit (dataloader)  : Ran 5 tests in 0.028s (1.26s) -> PASS
+Overall Phase 5.5  : PASS
+
+[PART A: AUTO ACTIVATION CHECKPOINTING (VRAM REDUCTION & PARITY)]
+------------------------------------------------------------------------------
+Case       | Variant           | Step0 ms | Med ms | Wrap P99 | Speedup | VRAM MB (B/W/d | Saved)     | MaxRelDiff | Status
+-----------+-------------------+----------+--------+----------+---------+-----------------------------+------------+-------
+lm_act_cpu | balanced_no_ckpt  | 848.0    | 11.53  | 12.73    | 0.97x   | 0.0/0.0 (+0.0 | 0.0%)       | 0.0        | PASS  
+lm_act_cpu | balanced_act_ckpt | 847.0    | 20.24  | 20.73    | 0.55x   | 0.0/0.0 (+0.0 | 0.0% saved) | 0.0        | PASS  
+
+[PART B: DEDICATED CUDA COPY STREAM PREFETCH (HEAVY H2D THROUGHPUT)]
+------------------------------------------------------------------------------
+Case           | Variant        | Step0 ms | Med ms | Wrap P99 | E2E s (B/W) | Speedup | VRAM MB (B/W/d) | MaxRelDiff | Status
+---------------+----------------+----------+--------+----------+-------------+---------+-----------------+------------+-------
+cnn_vision_cpu | dl_no_prefetch | 847.0    | 6.09   | 6.52     | 2.28/3.51s  | 1.06x   | 0.0/0.0 (+0.0)  | 0.0        | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (DATA/OTHER VS FORWARD/BACKWARD)]
+------------------------------------------------------------------------------
+Case           | Mode               | Step0 ms | Steady ms | Data/Other  | Forward      | Loss/Clip   | Backward      | Optim       
+---------------+--------------------+----------+-----------+-------------+--------------+-------------+---------------+-------------
+lm_act_cpu     | no_ckpt_dbg        | 850.39   | 15.77     | 0.22 (1.4%) | 4.44 (28.1%) | 0.33 (2.1%) | 7.19 (45.6%)  | 3.59 (22.8%)
+lm_act_cpu     | act_ckpt_dbg       | 859.72   | 21.98     | 0.23 (1.1%) | 7.19 (32.7%) | 0.29 (1.3%) | 13.36 (60.8%) | 3.08 (14.0%)
+cnn_vision_cpu | dl_no_prefetch_dbg | 821.53   | 8.35      | 0.70 (8.4%) | 2.76 (33.0%) | 0.14 (1.7%) | 4.21 (50.4%)  | 0.53 (6.4%) 
+
+[TOP PYTORCH PROFILER OPS (RECOMPUTE & cudaMemcpyAsync OVERLAP)]
+------------------------------------------------------------------------------
+[lm_act_cpu | no_ckpt_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=27.419ms (top_cpu_ops):
+  aten::mm                                         calls=96    self= 10.292ms (37.5%) total= 10.318ms
+  aten::mul                                        calls=258   self=  2.811ms (10.3%) total=  3.191ms
+  aten::lerp_                                      calls=50    self=  1.129ms ( 4.1%) total=  1.129ms
+  aten::addcdiv_                                   calls=50    self=  1.010ms ( 3.7%) total=  1.010ms
+  aten::addcmul_                                   calls=50    self=  0.797ms ( 2.9%) total=  0.797ms
+  aten::sqrt                                       calls=50    self=  0.729ms ( 2.7%) total=  0.729ms
+  aten::_scaled_dot_product_flash_attention_for_cp calls=6     self=  0.711ms ( 2.6%) total=  0.948ms
+  Optimizer.step#AdamW.step                        calls=2     self=  0.616ms ( 2.2%) total=  8.020ms
+[lm_act_cpu | act_ckpt_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=39.355ms (top_cpu_ops):
+  aten::mm                                         calls=126   self= 14.474ms (36.8%) total= 14.558ms
+  aten::mul                                        calls=288   self=  3.801ms ( 9.7%) total=  4.245ms
+  MmBackward0                                      calls=32    self=  3.588ms ( 9.1%) total= 17.769ms
+  aten::_scaled_dot_product_flash_attention_for_cp calls=12    self=  1.233ms ( 3.1%) total=  1.420ms
+  aten::addcdiv_                                   calls=50    self=  0.809ms ( 2.1%) total=  0.809ms
+  aten::lerp_                                      calls=50    self=  0.793ms ( 2.0%) total=  0.793ms
+  aten::_scaled_dot_product_flash_attention_for_cp calls=6     self=  0.762ms ( 1.9%) total=  0.978ms
+  aten::pow                                        calls=54    self=  0.758ms ( 1.9%) total=  0.920ms
+[cnn_vision_cpu | dl_no_prefetch_dbg] Profiler window=[1, 3] self_cuda=0.0ms self_cpu=14.918ms (top_cpu_ops):
+  aten::convolution_backward                       calls=20    self=  5.991ms (40.2%) total=  6.215ms
+  aten::mkldnn_convolution                         calls=20    self=  2.904ms (19.5%) total=  2.970ms
+  aten::native_batch_norm                          calls=20    self=  0.732ms ( 4.9%) total=  0.800ms
+  enumerate(DataLoader)#_SingleProcessDataLoaderIt calls=1     self=  0.730ms ( 4.9%) total=  0.915ms
+  aten::add_                                       calls=156   self=  0.459ms ( 3.1%) total=  0.459ms
+  Optimizer.step#SGD.step                          calls=2     self=  0.393ms ( 2.6%) total=  1.372ms
+  aten::native_batch_norm_backward                 calls=20    self=  0.387ms ( 2.6%) total=  0.474ms
+  aten::threshold_backward                         calls=20    self=  0.292ms ( 2.0%) total=  0.292ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[lm_act_cpu | baseline] step0=16.28ms | steady_med=11.20ms | s0=16.28ms, s1=12.46ms, s2=11.11ms, s3=11.28ms, s4=10.82ms
+[lm_act_cpu | balanced_no_ckpt] step0=847.99ms | steady_med=11.53ms | s0=847.99ms, s1=12.03ms, s2=12.75ms, s3=10.54ms, s4=11.03ms
+[lm_act_cpu | balanced_act_ckpt] step0=847.01ms | steady_med=20.24ms | s0=847.01ms, s1=20.74ms, s2=20.22ms, s3=20.16ms, s4=20.26ms
+[cnn_vision_cpu | baseline] step0=12.65ms | steady_med=6.47ms | s0=12.65ms, s1=6.16ms, s2=6.36ms, s3=6.58ms, s4=6.71ms
+[cnn_vision_cpu | dl_no_prefetch] step0=846.96ms | steady_med=6.09ms | s0=846.96ms, s1=5.83ms, s2=6.35ms, s3=6.53ms, s4=5.59ms
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- lm_act_cpu (balanced_no_ckpt): med=11.53ms (0.97x), VRAM 0.0 MB (0.0% vs no_ckpt)
+- lm_act_cpu (balanced_act_ckpt): med=20.24ms (0.55x), VRAM 0.0 MB (0.0% saved vs no_ckpt)
+- cnn_vision_cpu (dl_no_prefetch): med=6.09ms (1.06x), E2E=3.51s, VRAM 0.0 MB (+0.0 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] lm_act_cpu (balanced_no_ckpt) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] lm_act_cpu (balanced_no_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> compile.auto: compile.enabled is False
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] lm_act_cpu (balanced_no_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] lm_act_cpu (balanced_no_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_cpu (balanced_no_ckpt) -> optimizer.AdamW: foreach=True
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> compile.auto: compile.enabled is False
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[SKIPPED] lm_act_cpu (balanced_act_ckpt) -> kernels.auto: kernels.enabled is False
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> optimizer.AdamW: foreach=True
+[APPLIED] lm_act_cpu (balanced_act_ckpt) -> runtime.activation_checkpointing: Enabled activation checkpointing on 3 blocks of TinyGPT (mode=always)
+[APPLIED] cnn_vision_cpu (dl_no_prefetch) -> runtime.memory_allocator: torch_threads=6, ld_preload=/usr/lib/x86_64-linux-gnu/libjemalloc.so.2
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> runtime.flags: CUDA unavailable (CPU/non-CUDA backend)
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> dataloader.auto_tune: dataloader.auto_tune is disabled
+[APPLIED] cnn_vision_cpu (dl_no_prefetch) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> compile.auto: compile.enabled is False
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> runtime.channels_last: opt-in only on CPU/supersafe (set PTOPT_CHANNELS_LAST=1)
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] cnn_vision_cpu (dl_no_prefetch) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] cnn_vision_cpu (dl_no_prefetch) -> kernels.auto: kernels.enabled is False
+[APPLIED] cnn_vision_cpu (dl_no_prefetch) -> optimizer.SGD: foreach=True
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify 30%-60% Activation VRAM reduction and H2D Data/Other overlap on Colab L4)
+==============================================================================

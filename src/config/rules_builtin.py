@@ -58,6 +58,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "runtime.alloc_conf": "expandable_segments:True",
                 "runtime.omp_threads": 0,
                 "runtime.jemalloc": False,
+                "runtime.activation_checkpointing": "off",
                 "amp.enabled": False,
                 "amp.dtype": "fp32",
                 "amp.grad_scaler": False,
@@ -76,6 +77,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "dataloader.persistent_workers": False,
                 "dataloader.num_workers": None,
                 "dataloader.prefetch_factor": 2,
+                "dataloader.cuda_prefetch": False,
                 "inference.inference_mode": False,
                 "inference.cuda_graphs": False,
                 "kernels.enabled": False,
@@ -131,6 +133,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "dataloader.num_workers": 0,
                 "dataloader.persistent_workers": False,
                 "dataloader.prefetch_factor": None,
+                "dataloader.cuda_prefetch": False,
             },
         ),
         # 3. gpu_arch
@@ -150,6 +153,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "attention.flash_sdp": False,
                 "attention.mem_efficient_sdp": False,
                 "dataloader.pin_memory": False,
+                "dataloader.cuda_prefetch": False,
                 "inference.cuda_graphs": False,
                 "compile.train_cuda_graphs": False,
                 "kernels.enabled": False,
@@ -168,6 +172,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "attention.flash_sdp": False,
                 "attention.mem_efficient_sdp": False,
                 "dataloader.pin_memory": False,
+                "dataloader.cuda_prefetch": False,
                 "inference.cuda_graphs": False,
                 "compile.train_cuda_graphs": False,
                 "kernels.enabled": False,
@@ -314,6 +319,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "compile.enabled": True,
                 "compile.mode": "default",
                 "inference.inference_mode": True,
+                "runtime.activation_checkpointing": "auto",
             },
         ),
         ConfigRule(
@@ -327,6 +333,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "dataloader.persistent_workers": True,
                 "dataloader.num_workers": _recommended_workers(fp),
                 "dataloader.prefetch_factor": 2,
+                "dataloader.cuda_prefetch": False,
             },
         ),
         ConfigRule(
@@ -348,6 +355,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "optimizer.fused": True,
                 "compile.enabled": True,
                 "inference.inference_mode": True,
+                "runtime.activation_checkpointing": "auto",
             },
         ),
         ConfigRule(

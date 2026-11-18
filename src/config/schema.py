@@ -10,6 +10,7 @@ SCHEMA_VERSION = 1
 VALID_PROFILES = frozenset({"supersafe", "safe", "balanced", "aggressive"})
 VALID_AMP_DTYPES = frozenset({"fp32", "fp16", "bf16"})
 VALID_COMPILE_MODES = frozenset({"default", "reduce-overhead", "max-autotune"})
+VALID_ACT_CKPT_MODES = frozenset({"off", "auto", "always"})
 
 
 class ConfigValidationError(ValueError):
@@ -23,6 +24,7 @@ class RuntimeConfig:
     alloc_conf: str | None = "expandable_segments:True"
     omp_threads: int = 0
     jemalloc: bool = False
+    activation_checkpointing: str = "off"
 
 
 @dataclass
@@ -61,6 +63,7 @@ class DataLoaderConfig:
     persistent_workers: bool = False
     num_workers: int | None = None
     prefetch_factor: int | None = 2
+    cuda_prefetch: bool = False
 
 
 @dataclass
@@ -184,6 +187,11 @@ def validate_config(cfg: OptimizeConfig, backend: str | None = None) -> None:
     _require_int(cfg.runtime.omp_threads, "runtime.omp_threads", minimum=0)
     if cfg.runtime.alloc_conf is not None and not isinstance(cfg.runtime.alloc_conf, str):
         raise ConfigValidationError("Field 'runtime.alloc_conf' must be str or None.")
+    if cfg.runtime.activation_checkpointing not in VALID_ACT_CKPT_MODES:
+        raise ConfigValidationError(
+            f"Invalid runtime.activation_checkpointing '{cfg.runtime.activation_checkpointing}'; "
+            f"allowed: {sorted(VALID_ACT_CKPT_MODES)}."
+        )
 
     # amp
     _require_bool(cfg.amp.enabled, "amp.enabled")
@@ -226,6 +234,7 @@ def validate_config(cfg: OptimizeConfig, backend: str | None = None) -> None:
             raise ConfigValidationError("dataloader.prefetch_factor must be None when num_workers == 0.")
     if cfg.dataloader.prefetch_factor is not None:
         _require_int(cfg.dataloader.prefetch_factor, "dataloader.prefetch_factor", minimum=1)
+    _require_bool(cfg.dataloader.cuda_prefetch, "dataloader.cuda_prefetch")
 
     # inference & kernels
     _require_bool(cfg.inference.inference_mode, "inference.inference_mode")
@@ -238,5 +247,11 @@ def validate_config(cfg: OptimizeConfig, backend: str | None = None) -> None:
         raise ConfigValidationError("Field 'kernels.allow_list' must be a list of strings.")
 
     if backend == "cpu":
-        if cfg.runtime.tf32 or cfg.runtime.cudnn_benchmark or cfg.optimizer.fused or cfg.inference.cuda_graphs:
+        if (
+            cfg.runtime.tf32
+            or cfg.runtime.cudnn_benchmark
+            or cfg.optimizer.fused
+            or cfg.inference.cuda_graphs
+            or cfg.dataloader.cuda_prefetch
+        ):
             raise ConfigValidationError("CUDA-specific flags cannot be enabled on CPU backend.")

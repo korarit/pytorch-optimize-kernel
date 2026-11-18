@@ -25,6 +25,15 @@ _ENV_PARSERS: dict[str, tuple[str, Any]] = {
     "PTOPT_CUDNN_BENCHMARK": ("runtime.cudnn_benchmark", _parse_bool_env),
     "PTOPT_OMP_THREADS": ("runtime.omp_threads", lambda v, _n: int(v)),
     "PTOPT_JEMALLOC": ("runtime.jemalloc", _parse_bool_env),
+    "PTOPT_ACTIVATION_CKPT": (
+        "runtime.activation_checkpointing",
+        lambda v, _n: (
+            "always"
+            if v.strip().lower() in ("1", "true", "always", "on")
+            else ("off" if v.strip().lower() in ("0", "false", "off", "no") else v.strip().lower())
+        ),
+    ),
+    "PTOPT_CUDA_PREFETCH": ("dataloader.cuda_prefetch", _parse_bool_env),
     "PTOPT_AMP": ("amp.enabled", _parse_bool_env),
     "PTOPT_AMP_DTYPE": ("amp.dtype", lambda v, _n: v.strip().lower()),
     "PTOPT_GRAD_SCALER": ("amp.grad_scaler", _parse_bool_env),

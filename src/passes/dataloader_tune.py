@@ -64,6 +64,96 @@ def is_picklable_fast(obj: Any, torch_mod: Any = None) -> tuple[bool, str | None
         return False, f"{type(exc).__name__}: {exc}"
 
 
+def _move_batch_to_cuda(obj: Any, torch_mod: Any, device: Any, tracked_tensors: list[Any]) -> Any:
+    """Recursively stage CPU tensors in a batch onto CUDA (`non_blocking=True`), leaving custom/CUDA items intact."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is not None and isinstance(obj, tensor_cls):
+        dev = getattr(obj, "device", None)
+        if not getattr(obj, "is_cuda", False) and getattr(dev, "type", "") == "cpu":
+            dst = obj.to(device=device, non_blocking=True)
+            tracked_tensors.append(dst)
+            return dst
+        return obj
+    if isinstance(obj, tuple):
+        moved = [_move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for v in obj]
+        if hasattr(obj, "_fields"):
+            return type(obj)(*moved)
+        return tuple(moved)
+    if isinstance(obj, list):
+        return [_move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for v in obj]
+    if isinstance(obj, dict):
+        return {k: _move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for k, v in obj.items()}
+    return obj
+
+
+class _AsyncCudaPrefetchIter:
+    """Prefetch next DataLoader batch onto GPU using a dedicated CUDA copy stream (`wait_stream` + `record_stream`)."""
+
+    def __init__(
+        self,
+        inner_iter: Any,
+        torch_mod: Any,
+        *,
+        device: Any = None,
+        stream: Any = None,
+    ) -> None:
+        self._iter = inner_iter
+        self._torch = torch_mod
+        cuda_api = getattr(torch_mod, "cuda", None)
+        if device is not None:
+            self._device = device
+        elif cuda_api is not None and hasattr(cuda_api, "current_device"):
+            self._device = torch_mod.device("cuda", cuda_api.current_device())
+        else:
+            self._device = "cuda"
+        self._stream = stream if stream is not None else cuda_api.Stream(device=self._device)
+        self._next_item: Any = None
+        self._prefetched_tensors: list[Any] = []
+        self._exhausted = False
+        self._preload()
+
+    def _preload(self) -> None:
+        try:
+            raw = next(self._iter)
+        except StopIteration:
+            self._exhausted = True
+            self._next_item = None
+            self._prefetched_tensors = []
+            return
+
+        tracked: list[Any] = []
+        try:
+            with self._torch.cuda.stream(self._stream):
+                staged = _move_batch_to_cuda(raw, self._torch, self._device, tracked)
+            self._next_item = staged
+            self._prefetched_tensors = tracked
+        except Exception:  # noqa: BLE001
+            self._next_item = raw
+            self._prefetched_tensors = []
+
+    def __iter__(self) -> "_AsyncCudaPrefetchIter":
+        return self
+
+    def __next__(self) -> Any:
+        if self._exhausted:
+            raise StopIteration
+        cur_item = self._next_item
+        cur_tensors = self._prefetched_tensors
+        cuda_api = getattr(self._torch, "cuda", None)
+        if cuda_api is not None and cur_tensors:
+            try:
+                cur_stream = cuda_api.current_stream(self._device)
+            except TypeError:
+                cur_stream = cuda_api.current_stream()
+            cur_stream.wait_stream(self._stream)
+            for tensor in cur_tensors:
+                record_fn = getattr(tensor, "record_stream", None)
+                if callable(record_fn):
+                    record_fn(cur_stream)
+        self._preload()
+        return cur_item
+
+
 def decide_dataloader_params(
     *,
     cfg: OptimizeConfig,
@@ -187,33 +277,57 @@ def install_dataloader_hook(
             orig_persist = bool(b_args.get("persistent_workers", False))
             orig_prefetch = b_args.get("prefetch_factor", None)
 
-            tuned, notes = decide_dataloader_params(
-                cfg=cfg,
-                dataset=b_args.get("dataset"),
-                collate_fn=b_args.get("collate_fn"),
-                worker_init_fn=b_args.get("worker_init_fn"),
-                orig_num_workers=orig_workers,
-                orig_pin_memory=orig_pin,
-                orig_persistent_workers=orig_persist,
-                orig_prefetch_factor=orig_prefetch,
-                torch_mod=torch_mod,
-                shm_mb=shm_reader(),
-                cpu_cores=os.cpu_count(),
-            )
-            for status, reason in notes:
-                manager.record_event("dataloader.auto_tune", status, reason)
+            ds_obj = b_args.get("dataset")
+            is_cuda_ds = has_cuda_tensors(ds_obj, torch_mod)
+            dl_self._ptopt_cuda_ds = is_cuda_ds
 
-            b_args["num_workers"] = tuned["num_workers"]
-            b_args["pin_memory"] = tuned["pin_memory"]
-            b_args["persistent_workers"] = tuned["persistent_workers"]
-            b_args["prefetch_factor"] = tuned["prefetch_factor"]
-            dl_self._ptopt_orig_dl = {
-                "num_workers": orig_workers,
-                "pin_memory": orig_pin,
-                "persistent_workers": orig_persist,
-                "prefetch_factor": orig_prefetch,
-                "bumped": tuned["bumped"],
-            }
+            if cfg.dataloader.auto_tune:
+                tuned, notes = decide_dataloader_params(
+                    cfg=cfg,
+                    dataset=ds_obj,
+                    collate_fn=b_args.get("collate_fn"),
+                    worker_init_fn=b_args.get("worker_init_fn"),
+                    orig_num_workers=orig_workers,
+                    orig_pin_memory=orig_pin,
+                    orig_persistent_workers=orig_persist,
+                    orig_prefetch_factor=orig_prefetch,
+                    torch_mod=torch_mod,
+                    shm_mb=shm_reader(),
+                    cpu_cores=os.cpu_count(),
+                )
+                for status, reason in notes:
+                    manager.record_event("dataloader.auto_tune", status, reason)
+
+                b_args["num_workers"] = tuned["num_workers"]
+                b_args["pin_memory"] = tuned["pin_memory"]
+                b_args["persistent_workers"] = tuned["persistent_workers"]
+                b_args["prefetch_factor"] = tuned["prefetch_factor"]
+                dl_self._ptopt_orig_dl = {
+                    "num_workers": orig_workers,
+                    "pin_memory": orig_pin,
+                    "persistent_workers": orig_persist,
+                    "prefetch_factor": orig_prefetch,
+                    "bumped": tuned["bumped"],
+                }
+
+            cuda_ok = False
+            try:
+                cuda_ok = bool(getattr(torch_mod, "cuda", None) and torch_mod.cuda.is_available())
+            except Exception:  # noqa: BLE001
+                cuda_ok = False
+            prefetch_req = bool(getattr(cfg.dataloader, "cuda_prefetch", False)) or os.environ.get("PTOPT_CUDA_PREFETCH") == "1"
+            if prefetch_req and cuda_ok and not is_cuda_ds:
+                if not b_args.get("pin_memory", False):
+                    b_args["pin_memory"] = True
+                dl_self._ptopt_cuda_prefetch = True
+                manager.record_event(
+                    "dataloader.cuda_prefetch",
+                    "APPLIED",
+                    "Dedicated CUDA copy-stream prefetch enabled for DataLoader",
+                )
+            elif prefetch_req and not cuda_ok:
+                manager.record_event("dataloader.cuda_prefetch", "SKIPPED", "CUDA unavailable for cuda_prefetch")
+
             orig_init(*bound.args, **bound.kwargs)
             return
         except Exception as exc:  # noqa: BLE001
@@ -225,7 +339,7 @@ def install_dataloader_hook(
     @functools.wraps(orig_iter)
     def _safe_iter(dl_self: Any) -> Any:
         try:
-            return orig_iter(dl_self)
+            base_it = orig_iter(dl_self)
         except Exception as exc:  # noqa: BLE001
             orig_meta = getattr(dl_self, "_ptopt_orig_dl", None)
             if not orig_meta or not orig_meta.get("bumped"):
@@ -241,7 +355,21 @@ def install_dataloader_hook(
             dl_self.persistent_workers = orig_meta["persistent_workers"]
             dl_self.prefetch_factor = orig_meta["prefetch_factor"]
             orig_meta["bumped"] = False
-            return orig_iter(dl_self)
+            base_it = orig_iter(dl_self)
+
+        cuda_ok = False
+        try:
+            cuda_ok = bool(getattr(torch_mod, "cuda", None) and torch_mod.cuda.is_available())
+        except Exception:  # noqa: BLE001
+            cuda_ok = False
+        prefetch_active = (
+            getattr(dl_self, "_ptopt_cuda_prefetch", False)
+            or bool(getattr(cfg.dataloader, "cuda_prefetch", False))
+            or os.environ.get("PTOPT_CUDA_PREFETCH") == "1"
+        )
+        if prefetch_active and cuda_ok and not getattr(dl_self, "_ptopt_cuda_ds", False):
+            return _AsyncCudaPrefetchIter(base_it, torch_mod)
+        return base_it
 
     dl_cls.__init__ = _tuned_init  # type: ignore[method-assign]
     dl_cls.__iter__ = _safe_iter  # type: ignore[method-assign]
@@ -256,7 +384,7 @@ def install_dataloader_hook(
     except Exception:  # noqa: BLE001
         cuda_avail = False
 
-    if cuda_avail and cfg.dataloader.pin_memory and tensor_cls is not None and hasattr(tensor_cls, "to"):
+    if cuda_avail and (cfg.dataloader.pin_memory or getattr(cfg.dataloader, "cuda_prefetch", False)) and tensor_cls is not None and hasattr(tensor_cls, "to"):
         orig_to = tensor_cls.to
         compiler_ns = getattr(torch_mod, "compiler", None)
         is_compiling_fn = getattr(compiler_ns, "is_compiling", None)
@@ -335,8 +463,8 @@ def apply_dataloader_tune_pass(
     manager: "HookManager",
     torch_mod: Any = None,
 ) -> str:
-    """Enable DataLoader auto-tuning pass when `cfg.dataloader.auto_tune` is True."""
-    if not cfg.dataloader.auto_tune:
+    """Enable DataLoader auto-tuning / CUDA stream prefetch pass when enabled."""
+    if not cfg.dataloader.auto_tune and not getattr(cfg.dataloader, "cuda_prefetch", False):
         return "SKIPPED: dataloader.auto_tune is disabled"
     tmod = torch_mod if torch_mod is not None else sys.modules.get("torch")
     if tmod is None:
