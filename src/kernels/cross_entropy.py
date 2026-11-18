@@ -7,6 +7,8 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
+from src.kernels.rope_or_swiglu import _to_row_strided_2d
+
 try:
     import triton  # type: ignore[import-not-found]
     import triton.language as tl  # type: ignore[import-not-found]
@@ -36,18 +38,24 @@ if HAS_TRITON:
         Targets_ptr,
         Losses_ptr,
         LSE_ptr,
+        ValidCount_ptr,
         stride_logits,
+        stride_targets,
         V,
         ignore_index,
+        COUNT_VALID: tl.constexpr,
         BLOCK_V: tl.constexpr,
     ):
         row = tl.program_id(0)
-        target = tl.load(Targets_ptr + row)
+        target = tl.load(Targets_ptr + row * stride_targets)
 
         if target == ignore_index or target < 0 or target >= V:
             tl.store(Losses_ptr + row, 0.0)
             tl.store(LSE_ptr + row, 0.0)
             return
+
+        if COUNT_VALID:
+            tl.atomic_add(ValidCount_ptr, 1)
 
         row_ptr = Logits_ptr + row * stride_logits
         m = float("-inf")
@@ -78,13 +86,14 @@ if HAS_TRITON:
         GradOut_ptr,
         stride_dx,
         stride_logits,
+        stride_targets,
         V,
         ignore_index,
         IS_SCALAR_GRAD: tl.constexpr,
         BLOCK_V: tl.constexpr,
     ):
         row = tl.program_id(0)
-        target = tl.load(Targets_ptr + row)
+        target = tl.load(Targets_ptr + row * stride_targets)
         dx_row = DX_ptr + row * stride_dx
         x_row = Logits_ptr + row * stride_logits
 
@@ -116,11 +125,17 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
         ignore_index: int,
         reduction: str,
     ) -> torch.Tensor:
-        logits_2d = logits.contiguous()
-        targets_1d = targets.contiguous()
+        logits_2d = _to_row_strided_2d(logits)
+        targets_1d = targets
         M, V = logits_2d.shape
         losses = torch.empty((M,), dtype=torch.float32, device=logits.device)
         lse = torch.empty((M,), dtype=torch.float32, device=logits.device)
+        need_valid = reduction == "mean"
+        valid_count_i = (
+            torch.zeros((), dtype=torch.int32, device=logits.device)
+            if need_valid
+            else torch.empty((), dtype=torch.int32, device=logits.device)
+        )
 
         block_v = min(4096, max(128, triton.next_power_of_2(V)))
         warps = 8 if block_v >= 2048 else 4
@@ -129,17 +144,17 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
             targets_1d,
             losses,
             lse,
+            valid_count_i,
             logits_2d.stride(0),
+            targets_1d.stride(0),
             V,
             ignore_index,
+            COUNT_VALID=need_valid,
             BLOCK_V=block_v,
             num_warps=warps,
         )
 
-        valid_count_t: torch.Tensor | None = None
-        if reduction == "mean":
-            valid_mask = (targets_1d != ignore_index) & (targets_1d >= 0) & (targets_1d < V)
-            valid_count_t = valid_mask.sum().to(torch.float32).clamp(min=1.0)
+        valid_count_t = valid_count_i.to(torch.float32).clamp(min=1.0) if need_valid else None
 
         ctx.save_for_backward(logits_2d, targets_1d, lse, valid_count_t)
         ctx.ignore_index = ignore_index
@@ -158,7 +173,7 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
     def backward(ctx: Any, grad_out: torch.Tensor) -> tuple[torch.Tensor, None, None, None]:
         logits_2d, targets_1d, lse, valid_count_t = ctx.saved_tensors
         M, V = logits_2d.shape
-        dx = torch.empty_like(logits_2d)
+        dx = torch.empty((M, V), dtype=logits_2d.dtype, device=logits_2d.device)
 
         is_scalar = ctx.reduction in ("mean", "sum")
         if ctx.reduction == "mean":
@@ -177,6 +192,7 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
             grad_in,
             dx.stride(0),
             logits_2d.stride(0),
+            targets_1d.stride(0),
             V,
             ctx.ignore_index,
             IS_SCALAR_GRAD=is_scalar,

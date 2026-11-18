@@ -65,10 +65,10 @@ def normalize_state_dict_for_module(state_dict: Mapping[str, Any], target_module
 
 
 def _ensure_contiguous_state_dict(state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
-    """Ensure 4D channels_last tensors in state_dict are serialized in standard contiguous layout."""
+    """Ensure 4D/5D channels_last tensors in state_dict are serialized in standard contiguous layout."""
     out: OrderedDict[str, Any] = OrderedDict()
     for key, val in state_dict.items():
-        if hasattr(val, "dim") and hasattr(val, "is_contiguous") and val.dim() == 4 and not val.is_contiguous():
+        if hasattr(val, "dim") and hasattr(val, "is_contiguous") and val.dim() in (4, 5) and not val.is_contiguous():
             out[key] = val.contiguous()
         else:
             out[key] = val
@@ -79,8 +79,12 @@ def _ensure_contiguous_state_dict(state_dict: Mapping[str, Any]) -> OrderedDict[
 
 
 def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_self: Any) -> dict[str, Any]:
-    """Normalize 4D optimizer state buffers (e.g. SGD momentum_buffer) to contiguous and strip injected fused flag."""
+    """Normalize 4D/5D optimizer state buffers to contiguous, move injected CUDA `step` to CPU, and strip flags."""
     out = dict(state_dict)
+    injected_fused = bool(getattr(opt_self, "_ptopt_injected_fused", False))
+    injected_foreach = bool(getattr(opt_self, "_ptopt_injected_foreach", False))
+    injected_capturable = bool(getattr(opt_self, "_ptopt_injected_capturable", False))
+
     raw_state = state_dict.get("state")
     if isinstance(raw_state, Mapping):
         clean_state: dict[Any, Any] = {}
@@ -88,8 +92,10 @@ def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_s
             if isinstance(p_state, Mapping):
                 clean_p_state: dict[Any, Any] = {}
                 for sk, sv in p_state.items():
-                    if hasattr(sv, "dim") and hasattr(sv, "is_contiguous") and sv.dim() == 4 and not sv.is_contiguous():
+                    if hasattr(sv, "dim") and hasattr(sv, "is_contiguous") and sv.dim() in (4, 5) and not sv.is_contiguous():
                         clean_p_state[sk] = sv.contiguous()
+                    elif injected_capturable and sk == "step" and getattr(sv, "is_cuda", False) and hasattr(sv, "cpu"):
+                        clean_p_state[sk] = sv.cpu()
                     else:
                         clean_p_state[sk] = sv
                 clean_state[param_id] = clean_p_state
@@ -99,9 +105,7 @@ def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_s
 
     raw_groups = state_dict.get("param_groups")
     if isinstance(raw_groups, list):
-        injected_fused = bool(getattr(opt_self, "_ptopt_injected_fused", False))
-        injected_foreach = bool(getattr(opt_self, "_ptopt_injected_foreach", False))
-        if injected_fused or injected_foreach:
+        if injected_fused or injected_foreach or injected_capturable:
             clean_groups: list[Any] = []
             for grp in raw_groups:
                 if isinstance(grp, Mapping):
@@ -110,6 +114,8 @@ def _ensure_contiguous_optimizer_state_dict(state_dict: Mapping[str, Any], opt_s
                         grp_copy["fused"] = False
                     if injected_foreach and "foreach" in grp_copy:
                         grp_copy["foreach"] = None
+                    if injected_capturable and "capturable" in grp_copy:
+                        grp_copy["capturable"] = False
                     clean_groups.append(grp_copy)
                 else:
                     clean_groups.append(grp)
@@ -255,6 +261,29 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
                     for grp in getattr(opt_self, "param_groups", ()):
                         if isinstance(grp, dict) and "foreach" in grp:
                             grp["foreach"] = True
+                if getattr(opt_self, "_ptopt_injected_capturable", False):
+                    for grp in getattr(opt_self, "param_groups", ()):
+                        if isinstance(grp, dict) and "capturable" in grp:
+                            grp["capturable"] = True
+
+                # Normalize `step` tensor device across CPU<->CUDA checkpoint cross-loads when capturable is toggled
+                opt_state = getattr(opt_self, "state", None)
+                tensor_cls = getattr(torch_mod, "Tensor", None)
+                if isinstance(opt_state, dict) and tensor_cls is not None:
+                    for grp in getattr(opt_self, "param_groups", ()):
+                        if not isinstance(grp, dict):
+                            continue
+                        wants_cap = bool(grp.get("capturable", False))
+                        for param in grp.get("params", ()):
+                            ps = opt_state.get(param)
+                            if not isinstance(ps, dict):
+                                continue
+                            step_t = ps.get("step")
+                            if isinstance(step_t, tensor_cls) and hasattr(param, "device"):
+                                target_dev = param.device if wants_cap else "cpu"
+                                if str(step_t.device) != str(target_dev):
+                                    ps["step"] = step_t.to(device=target_dev)
+
                 sync_optimizer_state_memory_format(opt_self, torch_mod)
                 return res
 

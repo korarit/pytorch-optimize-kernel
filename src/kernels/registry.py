@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import importlib.util
+import inspect
 import os
 import sys
 from dataclasses import dataclass, field
@@ -131,10 +132,95 @@ def _builtin_specs() -> dict[str, KernelSpec]:
         "layernorm": KernelSpec(name="layernorm", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
         "cross_entropy": KernelSpec(name="cross_entropy", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
         "swiglu": KernelSpec(name="swiglu", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
+        "rope": KernelSpec(name="rope", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")),
         "fused_linear_cross_entropy": KernelSpec(
             name="fused_linear_cross_entropy", min_sm=80, supported_dtypes=("fp32", "fp16", "bf16")
         ),
     }
+
+
+def _match_swiglu_mlp(sub: Any, torch_mod: Any) -> tuple[Any, Any, Any] | None:
+    """Strictly verify SwiGLU MLP semantics before patching (Guardrail #1).
+
+    Supports `(w_gate, w_up, w_down)` and HuggingFace `(gate_proj, up_proj, down_proj)`,
+    and rejects GeGLU/ReGLU (`GELU`/`ReLU`) or MLPs with unexpected child layers (e.g. `Dropout`).
+    """
+    nn_ns = getattr(torch_mod, "nn", None)
+    lin_cls = getattr(nn_ns, "Linear", None)
+    silu_cls = getattr(nn_ns, "SiLU", None)
+    if lin_cls is None:
+        return None
+
+    if hasattr(sub, "w_gate") and hasattr(sub, "w_up") and hasattr(sub, "w_down"):
+        names = ("w_gate", "w_up", "w_down")
+    elif hasattr(sub, "gate_proj") and hasattr(sub, "up_proj") and hasattr(sub, "down_proj"):
+        names = ("gate_proj", "up_proj", "down_proj")
+    else:
+        return None
+
+    gate_m, up_m, down_m = getattr(sub, names[0]), getattr(sub, names[1]), getattr(sub, names[2])
+    if not (isinstance(gate_m, lin_cls) and isinstance(up_m, lin_cls) and isinstance(down_m, lin_cls)):
+        return None
+
+    if (
+        getattr(gate_m, "in_features", -1) != getattr(up_m, "in_features", -2)
+        or getattr(gate_m, "out_features", -1) != getattr(up_m, "out_features", -2)
+        or getattr(gate_m, "out_features", -1) != getattr(down_m, "in_features", -2)
+        or getattr(gate_m, "in_features", -1) != getattr(down_m, "out_features", -2)
+    ):
+        return None
+
+    if hasattr(sub, "named_children"):
+        allowed_children = set(names) | {"act_fn", "act", "activation"}
+        for child_name, _child_mod in sub.named_children():
+            if child_name not in allowed_children:
+                return None
+
+    act = getattr(sub, "act_fn", getattr(sub, "act", getattr(sub, "activation", None)))
+    if act is not None:
+        is_silu = (silu_cls is not None and isinstance(act, silu_cls)) or (
+            type(act).__name__.lower() in ("silu", "siluactivation", "swish")
+        ) or (getattr(act, "__name__", "").lower() == "silu")
+        if not is_silu:
+            return None
+    else:
+        cls_lower = type(sub).__name__.lower()
+        if any(bad in cls_lower for bad in ("geglu", "gelu", "reglu", "relu")):
+            return None
+        has_swiglu_hint = "swiglu" in cls_lower
+        if not has_swiglu_hint:
+            try:
+                src = inspect.getsource(sub.forward)
+                has_swiglu_hint = "silu" in src.lower()
+            except Exception:  # noqa: BLE001
+                has_swiglu_hint = False
+        if not has_swiglu_hint:
+            return None
+
+    return gate_m, up_m, down_m
+
+
+def _is_verified_rope_inputs(q: Any, k: Any, cos: Any, sin: Any) -> bool:
+    """Strictly validate half-split RoPE tensor layout & shapes (Guardrail #1)."""
+    if not (
+        getattr(q, "is_cuda", False)
+        and getattr(k, "is_cuda", False)
+        and getattr(cos, "is_cuda", False)
+        and getattr(sin, "is_cuda", False)
+    ):
+        return False
+    if q.dim() not in (3, 4) or k.dim() != q.dim():
+        return False
+    d = int(q.shape[-1])
+    if d <= 0 or d % 2 != 0 or int(k.shape[-1]) != d or int(k.shape[-2]) != int(q.shape[-2]):
+        return False
+    half = d // 2
+    if int(cos.shape[-1]) not in (d, half) or int(sin.shape[-1]) != int(cos.shape[-1]):
+        return False
+    # Verify half-split layout ([c1, c1], NOT interleaved [c0, c0, c1, c1]) when full D is passed
+    if int(cos.shape[-1]) == d and not bool((cos[..., :half] == cos[..., half:]).all()):
+        return False
+    return True
 
 
 def _is_checkpoint_control_flow(exc: BaseException) -> bool:
@@ -263,7 +349,7 @@ def _patch_module_submodules(
     from src.kernels.fused_linear_cross_entropy import create_lazy_linear_logits
     from src.kernels.layernorm import triton_layernorm
     from src.kernels.rmsnorm import triton_rmsnorm
-    from src.kernels.rope_or_swiglu import triton_swiglu
+    from src.kernels.rope_or_swiglu import triton_rope, triton_swiglu
 
     nn_ns = getattr(torch_mod, "nn", None)
     ln_cls = getattr(nn_ns, "LayerNorm", None)
@@ -336,22 +422,21 @@ def _patch_module_submodules(
                 patched += 1
                 continue
 
-        if (
-            eligible.get("swiglu")
-            and hasattr(sub, "w_gate")
-            and hasattr(sub, "w_up")
-            and hasattr(sub, "w_down")
-        ):
-            gate_w = getattr(sub.w_gate, "weight", None)
+        swiglu_projs = _match_swiglu_mlp(sub, torch_mod) if eligible.get("swiglu") else None
+        if swiglu_projs is not None:
+            gate_m, up_m, down_m = swiglu_projs
+            gate_w = getattr(gate_m, "weight", None)
             if gate_w is not None and getattr(gate_w, "is_cuda", False):
                 orig_fwd = sub.forward
 
-                def _make_swi_fwd(m: Any, base_f: Any) -> Callable[..., Any]:
+                def _make_swi_fwd(
+                    m: Any, g_proj: Any, u_proj: Any, d_proj: Any, base_f: Any
+                ) -> Callable[..., Any]:
                     @functools.wraps(base_f)
                     def _swi_fwd(x: Any) -> Any:
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
-                                return m.w_down(triton_swiglu(m.w_gate(x), m.w_up(x)))
+                                return d_proj(triton_swiglu(g_proj(x), u_proj(x)))
                             except Exception as exc:  # noqa: BLE001
                                 if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
@@ -360,10 +445,38 @@ def _patch_module_submodules(
                     return _swi_fwd
 
                 sub._ptopt_kern_orig_forward = orig_fwd
-                sub.forward = _make_swi_fwd(sub, orig_fwd)
+                sub.forward = _make_swi_fwd(sub, gate_m, up_m, down_m, orig_fwd)
                 sub._ptopt_kern_patched = True
                 patched += 1
                 continue
+
+        # Verified RoPE method hook (only when module explicitly exposes a 4-arg apply_rotary_pos_emb)
+        if eligible.get("rope") and callable(getattr(sub, "apply_rotary_pos_emb", None)):
+            orig_rope = sub.apply_rotary_pos_emb
+
+            def _make_rope_fn(m: Any, base_rope: Any) -> Callable[..., Any]:
+                @functools.wraps(base_rope)
+                def _rope_wrap(q: Any, k: Any, cos: Any, sin: Any, *extra_args: Any, **extra_kw: Any) -> Any:
+                    if not extra_args and not extra_kw:
+                        verified = getattr(m, "_ptopt_rope_layout_ok", None)
+                        if verified is None:
+                            verified = _is_verified_rope_inputs(q, k, cos, sin)
+                            m._ptopt_rope_layout_ok = verified
+                        if verified and getattr(q, "is_cuda", False) and getattr(k, "is_cuda", False):
+                            try:
+                                return triton_rope(q, k, cos, sin)
+                            except Exception as exc:  # noqa: BLE001
+                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
+                                    raise
+                    return base_rope(q, k, cos, sin, *extra_args, **extra_kw)
+
+                return _rope_wrap
+
+            sub._ptopt_kern_orig_rope = orig_rope
+            sub.apply_rotary_pos_emb = _make_rope_fn(sub, orig_rope)
+            sub._ptopt_kern_patched = True
+            patched += 1
+            continue
 
         # Large-vocab terminal/head `nn.Linear` -> deferred LazyLinearLogits for FusedLinearCrossEntropy
         out_feat = int(getattr(sub, "out_features", 0))
@@ -526,7 +639,7 @@ def install_custom_kernels_hooks(
         )
         # Defer elementwise/norm modules to TorchInductor when compile is active,
         # but keep cross_entropy and Hybrid FusedLinearCrossEntropy active for large-vocab heads.
-        if ok and compile_active and name in ("rmsnorm", "layernorm", "swiglu"):
+        if ok and compile_active and name in ("rmsnorm", "layernorm", "swiglu", "rope"):
             ok = False
             reason = f"{reason}; deferred to torch.compile Inductor fusion"
         elif ok and compile_active and name == "fused_linear_cross_entropy" and not hybrid_lce_active:

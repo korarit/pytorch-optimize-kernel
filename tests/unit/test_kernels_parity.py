@@ -77,7 +77,8 @@ class TestKernelCapabilityGate(unittest.TestCase):
             reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=75)
             assert reg is not None
             try:
-                self.assertEqual(len(reg.fallback_registry.entries), 5)
+                self.assertEqual(len(reg.fallback_registry.entries), 6)
+                self.assertIn("rope", reg.fallback_registry.entries)
                 self.assertTrue(all(e.status == "SKIPPED" for e in reg.fallback_registry.entries.values()))
                 self.assertTrue(all(ev.status == "SKIPPED" for ev in mgr.events))
             finally:
@@ -247,6 +248,51 @@ class TestKernelsForwardBackwardParity(unittest.TestCase):
                 torch.testing.assert_close(y.float(), y_ref.float(), atol=atol, rtol=rtol)
                 torch.testing.assert_close(g.grad.float(), g_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
                 torch.testing.assert_close(u.grad.float(), u_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+
+    def test_rope_forward_backward_parity_and_strided_views(self) -> None:
+        from src.kernels.rope_or_swiglu import _to_row_strided_2d, ref_rope, triton_rope
+
+        torch.manual_seed(37)
+        for dtype in self.dtypes:
+            atol, rtol = _tolerances(dtype)
+            # Test standard MHA + GQA shapes and both D//2 and D cos/sin tables
+            for bsz, h_q, h_k, seq, d_head, tbl_half in (
+                (2, 4, 4, 16, 64, False),
+                (2, 8, 2, 17, 64, True),
+            ):
+                q_ref = torch.randn(bsz, h_q, seq, d_head, device=self.device, dtype=torch.float64, requires_grad=True)
+                k_ref = torch.randn(bsz, h_k, seq, d_head, device=self.device, dtype=torch.float64, requires_grad=True)
+                tbl_d = d_head // 2 if tbl_half else d_head
+                angles = torch.randn(1, 1, seq, d_head // 2, device=self.device, dtype=torch.float64)
+                cos_base = angles.cos() if tbl_half else torch.cat([angles.cos(), angles.cos()], dim=-1)
+                sin_base = angles.sin() if tbl_half else torch.cat([angles.sin(), angles.sin()], dim=-1)
+
+                qr_ref, kr_ref = ref_rope(q_ref, k_ref, cos_base, sin_base)
+                dq = torch.randn_like(qr_ref)
+                dk = torch.randn_like(kr_ref)
+                torch.autograd.backward([qr_ref, kr_ref], [dq, dk])
+
+                q = q_ref.detach().to(dtype).requires_grad_(True)
+                k = k_ref.detach().to(dtype).requires_grad_(True)
+                cos = cos_base.detach().to(dtype)
+                sin = sin_base.detach().to(dtype)
+                qr, kr = triton_rope(q, k, cos, sin)
+                torch.autograd.backward([qr, kr], [dq.to(dtype), dk.to(dtype)])
+
+                torch.testing.assert_close(qr.float(), qr_ref.float(), atol=atol, rtol=rtol)
+                torch.testing.assert_close(kr.float(), kr_ref.float(), atol=atol, rtol=rtol)
+                assert q.grad is not None and k.grad is not None
+                torch.testing.assert_close(q.grad.float(), q_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+                torch.testing.assert_close(k.grad.float(), k_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
+
+        # Verify zero-copy row-strided 2D helper on gate_up.chunk(2, dim=-1) and sliced logits
+        buf = torch.randn(12, 96, device=self.device)
+        g_slice, u_slice = buf.chunk(2, dim=-1)
+        g_view = _to_row_strided_2d(g_slice)
+        u_view = _to_row_strided_2d(u_slice)
+        self.assertEqual(g_view.data_ptr(), g_slice.data_ptr())
+        self.assertEqual(u_view.data_ptr(), u_slice.data_ptr())
+        self.assertEqual(g_view.stride(), (96, 1))
 
 
 if __name__ == "__main__":

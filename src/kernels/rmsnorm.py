@@ -6,6 +6,8 @@ from typing import Any
 
 import torch
 
+from src.kernels.rope_or_swiglu import _to_row_strided_2d
+
 try:
     import triton  # type: ignore[import-not-found]
     import triton.language as tl  # type: ignore[import-not-found]
@@ -16,6 +18,12 @@ except ImportError:  # pragma: no cover - CPU dev environment
     HAS_TRITON = False
 
 _MAX_FUSED_COLS = 16384
+
+
+def _select_rows_per_cta(block_n: int, m_rows: int) -> int:
+    if block_n > 1024 or m_rows < 16:
+        return 1
+    return 8 if block_n <= 256 else 4
 
 
 def ref_rmsnorm(x: torch.Tensor, weight: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
@@ -36,23 +44,26 @@ if HAS_TRITON:
         Rstd_ptr,
         stride_x,
         stride_y,
+        M,
         N,
         eps,
+        ROWS_PER_CTA: tl.constexpr,
         BLOCK_N: tl.constexpr,
     ):
-        row = tl.program_id(0)
+        base_row = tl.program_id(0) * ROWS_PER_CTA
         cols = tl.arange(0, BLOCK_N)
         mask = cols < N
-
-        x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
         w = tl.load(W_ptr + cols, mask=mask, other=0.0).to(tl.float32)
 
-        mean_sq = tl.sum(x * x, axis=0) / N
-        rstd = tl.math.rsqrt(mean_sq + eps)
-        tl.store(Rstd_ptr + row, rstd)
-
-        y = (x * rstd) * w
-        tl.store(Y_ptr + row * stride_y + cols, y, mask=mask)
+        for r in range(ROWS_PER_CTA):
+            row = base_row + r
+            if row < M:
+                x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+                mean_sq = tl.sum(x * x, axis=0) / N
+                rstd = tl.math.rsqrt(mean_sq + eps)
+                tl.store(Rstd_ptr + row, rstd)
+                y = (x * rstd) * w
+                tl.store(Y_ptr + row * stride_y + cols, y, mask=mask)
 
     @triton.jit
     def _rmsnorm_bwd_kernel(
@@ -109,22 +120,26 @@ class _TritonRMSNormFn(torch.autograd.Function):
     def forward(ctx: Any, x: torch.Tensor, weight: torch.Tensor, eps: float) -> torch.Tensor:
         orig_shape = x.shape
         N = orig_shape[-1]
-        x_2d = x.reshape(-1, N).contiguous()
+        x_2d = _to_row_strided_2d(x)
         M = x_2d.shape[0]
-        y_2d = torch.empty_like(x_2d)
+        y_2d = torch.empty((M, N), dtype=x_2d.dtype, device=x_2d.device)
         rstd = torch.empty((M,), dtype=torch.float32, device=x.device)
 
         block_n = triton.next_power_of_2(N)
+        rows_per_cta = _select_rows_per_cta(block_n, M)
         warps = _select_num_warps(block_n)
-        _rmsnorm_fwd_kernel[(M,)](
+        grid = (triton.cdiv(M, rows_per_cta),)
+        _rmsnorm_fwd_kernel[grid](
             x_2d,
             weight,
             y_2d,
             rstd,
             x_2d.stride(0),
             y_2d.stride(0),
+            M,
             N,
             eps,
+            ROWS_PER_CTA=rows_per_cta,
             BLOCK_N=block_n,
             num_warps=warps,
         )
@@ -138,8 +153,8 @@ class _TritonRMSNormFn(torch.autograd.Function):
     def backward(ctx: Any, dy: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, None]:
         x_2d, weight, rstd = ctx.saved_tensors
         M, N = x_2d.shape
-        dy_2d = dy.reshape(M, N).contiguous()
-        dx_2d = torch.empty_like(x_2d)
+        dy_2d = _to_row_strided_2d(dy)
+        dx_2d = torch.empty((M, N), dtype=x_2d.dtype, device=x_2d.device)
 
         num_workers = min(M, 256)
         partial_dw = torch.empty((num_workers, N), dtype=torch.float32, device=x_2d.device)

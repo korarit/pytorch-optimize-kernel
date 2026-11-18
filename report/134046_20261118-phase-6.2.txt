@@ -1,0 +1,397 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 6.2 REPORT: HYBRID COMPILE+FUSED_LCE & TRITON/STRIDED ACT_CKPT (DEEP DEBUG)
+==============================================================================
+Timestamp          : 2026-11-18 13:40:46 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 80932fa
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (fused_lce)   : Ran 8 tests in 3.183s (5.49s) -> PASS
+Unit (kernels_parity): Ran 8 tests in 10.591s (12.98s) -> PASS
+Unit (act_ckpt_prefetch): Ran 9 tests in 1.651s (3.98s) -> PASS
+Overall Phase 6.2  : PASS
+
+[PART A1 - MICRO-BENCHMARK: EAGER LINEAR+CE VS FUSED CHUNKED LINEAR+CE (BF16/FP16)]
+------------------------------------------------------------------------------
+Shape (N x H -> V)              | Eager ms | Fused ms | Speedup | Eager VRAM MB | Fused VRAM MB | VRAM Delta            | LossAbsDiff
+--------------------------------+----------+----------+---------+---------------+---------------+-----------------------+------------
+4096x512 -> V=8192 (bfloat16)   | 6.94     | 3.26     | 2.13x   | 424.3         | 128.4         | -295.9 (69.7% saved)  | 1.34e-03   
+4096x512 -> V=32768 (bfloat16)  | 27.54    | 19.02    | 1.45x   | 1624.4        | 252.5         | -1371.9 (84.5% saved) | 2.88e-03   
+4096x512 -> V=32768 (float16)   | 27.35    | 21.27    | 1.29x   | 1624.4        | 316.5         | -1307.9 (80.5% saved) | 3.20e-04   
+4096x1024 -> V=50257 (bfloat16) | 65.24    | 64.47    | 1.01x   | 2586.8        | 457.9         | -2128.9 (82.3% saved) | 2.62e-03   
+
+[PART A2 - HYBRID COMPILE + FUSED_LCE E2E (BASELINE VS COMPILE VS FUSED_LCE VS HYBRID)]
+------------------------------------------------------------------------------
+Scale    | Variant            | Step0 ms | Base ms | Wrap ms | Wrap P95 | Wrap P99 | E2E s (B/W) | Speedup | VRAM MB (B/W/d)         | MaxRelDiff | Status
+---------+--------------------+----------+---------+---------+----------+----------+-------------+---------+-------------------------+------------+-------
+vocab8k  | balanced_compile   | 15118.6  | 77.64   | 24.19   | 24.44    | 24.50    | 4.91/21.14s | 3.21x   | 1679.5/1159.0 (-520.5)  | 7e-06      | PASS  
+vocab8k  | fused_lce_eager    | 3268.6   | 77.64   | 21.05   | 21.96    | 21.97    | 4.91/8.08s  | 3.69x   | 1679.5/814.5 (-865.0)   | 7e-06      | PASS  
+vocab8k  | hybrid_compile_lce | 16058.6  | 77.64   | 20.58   | 20.97    | 20.99    | 4.91/21.97s | 3.77x   | 1679.5/799.0 (-880.5)   | 6e-06      | PASS  
+vocab32k | balanced_compile   | 15480.1  | 124.49  | 47.87   | 48.49    | 48.58    | 5.64/21.57s | 2.60x   | 3501.5/2815.0 (-686.5)  | 6e-06      | PASS  
+vocab32k | fused_lce_eager    | 3491.1   | 124.49  | 36.94   | 37.78    | 37.86    | 5.64/8.36s  | 3.37x   | 3501.5/1214.5 (-2287.0) | 6e-06      | PASS  
+vocab32k | hybrid_compile_lce | 16224.6  | 124.49  | 36.67   | 36.97    | 37.04    | 5.64/22.39s | 3.40x   | 3501.5/1199.0 (-2302.5) | 5e-06      | PASS  
+
+[PART B - ACTIVATION CHECKPOINTING SPEED RECOVERY (RECOMPUTE AMP FIX + AUTO-TRITON + STRIDED)]
+------------------------------------------------------------------------------
+Scale        | Variant                | Step0 ms | Med ms | P99 ms | Speedup vs Base | VRAM MB (B/W/d | vs no_ckpt)           | MaxRelDiff | Status
+-------------+------------------------+----------+--------+--------+-----------------+----------------------------------------+------------+-------
+lm_act_med   | no_ckpt                | 19167.7  | 55.20  | 59.23  | 4.04x           | 3977.4/1662.4 (-2314.9 | 0.0%)         | 3e-06      | PASS  
+lm_act_med   | act_ckpt_full_triton   | 3876.7   | 69.98  | 70.84  | 3.19x           | 3977.4/789.8 (-3187.6 | 52.5% saved)   | 3e-06      | PASS  
+lm_act_med   | act_ckpt_strided_50pct | 3426.5   | 63.66  | 64.43  | 3.50x           | 3977.4/1164.5 (-2812.9 | 30.0% saved)  | 3e-06      | PASS  
+lm_act_med   | act_ckpt_auto          | 7132.7   | 54.77  | 55.72  | 4.07x           | 3977.4/1662.4 (-2314.9 | 0.0% saved)   | 3e-06      | PASS  
+lm_act_large | no_ckpt                | 23360.4  | 188.93 | 197.16 | 4.40x           | 10168.9/4562.0 (-5606.9 | 0.0%)        | 3e-06      | PASS  
+lm_act_large | act_ckpt_full_triton   | 4570.2   | 260.52 | 267.95 | 3.19x           | 10168.9/1958.3 (-8210.6 | 57.1% saved) | 4e-06      | PASS  
+lm_act_large | act_ckpt_strided_50pct | 4020.8   | 234.94 | 246.80 | 3.54x           | 10168.9/3148.3 (-7020.6 | 31.0% saved) | 3e-06      | PASS  
+lm_act_large | act_ckpt_auto          | 8322.9   | 188.63 | 201.40 | 4.41x           | 10168.9/4598.0 (-5570.9 | -0.8% saved) | 4e-06      | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Scale      | Mode                     | Step0 ms | Steady ms | Data/Other  | Forward       | Loss/Clip    | Backward      | Optim        
+-----------+--------------------------+----------+-----------+-------------+---------------+--------------+---------------+--------------
+vocab8k    | baseline_dbg             | 1811.58  | 76.44     | 0.47 (0.6%) | 21.04 (27.5%) | 1.38 (1.8%)  | 44.43 (58.1%) | 9.12 (11.9%) 
+vocab8k    | balanced_compile_dbg     | 5617.31  | 25.09     | 0.98 (3.9%) | 5.56 (22.2%)  | 2.23 (8.9%)  | 12.81 (51.1%) | 3.49 (13.9%) 
+vocab8k    | hybrid_compile_lce_dbg   | 6521.12  | 21.53     | 0.95 (4.4%) | 4.99 (23.2%)  | 1.32 (6.2%)  | 10.82 (50.2%) | 3.45 (16.0%) 
+vocab32k   | baseline_dbg             | 2047.81  | 123.81    | 0.49 (0.4%) | 29.88 (24.1%) | 4.80 (3.9%)  | 70.94 (57.3%) | 17.68 (14.3%)
+vocab32k   | balanced_compile_dbg     | 5886.49  | 49.31     | 1.02 (2.1%) | 7.79 (15.8%)  | 8.26 (16.7%) | 25.65 (52.0%) | 6.59 (13.4%) 
+vocab32k   | hybrid_compile_lce_dbg   | 6775.28  | 35.95     | 1.01 (2.8%) | 5.17 (14.4%)  | 4.37 (12.1%) | 18.84 (52.4%) | 6.56 (18.3%) 
+lm_act_med | no_ckpt_dbg              | 7552.76  | 54.21     | 0.91 (1.7%) | 14.14 (26.1%) | 2.40 (4.4%)  | 31.89 (58.8%) | 4.86 (9.0%)  
+lm_act_med | act_ckpt_full_triton_dbg | 3490.33  | 72.37     | 0.99 (1.4%) | 22.62 (31.3%) | 2.08 (2.9%)  | 49.45 (68.3%) | 4.73 (6.5%)  
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Scale      | Mode                     | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+-----------+--------------------------+----------+---------+-----------+----------+--------+--------
+vocab8k    | baseline_dbg             | 1674.5   | 1704.0  | 29.5      | 20859.1  | 7.5%   | 0      
+vocab8k    | balanced_compile_dbg     | 1159.0   | 1242.0  | 83.0      | 21321.1  | 5.5%   | 0      
+vocab8k    | hybrid_compile_lce_dbg   | 807.0    | 822.0   | 15.0      | 21741.1  | 3.6%   | 0      
+vocab32k   | baseline_dbg             | 3498.5   | 3544.0  | 45.5      | 19019.1  | 15.7%  | 0      
+vocab32k   | balanced_compile_dbg     | 2815.0   | 3342.0  | 527.0     | 19221.1  | 14.8%  | 0      
+vocab32k   | hybrid_compile_lce_dbg   | 1207.0   | 1222.0  | 15.0      | 21341.1  | 5.4%   | 0      
+lm_act_med | no_ckpt_dbg              | 1662.4   | 1672.0  | 9.6       | 20891.1  | 7.4%   | 0      
+lm_act_med | act_ckpt_full_triton_dbg | 789.8    | 852.0   | 62.2      | 21711.1  | 3.8%   | 0      
+
+[TOP PYTORCH PROFILER OPS (PART A HYBRID LCE & PART B RECOMPUTE AMP+TRITON)]
+------------------------------------------------------------------------------
+[vocab8k | baseline_dbg] Profiler window=[2, 4] self_cuda=313.983ms self_cpu=151.159ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 90.845ms (28.9%) total= 90.845ms
+  ampere_sgemm_128x64_tn                           calls=42    self= 30.539ms ( 9.7%) total= 30.539ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=34    self= 25.820ms ( 8.2%) total= 25.820ms
+  ampere_sgemm_128x64_nn                           calls=32    self= 20.277ms ( 6.5%) total= 20.277ms
+  Optimizer.step#AdamW.step                        calls=2     self= 17.471ms ( 5.6%) total= 17.471ms
+  aten::mul                                        calls=212   self= 14.427ms ( 4.6%) total= 14.427ms
+  void at::native::vectorized_elementwise_kernel<4 calls=104   self= 12.605ms ( 4.0%) total= 12.605ms
+  ampere_sgemm_128x128_nn                          calls=8     self=  6.299ms ( 2.0%) total=  6.299ms
+[vocab8k | balanced_compile_dbg] Profiler window=[2, 4] self_cuda=92.968ms self_cpu=51.855ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 15.429ms (16.6%) total= 15.429ms
+  Optimizer.step#AdamW.step                        calls=2     self=  6.306ms ( 6.8%) total=  6.306ms
+  aten::_fused_adamw_                              calls=2     self=  6.163ms ( 6.6%) total=  6.163ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self=  6.163ms ( 6.6%) total=  6.163ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=42    self=  5.138ms ( 5.5%) total=  5.138ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=26    self=  4.240ms ( 4.6%) total=  4.240ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=34    self=  3.921ms ( 4.2%) total=  3.921ms
+  aten::_log_softmax_backward_data                 calls=2     self=  3.446ms ( 3.7%) total=  3.446ms
+[vocab8k | hybrid_compile_lce_dbg] Profiler window=[2, 4] self_cuda=77.778ms self_cpu=45.115ms (top_cuda_ops):
+  aten::mm                                         calls=134   self= 15.944ms (20.5%) total= 15.944ms
+  Optimizer.step#AdamW.step                        calls=2     self=  6.248ms ( 8.0%) total=  6.248ms
+  aten::_fused_adamw_                              calls=2     self=  6.098ms ( 7.8%) total=  6.098ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self=  6.098ms ( 7.8%) total=  6.098ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=44    self=  5.022ms ( 6.5%) total=  5.022ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=40    self=  5.000ms ( 6.4%) total=  5.000ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=28    self=  4.259ms ( 5.5%) total=  4.259ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=8     self=  2.570ms ( 3.3%) total=  2.570ms
+[vocab32k | baseline_dbg] Profiler window=[2, 4] self_cuda=510.808ms self_cpu=241.358ms (top_cuda_ops):
+  aten::mm                                         calls=126   self=142.070ms (27.8%) total=142.070ms
+  ampere_sgemm_128x64_tn                           calls=42    self= 48.354ms ( 9.5%) total= 48.354ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_128x calls=34    self= 42.158ms ( 8.3%) total= 42.158ms
+  Optimizer.step#AdamW.step                        calls=2     self= 34.371ms ( 6.7%) total= 34.371ms
+  ampere_sgemm_128x64_nn                           calls=32    self= 21.790ms ( 4.3%) total= 21.790ms
+  void cutlass::Kernel2<cutlass_80_simt_sgemm_256x calls=2     self= 20.976ms ( 4.1%) total= 20.976ms
+  aten::mul                                        calls=212   self= 14.482ms ( 2.8%) total= 14.482ms
+  aten::_log_softmax_backward_data                 calls=2     self= 14.338ms ( 2.8%) total= 14.338ms
+[vocab32k | balanced_compile_dbg] Profiler window=[2, 4] self_cuda=195.043ms self_cpu=100.104ms (top_cuda_ops):
+  aten::mm                                         calls=126   self= 25.017ms (12.8%) total= 25.017ms
+  aten::_log_softmax_backward_data                 calls=2     self= 14.332ms ( 7.3%) total= 14.332ms
+  void at::native::(anonymous namespace)::cunn_Sof calls=2     self= 14.332ms ( 7.3%) total= 14.332ms
+  aten::copy_                                      calls=11    self= 13.522ms ( 6.9%) total= 13.522ms
+  Optimizer.step#AdamW.step                        calls=2     self= 12.405ms ( 6.4%) total= 12.405ms
+  aten::_fused_adamw_                              calls=2     self= 12.227ms ( 6.3%) total= 12.227ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self= 12.227ms ( 6.3%) total= 12.227ms
+  aten::_log_softmax                               calls=2     self=  9.105ms ( 4.7%) total=  9.105ms
+[vocab32k | hybrid_compile_lce_dbg] Profiler window=[2, 4] self_cuda=140.913ms self_cpu=73.293ms (top_cuda_ops):
+  aten::mm                                         calls=146   self= 27.849ms (19.8%) total= 27.849ms
+  Optimizer.step#AdamW.step                        calls=2     self= 12.507ms ( 8.9%) total= 12.507ms
+  aten::_fused_adamw_                              calls=2     self= 12.353ms ( 8.8%) total= 12.353ms
+  void at::native::(anonymous namespace)::multi_te calls=2     self= 12.353ms ( 8.8%) total= 12.353ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=24    self= 10.277ms ( 7.3%) total= 10.277ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=32    self=  7.694ms ( 5.5%) total=  7.694ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=40    self=  4.418ms ( 3.1%) total=  4.418ms
+  ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta calls=8     self=  4.277ms ( 3.0%) total=  4.277ms
+[lm_act_med | no_ckpt_dbg] Profiler window=[2, 4] self_cuda=206.549ms self_cpu=109.157ms (top_cuda_ops):
+  aten::mm                                         calls=206   self= 49.069ms (23.8%) total= 49.069ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=56    self= 15.559ms ( 7.5%) total= 15.559ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=68    self= 15.511ms ( 7.5%) total= 15.511ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=64    self= 15.124ms ( 7.3%) total= 15.124ms
+  Optimizer.step#AdamW.step                        calls=2     self=  8.720ms ( 4.2%) total=  8.720ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=12    self=  8.305ms ( 4.0%) total=  8.305ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=12    self=  8.305ms ( 4.0%) total=  8.305ms
+  aten::_fused_adamw_                              calls=2     self=  8.274ms ( 4.0%) total=  8.274ms
+[lm_act_med | act_ckpt_full_triton_dbg] Profiler window=[2, 4] self_cuda=256.208ms self_cpu=135.767ms (top_cuda_ops):
+  aten::mm                                         calls=266   self= 57.192ms (22.3%) total= 57.192ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=112   self= 24.231ms ( 9.5%) total= 24.231ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=56    self= 15.270ms ( 6.0%) total= 15.270ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=68    self= 14.972ms ( 5.8%) total= 14.972ms
+  _TritonSwiGLUFn                                  calls=24    self=  9.740ms ( 3.8%) total=  9.740ms
+  _swiglu_fwd_kernel                               calls=24    self=  9.740ms ( 3.8%) total=  9.740ms
+  Optimizer.step#AdamW.step                        calls=2     self=  8.605ms ( 3.4%) total=  8.605ms
+  aten::copy_                                      calls=339   self=  8.468ms ( 3.3%) total=  8.468ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[vocab8k | baseline] step0=383.89ms | steady_med=77.53ms | s0=383.89ms, s1=69.16ms, s2=77.77ms, s3=77.53ms, s4=78.04ms, s5=77.33ms, s6=77.15ms, s7=77.51ms ...
+[vocab8k | balanced_compile] step0=15118.62ms | steady_med=24.17ms | s0=15118.62ms, s1=23.48ms, s2=23.32ms, s3=23.52ms, s4=24.35ms, s5=24.20ms, s6=24.05ms, s7=24.08ms ...
+[vocab8k | fused_lce_eager] step0=3268.57ms | steady_med=21.23ms | s0=3268.57ms, s1=21.62ms, s2=19.76ms, s3=20.15ms, s4=20.50ms, s5=20.77ms, s6=20.88ms, s7=21.23ms ...
+[vocab8k | hybrid_compile_lce] step0=16058.59ms | steady_med=20.55ms | s0=16058.59ms, s1=20.00ms, s2=19.66ms, s3=20.18ms, s4=20.55ms, s5=20.44ms, s6=20.68ms, s7=20.95ms ...
+[vocab32k | baseline] step0=403.51ms | steady_med=124.28ms | s0=403.51ms, s1=114.21ms, s2=123.45ms, s3=123.18ms, s4=123.57ms, s5=126.44ms, s6=124.70ms, s7=124.28ms ...
+[vocab32k | balanced_compile] step0=15480.08ms | steady_med=47.87ms | s0=15480.08ms, s1=47.43ms, s2=47.94ms, s3=47.57ms, s4=48.22ms, s5=47.88ms, s6=47.63ms, s7=48.60ms ...
+[vocab32k | fused_lce_eager] step0=3491.11ms | steady_med=36.91ms | s0=3491.11ms, s1=34.88ms, s2=34.55ms, s3=35.88ms, s4=36.08ms, s5=36.91ms, s6=36.98ms, s7=37.64ms ...
+[vocab32k | hybrid_compile_lce] step0=16224.59ms | steady_med=36.63ms | s0=16224.59ms, s1=33.49ms, s2=34.71ms, s3=36.33ms, s4=36.63ms, s5=36.71ms, s6=36.23ms, s7=36.70ms ...
+[lm_act_med | baseline] step0=487.24ms | steady_med=222.58ms | s0=487.24ms, s1=216.25ms, s2=222.58ms, s3=221.38ms, s4=221.45ms, s5=231.97ms, s6=224.54ms, s7=223.21ms ...
+[lm_act_med | no_ckpt] step0=19167.70ms | steady_med=55.18ms | s0=19167.70ms, s1=48.89ms, s2=54.35ms, s3=55.21ms, s4=54.67ms, s5=55.18ms, s6=55.45ms, s7=54.97ms ...
+[lm_act_med | act_ckpt_full_triton] step0=3876.68ms | steady_med=69.82ms | s0=3876.68ms, s1=63.37ms, s2=69.50ms, s3=70.38ms, s4=69.60ms, s5=69.41ms, s6=69.82ms, s7=69.41ms ...
+[lm_act_med | act_ckpt_strided_50pct] step0=3426.46ms | steady_med=63.56ms | s0=3426.46ms, s1=57.15ms, s2=62.43ms, s3=63.52ms, s4=64.46ms, s5=64.07ms, s6=63.51ms, s7=63.00ms ...
+[lm_act_med | act_ckpt_auto] step0=7132.70ms | steady_med=54.77ms | s0=7132.70ms, s1=50.50ms, s2=54.91ms, s3=54.50ms, s4=54.72ms, s5=54.78ms, s6=55.42ms, s7=54.64ms ...
+[lm_act_large | baseline] step0=1064.66ms | steady_med=830.74ms | s0=1064.66ms, s1=806.21ms, s2=833.78ms, s3=835.88ms, s4=823.24ms, s5=827.74ms, s6=833.44ms, s7=830.57ms ...
+[lm_act_large | no_ckpt] step0=23360.42ms | steady_med=188.90ms | s0=23360.42ms, s1=180.39ms, s2=184.35ms, s3=188.96ms, s4=196.60ms, s5=197.21ms, s6=186.13ms, s7=186.68ms ...
+[lm_act_large | act_ckpt_full_triton] step0=4570.24ms | steady_med=258.21ms | s0=4570.24ms, s1=249.13ms, s2=254.90ms, s3=264.20ms, s4=268.28ms, s5=257.24ms, s6=254.49ms, s7=263.51ms ...
+[lm_act_large | act_ckpt_strided_50pct] step0=4020.85ms | steady_med=234.28ms | s0=4020.85ms, s1=226.13ms, s2=231.08ms, s3=233.75ms, s4=247.47ms, s5=237.37ms, s6=234.28ms, s7=231.33ms ...
+[lm_act_large | act_ckpt_auto] step0=8322.91ms | steady_med=187.12ms | s0=8322.91ms, s1=185.08ms, s2=185.08ms, s3=186.01ms, s4=190.15ms, s5=201.44ms, s6=200.85ms, s7=187.12ms ...
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- [Part A] vocab8k (balanced_compile): med=24.19ms (3.21x), VRAM 1679.5 -> 1159.0 MB (-520.5 MB)
+- [Part A] vocab8k (fused_lce_eager): med=21.05ms (3.69x), VRAM 1679.5 -> 814.5 MB (-865.0 MB)
+- [Part A] vocab8k (hybrid_compile_lce): med=20.58ms (3.77x), VRAM 1679.5 -> 799.0 MB (-880.5 MB)
+- [Part A] vocab32k (balanced_compile): med=47.87ms (2.60x), VRAM 3501.5 -> 2815.0 MB (-686.5 MB)
+- [Part A] vocab32k (fused_lce_eager): med=36.94ms (3.37x), VRAM 3501.5 -> 1214.5 MB (-2287.0 MB)
+- [Part A] vocab32k (hybrid_compile_lce): med=36.67ms (3.40x), VRAM 3501.5 -> 1199.0 MB (-2302.5 MB)
+- [Part B] lm_act_med (no_ckpt): med=55.20ms (4.04x vs safe), VRAM 1662.4 MB (0.0% vs no_ckpt)
+- [Part B] lm_act_med (act_ckpt_full_triton): med=69.98ms (3.19x vs safe), VRAM 789.8 MB (52.5% saved vs no_ckpt)
+- [Part B] lm_act_med (act_ckpt_strided_50pct): med=63.66ms (3.50x vs safe), VRAM 1164.5 MB (30.0% saved vs no_ckpt)
+- [Part B] lm_act_med (act_ckpt_auto): med=54.77ms (4.07x vs safe), VRAM 1662.4 MB (0.0% saved vs no_ckpt)
+- [Part B] lm_act_large (no_ckpt): med=188.93ms (4.40x vs safe), VRAM 4562.0 MB (0.0% vs no_ckpt)
+- [Part B] lm_act_large (act_ckpt_full_triton): med=260.52ms (3.19x vs safe), VRAM 1958.3 MB (57.1% saved vs no_ckpt)
+- [Part B] lm_act_large (act_ckpt_strided_50pct): med=234.94ms (3.54x vs safe), VRAM 3148.3 MB (31.0% saved vs no_ckpt)
+- [Part B] lm_act_large (act_ckpt_auto): med=188.63ms (4.41x vs safe), VRAM 4598.0 MB (-0.8% saved vs no_ckpt)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] vocab8k (balanced_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab8k (balanced_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab8k (balanced_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab8k (balanced_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab8k (balanced_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/lce_vocab8k)
+[APPLIED] vocab8k (balanced_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab8k (balanced_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab8k (balanced_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] vocab8k (balanced_compile) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] vocab8k (balanced_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] vocab8k (balanced_compile) -> optimizer.AdamW: fused=True
+[APPLIED] vocab8k (balanced_compile) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab8k (fused_lce_eager) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab8k (fused_lce_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab8k (fused_lce_eager) -> compile.auto: compile.enabled is False
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab8k (fused_lce_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab8k (fused_lce_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] vocab8k (fused_lce_eager) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.fused_linear_cross_entropy: sm_89, triton=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu, fused_linear_cross_entropy
+[APPLIED] vocab8k (fused_lce_eager) -> optimizer.AdamW: fused=True
+[APPLIED] vocab8k (fused_lce_eager) -> kernels.patch: Patched 14 submodules in TinyGPT with custom Triton kernels
+[APPLIED] vocab8k (hybrid_compile_lce) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab8k (hybrid_compile_lce) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab8k (hybrid_compile_lce) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab8k (hybrid_compile_lce) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab8k (hybrid_compile_lce) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/lce_hybrid_vocab8k)
+[APPLIED] vocab8k (hybrid_compile_lce) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab8k (hybrid_compile_lce) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab8k (hybrid_compile_lce) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] vocab8k (hybrid_compile_lce) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] vocab8k (hybrid_compile_lce) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] vocab8k (hybrid_compile_lce) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] vocab8k (hybrid_compile_lce) -> optimizer.AdamW: fused=True
+[APPLIED] vocab8k (hybrid_compile_lce) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] vocab8k (hybrid_compile_lce) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] vocab32k (balanced_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab32k (balanced_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab32k (balanced_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab32k (balanced_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab32k (balanced_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/lce_vocab32k)
+[APPLIED] vocab32k (balanced_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab32k (balanced_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab32k (balanced_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] vocab32k (balanced_compile) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] vocab32k (balanced_compile) -> kernels.auto: kernels.enabled is False
+[APPLIED] vocab32k (balanced_compile) -> optimizer.AdamW: fused=True
+[APPLIED] vocab32k (balanced_compile) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab32k (fused_lce_eager) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab32k (fused_lce_eager) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] vocab32k (fused_lce_eager) -> compile.auto: compile.enabled is False
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab32k (fused_lce_eager) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab32k (fused_lce_eager) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] vocab32k (fused_lce_eager) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.rmsnorm: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.layernorm: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.cross_entropy: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.swiglu: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.fused_linear_cross_entropy: sm_89, triton=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.auto: Custom kernels active: rmsnorm, layernorm, cross_entropy, swiglu, fused_linear_cross_entropy
+[APPLIED] vocab32k (fused_lce_eager) -> optimizer.AdamW: fused=True
+[APPLIED] vocab32k (fused_lce_eager) -> kernels.patch: Patched 14 submodules in TinyGPT with custom Triton kernels
+[APPLIED] vocab32k (hybrid_compile_lce) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] vocab32k (hybrid_compile_lce) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] vocab32k (hybrid_compile_lce) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] vocab32k (hybrid_compile_lce) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] vocab32k (hybrid_compile_lce) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/lce_hybrid_vocab32k)
+[APPLIED] vocab32k (hybrid_compile_lce) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] vocab32k (hybrid_compile_lce) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] vocab32k (hybrid_compile_lce) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] vocab32k (hybrid_compile_lce) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] vocab32k (hybrid_compile_lce) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] vocab32k (hybrid_compile_lce) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] vocab32k (hybrid_compile_lce) -> optimizer.AdamW: fused=True
+[APPLIED] vocab32k (hybrid_compile_lce) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] vocab32k (hybrid_compile_lce) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_med (no_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (no_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (no_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (no_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (no_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_med)
+[APPLIED] lm_act_med (no_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (no_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (no_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] lm_act_med (no_ckpt) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[APPLIED] lm_act_med (no_ckpt) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_med (no_ckpt) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_med (no_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (no_ckpt) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_med (no_ckpt) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_med)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> kernels.act_ckpt_fallback: Auto-enabled 19 custom Triton kernels on TinyGPT after compile bypass
+[APPLIED] lm_act_med (act_ckpt_full_triton) -> runtime.activation_checkpointing: Enabled activation checkpointing on 6 blocks of TinyGPT (mode=always, ratio=1.00)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_med)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> kernels.act_ckpt_fallback: Auto-enabled 19 custom Triton kernels on TinyGPT after compile bypass
+[APPLIED] lm_act_med (act_ckpt_strided_50pct) -> runtime.activation_checkpointing: Enabled activation checkpointing on 3 blocks of TinyGPT (mode=always, ratio=0.50)
+[APPLIED] lm_act_med (act_ckpt_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_med (act_ckpt_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_med (act_ckpt_auto) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_med (act_ckpt_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_med (act_ckpt_auto) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_med)
+[APPLIED] lm_act_med (act_ckpt_auto) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_med (act_ckpt_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_med (act_ckpt_auto) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_med (act_ckpt_auto) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] lm_act_med (act_ckpt_auto) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_med (act_ckpt_auto) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_med (act_ckpt_auto) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_med (act_ckpt_auto) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_med (act_ckpt_auto) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_large (no_ckpt) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (no_ckpt) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (no_ckpt) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (no_ckpt) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (no_ckpt) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_large)
+[APPLIED] lm_act_large (no_ckpt) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (no_ckpt) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (no_ckpt) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] lm_act_large (no_ckpt) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[APPLIED] lm_act_large (no_ckpt) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_large (no_ckpt) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_large (no_ckpt) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (no_ckpt) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_large (no_ckpt) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_large)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> kernels.act_ckpt_fallback: Auto-enabled 25 custom Triton kernels on TinyGPT after compile bypass
+[APPLIED] lm_act_large (act_ckpt_full_triton) -> runtime.activation_checkpointing: Enabled activation checkpointing on 8 blocks of TinyGPT (mode=always, ratio=1.00)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_large)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=always, vram_threshold=0.82)
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> kernels.act_ckpt_fallback: Auto-enabled 25 custom Triton kernels on TinyGPT after compile bypass
+[APPLIED] lm_act_large (act_ckpt_strided_50pct) -> runtime.activation_checkpointing: Enabled activation checkpointing on 4 blocks of TinyGPT (mode=always, ratio=0.50)
+[APPLIED] lm_act_large (act_ckpt_auto) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] lm_act_large (act_ckpt_auto) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] lm_act_large (act_ckpt_auto) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] lm_act_large (act_ckpt_auto) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] lm_act_large (act_ckpt_auto) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp18fgiyn5/ckpt_lm_act_large)
+[APPLIED] lm_act_large (act_ckpt_auto) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] lm_act_large (act_ckpt_auto) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] lm_act_large (act_ckpt_auto) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] lm_act_large (act_ckpt_auto) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] lm_act_large (act_ckpt_auto) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] lm_act_large (act_ckpt_auto) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] lm_act_large (act_ckpt_auto) -> optimizer.AdamW: fused=True
+[APPLIED] lm_act_large (act_ckpt_auto) -> kernels.patch: Patched 1 submodules in TinyGPT with custom Triton kernels
+[APPLIED] lm_act_large (act_ckpt_auto) -> compile.auto: Compiled TinyGPT (mode=default, dynamic=False)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Verify Hybrid Compile+FusedLCE speedup+VRAM on vocab32k & lm_act_med BF16+AutoTriton speed recovery on Colab L4 before Plan 6.3)
+==============================================================================

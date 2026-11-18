@@ -553,6 +553,20 @@ def install_auto_compile_hook(
                         )
                     cur_dyn = getattr(mod_self, "_ptopt_compile_dynamic", rt.dynamic)
                     if len(seen) == 2 and cur_dyn is not True and auto_dynamic_on_change:
+                        from src.passes.channels_last import has_conv2d, has_conv3d  # noqa: PLC0415
+
+                        cudnn_backend = getattr(getattr(torch_mod, "backends", None), "cudnn", None)
+                        if (
+                            cudnn_backend is not None
+                            and getattr(cudnn_backend, "benchmark", False)
+                            and (has_conv2d(mod_self, torch_mod) or has_conv3d(mod_self, torch_mod))
+                        ):
+                            cudnn_backend.benchmark = False
+                            manager.record_event(
+                                "runtime.cudnn_benchmark",
+                                "FALLBACK",
+                                f"Disabled cudnn_benchmark due to dynamic Conv shapes on {type(mod_self).__name__}",
+                            )
                         worth_dyn, dyn_reason = _is_worth_dynamic_compile(mod_self, args, kwargs, torch_mod, rt)
                         if not worth_dyn:
                             _clear_active_compile_for_mode(mod_self, is_train)

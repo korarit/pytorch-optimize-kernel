@@ -355,14 +355,16 @@ class TestInferenceOptPass(unittest.TestCase):
             self.assertIsNotNone(getattr(large2, "_ptopt_fp8_w_cache", None))
 
             # TransformerEncoderLayer's MHA out_proj accesses weight directly in F.multi_head_attention_forward;
-            # verify out_proj is never patched or weight-dropped while linear1/linear2 still drop cleanly.
+            # verify out_proj & in_proj_weight are preserved cleanly while linear1/linear2 drop and self_attn is FP8-patched.
             enc = nn.TransformerEncoderLayer(d_model=512, nhead=8, dim_feedforward=1024, batch_first=True).eval()
             n_enc = apply_fp8_linear_eval_hooks(enc, torch, min_work=512 * 512)
-            self.assertEqual(n_enc, 2)
+            self.assertEqual(n_enc, 3)
+            self.assertTrue(getattr(enc.self_attn, "_ptopt_fp8_mha_patched", False))
             with patch.dict(os.environ, {"PTOPT_FP8_DROP_BF16_EVAL": "1"}):
                 built_enc = prewarm_fp8_weight_caches(enc, torch, min_work=512 * 512)
             self.assertEqual(built_enc, 2)
             self.assertEqual(enc.self_attn.out_proj.weight.numel(), 512 * 512)
+            self.assertEqual(enc.self_attn.in_proj_weight.numel(), 3 * 512 * 512)
             self.assertEqual(enc.linear1.weight.numel(), 0)
             self.assertEqual(enc.linear2.weight.numel(), 0)
 

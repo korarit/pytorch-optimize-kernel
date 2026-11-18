@@ -7,6 +7,8 @@ from typing import Any
 import torch
 import torch.nn.functional as F
 
+from src.kernels.rope_or_swiglu import _to_row_strided_2d
+
 try:
     import triton  # type: ignore[import-not-found]
     import triton.language as tl  # type: ignore[import-not-found]
@@ -17,6 +19,12 @@ except ImportError:  # pragma: no cover - CPU dev environment
     HAS_TRITON = False
 
 _MAX_FUSED_COLS = 16384
+
+
+def _select_rows_per_cta(block_n: int, m_rows: int) -> int:
+    if block_n > 1024 or m_rows < 16:
+        return 1
+    return 8 if block_n <= 256 else 4
 
 
 def ref_layernorm(
@@ -41,33 +49,38 @@ if HAS_TRITON:
         Rstd_ptr,
         stride_x,
         stride_y,
+        M,
         N,
         eps,
         HAS_WEIGHT: tl.constexpr,
         HAS_BIAS: tl.constexpr,
+        ROWS_PER_CTA: tl.constexpr,
         BLOCK_N: tl.constexpr,
     ):
-        row = tl.program_id(0)
+        base_row = tl.program_id(0) * ROWS_PER_CTA
         cols = tl.arange(0, BLOCK_N)
         mask = cols < N
+        w = tl.load(W_ptr + cols, mask=mask, other=1.0).to(tl.float32) if HAS_WEIGHT else 1.0
+        b = tl.load(B_ptr + cols, mask=mask, other=0.0).to(tl.float32) if HAS_BIAS else 0.0
 
-        x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
-        mean = tl.sum(x, axis=0) / N
-        diff = tl.where(mask, x - mean, 0.0)
-        var = tl.sum(diff * diff, axis=0) / N
-        rstd = tl.math.rsqrt(var + eps)
+        for r in range(ROWS_PER_CTA):
+            row = base_row + r
+            if row < M:
+                x = tl.load(X_ptr + row * stride_x + cols, mask=mask, other=0.0).to(tl.float32)
+                mean = tl.sum(x, axis=0) / N
+                diff = tl.where(mask, x - mean, 0.0)
+                var = tl.sum(diff * diff, axis=0) / N
+                rstd = tl.math.rsqrt(var + eps)
 
-        tl.store(Mean_ptr + row, mean)
-        tl.store(Rstd_ptr + row, rstd)
+                tl.store(Mean_ptr + row, mean)
+                tl.store(Rstd_ptr + row, rstd)
 
-        x_hat = (x - mean) * rstd
-        if HAS_WEIGHT:
-            w = tl.load(W_ptr + cols, mask=mask, other=1.0).to(tl.float32)
-            x_hat = x_hat * w
-        if HAS_BIAS:
-            b = tl.load(B_ptr + cols, mask=mask, other=0.0).to(tl.float32)
-            x_hat = x_hat + b
-        tl.store(Y_ptr + row * stride_y + cols, x_hat, mask=mask)
+                x_hat = (x - mean) * rstd
+                if HAS_WEIGHT:
+                    x_hat = x_hat * w
+                if HAS_BIAS:
+                    x_hat = x_hat + b
+                tl.store(Y_ptr + row * stride_y + cols, x_hat, mask=mask)
 
     @triton.jit
     def _layernorm_bwd_kernel(
@@ -144,18 +157,20 @@ class _TritonLayerNormFn(torch.autograd.Function):
     ) -> torch.Tensor:
         orig_shape = x.shape
         N = orig_shape[-1]
-        x_2d = x.reshape(-1, N).contiguous()
+        x_2d = _to_row_strided_2d(x)
         M = x_2d.shape[0]
-        y_2d = torch.empty_like(x_2d)
+        y_2d = torch.empty((M, N), dtype=x_2d.dtype, device=x_2d.device)
         mean = torch.empty((M,), dtype=torch.float32, device=x.device)
         rstd = torch.empty((M,), dtype=torch.float32, device=x.device)
 
         has_w = weight is not None
         has_b = bias is not None
         block_n = triton.next_power_of_2(N)
+        rows_per_cta = _select_rows_per_cta(block_n, M)
         warps = _select_num_warps(block_n)
+        grid = (triton.cdiv(M, rows_per_cta),)
 
-        _layernorm_fwd_kernel[(M,)](
+        _layernorm_fwd_kernel[grid](
             x_2d,
             weight if has_w else x_2d,
             bias if has_b else x_2d,
@@ -164,10 +179,12 @@ class _TritonLayerNormFn(torch.autograd.Function):
             rstd,
             x_2d.stride(0),
             y_2d.stride(0),
+            M,
             N,
             eps,
             HAS_WEIGHT=has_w,
             HAS_BIAS=has_b,
+            ROWS_PER_CTA=rows_per_cta,
             BLOCK_N=block_n,
             num_warps=warps,
         )
@@ -183,8 +200,8 @@ class _TritonLayerNormFn(torch.autograd.Function):
     def backward(ctx: Any, dy: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, None]:
         x_2d, weight, bias, mean, rstd = ctx.saved_tensors
         M, N = x_2d.shape
-        dy_2d = dy.reshape(M, N).contiguous()
-        dx_2d = torch.empty_like(x_2d)
+        dy_2d = _to_row_strided_2d(dy)
+        dx_2d = torch.empty((M, N), dtype=x_2d.dtype, device=x_2d.device)
 
         num_workers = min(M, 256)
         partial_dw = torch.empty((num_workers, N), dtype=torch.float32, device=x_2d.device) if ctx.has_w else dx_2d

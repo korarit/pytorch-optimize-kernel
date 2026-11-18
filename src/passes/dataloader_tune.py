@@ -106,7 +106,22 @@ class _AsyncCudaPrefetchIter:
             self._device = torch_mod.device("cuda", cuda_api.current_device())
         else:
             self._device = "cuda"
-        self._stream = stream if stream is not None else cuda_api.Stream(device=self._device)
+        if stream is not None:
+            self._stream = stream
+        else:
+            cache = getattr(cuda_api, "_ptopt_prefetch_streams", None)
+            if not isinstance(cache, dict):
+                cache = {}
+                try:
+                    cuda_api._ptopt_prefetch_streams = cache
+                except Exception:  # noqa: BLE001
+                    pass
+            dev_key = str(self._device)
+            cached_stream = cache.get(dev_key)
+            if cached_stream is None:
+                cached_stream = cuda_api.Stream(device=self._device)
+                cache[dev_key] = cached_stream
+            self._stream = cached_stream
         self._next_item: Any = None
         self._prefetched_tensors: list[Any] = []
         self._exhausted = False
