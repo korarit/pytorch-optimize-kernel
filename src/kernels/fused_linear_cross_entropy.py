@@ -64,14 +64,18 @@ def _chunk_ce_fwd(
 ) -> None:
     m_c, v_dim = logits_c.shape
     if HAS_TRITON and _cross_entropy_fwd_kernel is not None and logits_c.is_cuda:
+        dummy_valid_count = torch.empty((), dtype=torch.int32, device=logits_c.device)
         _cross_entropy_fwd_kernel[(m_c,)](
             logits_c,
             targets_c,
             losses_out,
             lse_out,
+            dummy_valid_count,
             logits_c.stride(0),
+            targets_c.stride(0),
             v_dim,
             ignore_index,
+            COUNT_VALID=False,
             BLOCK_V=block_v,
             num_warps=warps,
         )
@@ -109,6 +113,7 @@ def _chunk_ce_bwd(
             grad_in_c,
             logits_c.stride(0),
             logits_c.stride(0),
+            targets_c.stride(0),
             v_dim,
             ignore_index,
             IS_SCALAR_GRAD=is_scalar_grad,

@@ -306,6 +306,57 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
             uninstall_custom_kernels_hooks(torch)
             mgr.reset()
 
+    def test_chunk_ce_fwd_bwd_kernel_launch_signatures(self) -> None:
+        from src.kernels import fused_linear_cross_entropy as flce
+
+        captured_fwd: list[tuple[tuple[object, ...], dict[str, object]]] = []
+        captured_bwd: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+        class _MockKernel:
+            def __init__(self, sink: list[tuple[tuple[object, ...], dict[str, object]]]) -> None:
+                self._sink = sink
+
+            def __getitem__(self, _grid: object) -> "_MockKernel":
+                return self
+
+            def __call__(self, *args: object, **kwargs: object) -> None:
+                self._sink.append((args, kwargs))
+
+        class _CudaFakeTensor(torch.Tensor):
+            @property
+            def is_cuda(self) -> bool:  # type: ignore[override]
+                return True
+
+        logits_c = torch.randn(4, 16).as_subclass(_CudaFakeTensor)
+        targets_c = torch.randint(0, 16, (4,)).as_subclass(_CudaFakeTensor)
+        losses_out = torch.empty(4)
+        lse_out = torch.empty(4)
+        grad_in = torch.ones(())
+
+        with patch.object(flce, "HAS_TRITON", True), patch.object(
+            flce, "_cross_entropy_fwd_kernel", _MockKernel(captured_fwd)
+        ), patch.object(flce, "_cross_entropy_bwd_kernel", _MockKernel(captured_bwd)):
+            with patch.object(torch, "empty", return_value=losses_out):
+                flce._chunk_ce_fwd(
+                    logits_c, targets_c, losses_out, lse_out, ignore_index=-100, block_v=128, warps=4
+                )
+            flce._chunk_ce_bwd(
+                logits_c, targets_c, lse_out, grad_in, is_scalar_grad=True, ignore_index=-100, block_v=128, warps=4
+            )
+
+        self.assertEqual(len(captured_fwd), 1)
+        fwd_args, fwd_kw = captured_fwd[0]
+        # ValidCount_ptr + stride_logits + stride_targets + V + ignore_index => 9 positional args
+        self.assertEqual(len(fwd_args), 9)
+        self.assertIn("COUNT_VALID", fwd_kw)
+        self.assertFalse(fwd_kw["COUNT_VALID"])
+
+        self.assertEqual(len(captured_bwd), 1)
+        bwd_args, bwd_kw = captured_bwd[0]
+        # DX, Logits, Targets, LSE, GradOut, stride_dx, stride_logits, stride_targets, V, ignore_index => 10 args
+        self.assertEqual(len(bwd_args), 10)
+        self.assertIn("IS_SCALAR_GRAD", bwd_kw)
+
 
 if __name__ == "__main__":
     unittest.main()

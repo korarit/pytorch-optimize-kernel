@@ -1,0 +1,257 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 6.3 REPORT: LLM KERNELS (ROPE/STRIDED), STATIC FP8 & STARTUP POLISH
+==============================================================================
+Timestamp          : 2026-11-18 14:35:28 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ e669ea7
+Google Colab       : True
+GPU / Backend      : NVIDIA L4 | cuda (sm_89)
+Python / PyTorch   : 3.13.16 | 2.14.1+cu130
+CUDA / Triton      : 13.0 | 3.8.0
+Runtime Cache Key  : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Unit (test_phase6_3_features.py): Ran 5 tests in 1.405s (3.83s) -> PASS
+Unit (test_kernels_parity.py): Ran 9 tests in 2.634s (5.11s) -> PASS
+Unit (test_pass_inference.py): Ran 9 tests in 4.594s (10.50s) -> FAIL
+Unit (test_detect.py): Ran 9 tests in 0.037s (0.14s) -> PASS
+Unit (test_pass_optimizer_amp.py): Ran 13 tests in 1.198s (3.51s) -> PASS
+Unit (test_pass_dataloader.py): Ran 5 tests in 0.160s (2.23s) -> PASS
+Fast Gate (--mode fast): FAIL (444.9s)
+Overall Phase 6.3  : FAIL
+
+[MICRO-BENCHMARK: FUSED ROPE, ZERO-COPY STRIDED CE/SWIGLU & PACKED RMSNORM]
+------------------------------------------------------------------------------
+Kernel (Shape)                    | Ref ms | Triton ms | Speedup | GB/s  | VRAM MB (R/T/d)      | AbsDiff 
+----------------------------------+--------+-----------+---------+-------+----------------------+---------
+RoPE Fwd+Bwd (4x8x512x128)        | 0.916  | 0.776     | 1.18x   | 43.3  | 40.3/40.3 (+0.0)     | 0.00e+00
+CrossEntropy Strided (4096x8192)  | 5.191  | 1.007     | 5.15x   | 199.9 | 458.3/138.4 (-320.0) | 0.00e+00
+RMSNorm Packed (4096x512)         | 0.739  | 0.678     | 1.09x   | 30.9  | 134.3/94.9 (-39.5)   | 0.00e+00
+SwiGLU ZeroCopy Chunk (4096x2048) | 1.133  | 1.109     | 1.02x   | 121.0 | 222.3/222.3 (+0.0)   | 0.00e+00
+
+[COLD LAUNCH: FINGERPRINT DISK CACHE LATENCY (NO CACHE VS CACHE HIT)]
+------------------------------------------------------------------------------
+Probe Path                       | NoCache ms | Miss ms | Hit ms | Speedup | Status
+---------------------------------+------------+---------+--------+---------+-------
+collect_fingerprint() subprocess | 2039.8     | 2031.8  | 103.3  | 19.75x  | PASS  
+
+[E2E INFERENCE ABLATION (infer_bs64_large: DYNAMIC VS STATIC FP8 + COMPILE)]
+------------------------------------------------------------------------------
+Case             | Variant             | Step0 ms | Med ms | P95 ms | P99 ms   | Samp/s | E2E s  | Speedup | VRAM MB         | MaxRelDiff | Status
+-----------------+---------------------+----------+--------+--------+----------+--------+--------+---------+-----------------+------------+-------
+infer_bs64_large | baseline            | 475.4    | 384.17 | 391.45 | 395.62   | 166.6  | 12.08s | 1.00x   | 766.9 (+0.0)    | 0.0        | BASE  
+infer_bs64_large | bf16_compile        | 15242.1  | 91.28  | 95.55  | 96.37    | 701.2  | 25.46s | 4.21x   | 600.0 (-166.9)  | 0.00041    | PASS  
+infer_bs64_large | fp8_compile_dynamic | 16797.2  | 80.38  | 82.84  | 83.17    | 796.2  | 26.94s | 4.78x   | 677.6 (-89.2)   | 0.006976   | PASS  
+infer_bs64_large | fp8_compile_static  | 2475.7   | 75.30  | 716.58 | 10099.42 | 849.9  | 25.71s | 5.10x   | 1019.7 (+252.8) | 0.006897   | PASS  
+
+[DEEP DEBUG: STEP PHASE BREAKDOWN (STEADY MEAN MS & SHARE %)]
+------------------------------------------------------------------------------
+Case             | Mode                    | Step0 ms | Steady ms | Data/Other    | Forward        | Loss/Clip   | Backward    | Optim      
+-----------------+-------------------------+----------+-----------+---------------+----------------+-------------+-------------+------------
+infer_bs64_large | bf16_compile_dbg        | 8012.02  | 109.05    | 18.86 (17.3%) | 90.18 (82.7%)  | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+infer_bs64_large | fp8_compile_dynamic_dbg | 8897.15  | 95.22     | 16.91 (17.8%) | 78.31 (82.2%)  | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+infer_bs64_large | fp8_compile_static_dbg  | 4264.78  | 386.99    | 80.70 (20.9%) | 306.29 (79.1%) | 0.00 (0.0%) | 0.00 (0.0%) | 0.00 (0.0%)
+
+[DEEP DEBUG: CUDA ALLOCATOR & VRAM HEADROOM]
+------------------------------------------------------------------------------
+Case             | Mode                    | Alloc MB | Resv MB | Ovhead MB | Headroom | Util % | Retries
+-----------------+-------------------------+----------+---------+-----------+----------+--------+--------
+infer_bs64_large | bf16_compile_dbg        | 579.4    | 662.0   | 82.6      | 21901.1  | 2.9%   | 0      
+infer_bs64_large | fp8_compile_dynamic_dbg | 629.6    | 702.0   | 72.4      | 21861.1  | 3.1%   | 0      
+infer_bs64_large | fp8_compile_static_dbg  | 1019.7   | 1222.0  | 202.3     | 21341.1  | 5.4%   | 0      
+
+[TOP PYTORCH PROFILER OPS (DYNAMIC VS STATIC FP8 QUANTIZATION)]
+------------------------------------------------------------------------------
+[infer_bs64_large | bf16_compile_dbg] Profiler window=[4, 9] self_cuda=976.359ms self_cpu=498.205ms (top_cuda_ops):
+  aten::addmm                                      calls=190   self=172.450ms (17.7%) total=172.450ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f calls=125   self= 99.385ms (10.2%) total= 99.385ms
+  aten::bmm                                        calls=60    self= 82.604ms ( 8.5%) total= 82.604ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 82.604ms ( 8.5%) total= 82.604ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 73.009ms ( 7.5%) total= 73.009ms
+  triton_poi_fused_gelu_view_11                    calls=60    self= 47.709ms ( 4.9%) total= 47.709ms
+  triton_poi_fused_gelu_view_11                    calls=60    self= 47.709ms ( 4.9%) total= 47.709ms
+  aten::copy_                                      calls=12    self= 42.375ms ( 4.3%) total= 42.375ms
+[infer_bs64_large | fp8_compile_dynamic_dbg] Profiler window=[4, 9] self_cuda=858.891ms self_cpu=439.213ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=125   self= 93.180ms (10.8%) total= 93.180ms
+  aten::bmm                                        calls=60    self= 81.687ms ( 9.5%) total= 81.687ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 81.687ms ( 9.5%) total= 81.687ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=65    self= 47.384ms ( 5.5%) total= 47.384ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=60    self= 45.796ms ( 5.3%) total= 45.796ms
+  aten::copy_                                      calls=12    self= 41.507ms ( 4.8%) total= 41.507ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self= 41.478ms ( 4.8%) total= 41.478ms
+  triton_poi_fused__scaled_mm__to_copy_clamp_div_g calls=60    self= 36.308ms ( 4.2%) total= 36.308ms
+[infer_bs64_large | fp8_compile_static_dbg] Profiler window=[4, 9] self_cuda=803.464ms self_cpu=3865.494ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=178   self= 91.742ms (11.4%) total=109.163ms
+  aten::bmm                                        calls=72    self= 81.982ms (10.2%) total= 96.639ms
+  void cutlass::Kernel2<cutlass_80_tensorop_bf16_s calls=60    self= 81.982ms (10.2%) total= 81.982ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=65    self= 47.018ms ( 5.9%) total= 47.018ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=60    self= 44.724ms ( 5.6%) total= 44.724ms
+  aten::copy_                                      calls=12    self= 42.197ms ( 5.3%) total= 42.197ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self= 42.168ms ( 5.2%) total= 42.168ms
+  triton_poi_fused__scaled_mm__to_copy_clamp_gelu_ calls=60    self= 36.102ms ( 4.5%) total= 36.102ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[infer_bs64_large | baseline] step0=475.45ms | steady_med=383.96ms | s0=475.45ms, s1=362.95ms, s2=371.38ms, s3=395.89ms, s4=381.71ms, s5=376.95ms, s6=394.38ms, s7=377.69ms ...
+[infer_bs64_large | bf16_compile] step0=15242.06ms | steady_med=91.09ms | s0=15242.06ms, s1=86.19ms, s2=90.15ms, s3=91.03ms, s4=91.09ms, s5=91.90ms, s6=92.87ms, s7=90.72ms ...
+[infer_bs64_large | fp8_compile_dynamic] step0=16797.20ms | steady_med=80.24ms | s0=16797.20ms, s1=75.28ms, s2=80.24ms, s3=79.48ms, s4=80.10ms, s5=79.80ms, s6=82.51ms, s7=79.58ms ...
+[infer_bs64_large | fp8_compile_static] step0=2475.71ms | steady_med=75.26ms | s0=2475.71ms, s1=311.89ms, s2=0.28ms, s3=0.90ms, s4=12860.01ms, s5=70.58ms, s6=73.77ms, s7=74.25ms ...
+
+[AUTOMATED DIAGNOSIS]
+------------------------------------------------------------------------------
+- infer_bs64_large (bf16_compile): med=91.28ms (4.21x), 701.2 samp/s, VRAM=600.0 MB (-166.9 MB)
+- infer_bs64_large (fp8_compile_dynamic): med=80.38ms (4.78x), 796.2 samp/s, VRAM=677.6 MB (-89.2 MB)
+- infer_bs64_large (fp8_compile_static): med=75.30ms (5.10x), 849.9 samp/s, VRAM=1019.7 MB (+252.8 MB)
+
+[KERNEL & FALLBACK AUDIT]
+------------------------------------------------------------------------------
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (bf16_compile) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (bf16_compile) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (bf16_compile) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpttnc80e8/bf16_compile)
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (bf16_compile) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (bf16_compile) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] infer_bs64_large (bf16_compile) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (bf16_compile) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (bf16_compile) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (bf16_compile) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpttnc80e8/fp8_dyn)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> inference.fp8: Patched 26 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_large (fp8_compile_dynamic) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] infer_bs64_large (fp8_compile_static) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] infer_bs64_large (fp8_compile_static) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] infer_bs64_large (fp8_compile_static) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpttnc80e8/fp8_static)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] infer_bs64_large (fp8_compile_static) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] infer_bs64_large (fp8_compile_static) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8: Patched 26 Linear layers on InferenceBackbone with FP8 _scaled_mm
+[APPLIED] infer_bs64_large (fp8_compile_static) -> inference.fp8_static: Calibrated static FP8 activation scales on InferenceBackbone
+[APPLIED] infer_bs64_large (fp8_compile_static) -> compile.auto: Compiled InferenceBackbone (mode=default, dynamic=False)
+
+[UNIT / GATE FAILURE TRACE]
+------------------------------------------------------------------------------
+renceOptPass.test_nested_dict_requires_grad_skips_inference_mode) ... ok
+test_requires_grad_and_enable_grad_guards_skip_inference_mode (__main__.TestInferenceOptPass.test_requires_grad_and_enable_grad_guards_skip_inference_mode) ... ok
+test_train_eval_switching_preserves_backward_and_uses_inference_mode (__main__.TestInferenceOptPass.test_train_eval_switching_preserves_backward_and_uses_inference_mode) ... ok
+
+======================================================================
+FAIL: test_fp8_compilable_traceable_path_zero_graph_breaks (__main__.TestInferenceOptPass.test_fp8_compilable_traceable_path_zero_graph_breaks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/content/pytorch-optimize-kernel/tests/unit/test_pass_inference.py", line 267, in test_fp8_compilable_traceable_path_zero_graph_breaks
+    torch.testing.assert_close(q_c.float(), q_e.float())
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/torch/testing/_comparison.py", line 1689, in assert_close
+    raise error_metas[0].to_error(msg)
+AssertionError: Tensor-likes are not close!
+
+Mismatched elements: 534 / 65536 (0.8%)
+Greatest absolute difference: 32.0 at index (35, 31) (up to 1e-05 allowed)
+Greatest relative difference: 0.1111111119389534 at index (1, 1) (up to 1.3e-06 allowed)
+
+----------------------------------------------------------------------
+Ran 9 tests in 4.594s
+
+FAILED (failures=1)
+2 tests in 7.191s -> OK                              
+Migrate: test_phase3_1_runtime_channels.py   | fast gate                                         | 26.65s   | PASS   | Ran 2 tests in 24.653s -> OK                             
+Migrate: test_phase3_2_dataloader.py         | fast gate                                         | 17.94s   | PASS   | Ran 1 test in 15.890s -> OK                              
+Migrate: test_phase3_3_amp_fusion.py         | fast gate                                         | 26.15s   | PASS   | Ran 2 tests in 24.132s -> OK                             
+Migrate: test_phase3_6_inference.py          | fast gate                                         | 26.10s   | PASS   | Ran 2 tests in 24.085s -> OK                             
+Migrate: test_phase3_7_kernels.py            | fast gate                                         | 27.66s   | PASS   | Ran 1 test in 25.637s -> OK                              
+Migrate: test_phase5_4_train_cudagraphs.py   | fast gate                                         | 66.19s   | PASS   | Ran 2 tests in 64.149s -> OK                             
+Migrate: test_script_migration.py            | fast gate                                         | 40.70s   | PASS   | Ran 1 test in 38.590s -> OK                              
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+t/pytorch-optimize-kernel/src/kernels/fused_linear_cross_entropy.py", line 333, in fused_linear_cross_entropy
+    out = FusedLinearCrossEntropyFn.apply(
+        h_2d,
+    ...<6 lines>...
+        _dtype_to_code(mm_dt),
+    )
+  File "/content/pytorch-optimize-kernel/src/kernels/fused_linear_cross_entropy.py", line 173, in forward
+    _chunk_ce_fwd(
+    ~~~~~~~~~~~~~^
+        logits_c,
+        ^^^^^^^^^
+    ...<5 lines>...
+        warps=warps,
+        ^^^^^^^^^^^^
+    )
+    ^
+  File "/content/pytorch-optimize-kernel/src/kernels/fused_linear_cross_entropy.py", line 67, in _chunk_ce_fwd
+    _cross_entropy_fwd_kernel[(m_c,)](
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        logits_c,
+        ^^^^^^^^^
+    ...<7 lines>...
+        num_warps=warps,
+        ^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/dist-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+                                   ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/triton/runtime/jit.py", line 741, in run
+    bound_args, specialization, options = binder(*args, **kwargs)
+                                          ~~~~~~^^^^^^^^^^^^^^^^^
+TypeError: dynamic_func() missing 3 required positional arguments: 'V', 'ignore_index', and 'COUNT_VALID'
+
+======================================================================
+FAIL: test_fp8_compilable_traceable_path_zero_graph_breaks (test_pass_inference.TestInferenceOptPass.test_fp8_compilable_traceable_path_zero_graph_breaks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/content/pytorch-optimize-kernel/tests/unit/test_pass_inference.py", line 267, in test_fp8_compilable_traceable_path_zero_graph_breaks
+    torch.testing.assert_close(q_c.float(), q_e.float())
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/dist-packages/torch/testing/_comparison.py", line 1689, in assert_close
+    raise error_metas[0].to_error(msg)
+AssertionError: Tensor-likes are not close!
+
+Mismatched elements: 1 / 65536 (0.0%)
+Greatest absolute difference: 0.001953125 at index (465, 121) (up to 1e-05 allowed)
+Greatest relative difference: 0.1428571492433548 at index (465, 121) (up to 1.3e-06 allowed)
+
+----------------------------------------------------------------------
+Ran 138 tests in 85.835s
+
+FAILED (failures=1, errors=4)
+
+[Final Gate Verdict]
+------------------------------------------------------------------------------
+Gate Mode             : fast
+Stages Passed         : 13/14
+Smoke Benchmark       : SKIPPED (fast mode)
+Suite Wall Time       : 444.71s
+Overall Verdict       : FAIL
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : NEEDS_FIX (Fast CI gate complete)
+==============================================================================
+
+Report written to: /content/pytorch-optimize-kernel/report/143528_20261118-phase-4-fast.txt
+
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : NEEDS_FIX (Verify Fused RoPE, zero-copy strided kernels, static FP8 reduction drop, and cold CLI startup on Colab L4)
+==============================================================================
