@@ -1,0 +1,92 @@
+{
+  "timestamp": "2026-11-19T13:45:46.595214+00:00",
+  "fingerprint": {
+    "host": {
+      "hostname": "a868e19c7bf4",
+      "os_name": "Linux",
+      "os_release": "6.6.159+",
+      "cpu_arch": "x86_64",
+      "cpu_model": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+      "physical_cores": 6,
+      "logical_cores": 12,
+      "isa_flags": [
+        "avx2",
+        "avx512f"
+      ],
+      "total_ram_mb": 54229.1,
+      "available_ram_mb": 52233.7,
+      "shm_total_mb": 26155.0,
+      "shm_free_mb": 26155.0,
+      "is_colab": true,
+      "colab_release_tag": "release-colab-external-images_20261117-060102_RC00",
+      "python_version": "3.13.16",
+      "torch_version": "2.14.1+cu130",
+      "cuda_version": "13.0",
+      "hip_version": null,
+      "triton_version": "3.8.0",
+      "jemalloc_path": null,
+      "tcmalloc_path": "libtcmalloc.so.4"
+    },
+    "gpu": {
+      "backend": "cuda",
+      "device_count": 1,
+      "selected_index": 0,
+      "cuda_visible_devices": null,
+      "devices": [
+        {
+          "index": 0,
+          "name": "NVIDIA L4",
+          "compute_capability": "8.9",
+          "major": 8,
+          "minor": 9,
+          "sm_int": 89,
+          "sm_name": "sm_89",
+          "total_vram_mb": 22563.1,
+          "sm_count": 58,
+          "bf16_supported": true,
+          "tf32_supported": true,
+          "fp8_supported": true,
+          "flash_sdp_supported": true,
+          "mem_efficient_sdp_supported": true
+        }
+      ],
+      "driver_version": "580.82.07",
+      "probe_errors": []
+    }
+  },
+  "specs": [
+    {
+      "name": "pytorch-cifar-resnet18",
+      "cwd": "/content/external_repos/pytorch-cifar",
+      "cmd": [
+        "/usr/bin/python3",
+        "-c",
+        "import pathlib, re; src = re.sub(r'start_epoch\\s*\\+\\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})"
+      ],
+      "wrap_cmd": null,
+      "native_cmd": null,
+      "test_conflict": false,
+      "conflict_profile": "balanced",
+      "profiles": [
+        "safe",
+        "balanced",
+        "aggressive"
+      ],
+      "cache_modes": [
+        "auto"
+      ],
+      "trials": 1,
+      "metric_regexes": {
+        "test_acc": "Acc[:@\\s]*([0-9.]+)%"
+      },
+      "parity_mode": "metric",
+      "metric_rel_tol": 0.05,
+      "measure_pure_wall": true,
+      "diag_mode": "deep",
+      "stream_output": false,
+      "ptopt_args": [],
+      "env": {},
+      "timeout_sec": 3600.0
+    }
+  ]
+}

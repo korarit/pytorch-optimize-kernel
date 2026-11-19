@@ -1,0 +1,33 @@
+[ptopt fallback/hook summary]
+  profile=aggressive | exit_code=0 | cmd=/usr/bin/python3 -c import pathlib, re; src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})
+  Counts: APPLIED=18 | SKIPPED=7 | FALLBACK=2
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpe3p8de0b/pytorch-cifar-resnet18/aggressive)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.cross_entropy: sm_89, triton=True
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] optimizer.SGD: fused=True
+  - [APPLIED] compile.auto: Compiled DataParallel (mode=max-autotune-no-cudagraphs, dynamic=False)
+  - [APPLIED] compile.auto: Recompiled(dynamic) DataParallel (mode=default, dynamic=True)
+  - [APPLIED] inference.cuda_graphs: Compiled eval DataParallel with mode=reduce-overhead (CUDA Graphs)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+  - [SKIPPED (by arch/config)] compile.train_cuda_graphs: Training CUDA Graphs skipped on DataParallel: params=15142970 > 15000000 (large compute-bound module)
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+  Fallbacks (runtime error):
+  - [FALLBACK (runtime error)] runtime.cudnn_benchmark: Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel
+  - [FALLBACK (runtime error)] compile.auto: Dynamic input shapes detected on DataParallel; switching to dynamic=True

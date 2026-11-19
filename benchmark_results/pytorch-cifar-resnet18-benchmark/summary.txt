@@ -1,0 +1,328 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-19 13:45:46 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ db40061
+Targets            : 1
+Total Runs         : 6
+Comparisons        : 5
+Overall Status     : FAIL
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target                 | Arm        | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)          | VRAM MB (B->A/d)        | LossRel | Stdout Metrics | Audit        | Status
+-----------------------+------------+-------+-------+----------------+----------+--------------------------+-------------------------+---------+----------------+--------------+-------
+pytorch-cifar-resnet18 | safe       | none  | train | 73.57->70.14   | 1.05x    | 314.80s->301.12s (1.04x) | 2926.2->2925.7 (-0.5)   | N/A     | test_acc=75.76 | A:9 S:5 F:0  | PASS  
+pytorch-cifar-resnet18 | balanced   | cold  | train | 73.57->41.67   | 1.76x    | 314.80s->359.03s (0.88x) | 2926.2->759.1 (-2167.1) | N/A     | test_acc=70.5  | A:16 S:2 F:2 | FAIL  
+pytorch-cifar-resnet18 | balanced   | warm  | train | 73.57->41.40   | 1.78x    | 314.80s->233.37s (1.35x) | 2926.2->759.1 (-2167.1) | N/A     | test_acc=76.83 | A:16 S:2 F:2 | PASS  
+pytorch-cifar-resnet18 | aggressive | cold  | train | 73.57->41.82   | 1.76x    | 314.80s->557.97s (0.56x) | 2926.2->759.1 (-2167.1) | N/A     | test_acc=71.09 | A:18 S:7 F:2 | FAIL  
+pytorch-cifar-resnet18 | aggressive | warm  | train | 73.57->42.34   | 1.74x    | 314.80s->228.65s (1.38x) | 2926.2->760.2 (-2166.0) | N/A     | test_acc=79.91 | A:18 S:7 F:2 | PASS  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target                 | Arm/Cache       | Step0 ms | Data/Other | Forward     | Loss/Clip | Backward    | Optim     | Steady Tot
+-----------------------+-----------------+----------+------------+-------------+-----------+-------------+-----------+-----------
+pytorch-cifar-resnet18 | baseline/none   | 5823.1   | 3.35 (4%)  | 23.78 (30%) | 0.24 (0%) | 46.86 (59%) | 4.03 (5%) | 79.52     
+pytorch-cifar-resnet18 | safe/none       | 6013.0   | 1.48 (2%)  | 23.95 (32%) | 0.25 (0%) | 46.77 (62%) | 1.96 (3%) | 75.94     
+pytorch-cifar-resnet18 | balanced/cold   | 57588.7  | 4.11 (6%)  | 40.75 (55%) | 0.22 (0%) | 23.60 (32%) | 1.98 (3%) | 73.68     
+pytorch-cifar-resnet18 | balanced/warm   | 18150.8  | 4.37 (8%)  | 24.52 (43%) | 0.22 (0%) | 22.51 (40%) | 1.96 (4%) | 56.69     
+pytorch-cifar-resnet18 | aggressive/cold | 277430.8 | 3.33 (4%)  | 41.08 (56%) | 0.23 (0%) | 24.19 (33%) | 1.92 (3%) | 74.01     
+pytorch-cifar-resnet18 | aggressive/warm | 18379.4  | 3.91 (7%)  | 24.49 (43%) | 0.22 (0%) | 23.09 (40%) | 1.87 (3%) | 57.05     
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target                 | Arm/Cache       | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+-----------------------+-----------------+----------------+--------+--------+------------+--------------------+--------------
+pytorch-cifar-resnet18 | balanced/cold   | 29/31          | 3      | 5      | 0          | 0/5                | 0/5          
+pytorch-cifar-resnet18 | balanced/warm   | 29/31          | 3      | 5      | 0          | 5/0                | 3/2          
+pytorch-cifar-resnet18 | aggressive/cold | 29/31          | 3      | 5      | 0          | 0/5                | 0/4          
+pytorch-cifar-resnet18 | aggressive/warm | 29/31          | 3      | 5      | 0          | 5/0                | 3/1          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target                 | Arm/Cache       | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+-----------------------+-----------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+pytorch-cifar-resnet18 | baseline/none   | 2926.2/2994.0 | 67.8        | 19569.1     | 13.3%     | 0/0         | 2182.0   | 89.8%       
+pytorch-cifar-resnet18 | safe/none       | 2925.7/2950.0 | 24.3        | 19613.1     | 13.1%     | 0/0         | 2958.0   | 91.8%       
+pytorch-cifar-resnet18 | balanced/cold   | 759.1/788.0   | 28.9        | 21775.1     | 3.5%      | 0/0         | 1054.0   | 44.8%       
+pytorch-cifar-resnet18 | balanced/warm   | 759.1/788.0   | 28.9        | 21775.1     | 3.5%      | 0/0         | 1054.0   | 61.8%       
+pytorch-cifar-resnet18 | aggressive/cold | 759.1/908.0   | 148.9       | 21655.1     | 4.0%      | 0/0         | 1196.0   | 38.3%       
+pytorch-cifar-resnet18 | aggressive/warm | 760.2/868.0   | 107.8       | 21695.1     | 3.9%      | 0/0         | 1154.0   | 64.0%       
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target                 | Arm/Cache       | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+-----------------------+-----------------+-----------------+--------------------+-------------+-----------+------------------
+pytorch-cifar-resnet18 | baseline/none   | -               | -                  | -           | -         | 20637.1 (8.5%)   
+pytorch-cifar-resnet18 | safe/none       | -               | -                  | -           | -         | 21139.1 (6.3%)   
+pytorch-cifar-resnet18 | balanced/cold   | -               | -                  | off         | -         | 21775.1 (3.5%)   
+pytorch-cifar-resnet18 | balanced/warm   | -               | -                  | off         | -         | 21775.1 (3.5%)   
+pytorch-cifar-resnet18 | aggressive/cold | -               | -                  | off         | -         | 21655.1 (4.0%)   
+pytorch-cifar-resnet18 | aggressive/warm | -               | -                  | off         | -         | 21695.1 (3.9%)   
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- pytorch-cifar-resnet18 [baseline/none] (total_cuda=453.93ms, total_cpu=213.253ms) ---
+  CUDA  19.2% | self=  87.198ms | calls=  117 | aten::convolution_backward
+  CUDA  12.6% | self=  57.171ms | calls=    3 | DataParallel.forward
+  CUDA   6.9% | self=  31.473ms | calls=  117 | aten::cudnn_convolution
+  CUDA   5.8% | self=  26.369ms | calls=  480 | void cudnn::engines_precompiled::nchwToNhwcKerne
+  CUDA   5.0% | self=  22.910ms | calls=  117 | aten::cudnn_batch_norm_backward
+  CUDA   3.0% | self=  13.406ms | calls=   27 | void cudnn::bn_bw_1C11_kernel_new<float, float, 
+  CUDA   2.8% | self=  12.762ms | calls=  105 | aten::threshold_backward
+  CUDA   2.5% | self=  11.312ms | calls=   42 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CPU   46.7% | self=  99.532ms | calls=   24 | cudaDeviceSynchronize
+  CPU    7.0% | self=  14.982ms | calls=    3 | DataParallel.forward
+  CPU    6.5% | self=  13.882ms | calls= 1670 | cudaLaunchKernel
+  CPU    5.2% | self=  11.095ms | calls=  117 | aten::convolution_backward
+  CPU    3.3% | self=   7.121ms | calls=  117 | aten::cudnn_convolution
+  CPU    3.2% | self=   6.784ms | calls= 1174 | aten::empty
+  CPU    2.6% | self=   5.508ms | calls=  117 | aten::cudnn_batch_norm
+  CPU    1.9% | self=   4.090ms | calls=    2 | Activity Buffer Request
+--- pytorch-cifar-resnet18 [safe/none] (total_cuda=439.218ms, total_cpu=204.287ms) ---
+  CUDA  19.8% | self=  87.152ms | calls=  117 | aten::convolution_backward
+  CUDA  13.0% | self=  56.914ms | calls=    3 | DataParallel.forward
+  CUDA   7.2% | self=  31.725ms | calls=  117 | aten::cudnn_convolution
+  CUDA   5.7% | self=  25.067ms | calls=  480 | void cudnn::engines_precompiled::nchwToNhwcKerne
+  CUDA   5.2% | self=  22.923ms | calls=  117 | aten::cudnn_batch_norm_backward
+  CUDA   3.0% | self=  13.387ms | calls=   27 | void cudnn::bn_bw_1C11_kernel_new<float, float, 
+  CUDA   2.9% | self=  12.571ms | calls=  105 | aten::threshold_backward
+  CUDA   2.7% | self=  11.728ms | calls=   42 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CPU   41.0% | self=  83.784ms | calls=   24 | cudaDeviceSynchronize
+  CPU    8.0% | self=  16.354ms | calls= 1667 | cudaLaunchKernel
+  CPU    7.7% | self=  15.710ms | calls=    3 | DataParallel.forward
+  CPU    6.8% | self=  13.790ms | calls=  117 | aten::convolution_backward
+  CPU    3.7% | self=   7.474ms | calls= 1170 | aten::empty
+  CPU    3.3% | self=   6.787ms | calls=  117 | aten::cudnn_convolution
+  CPU    3.1% | self=   6.233ms | calls=    3 | Activity Buffer Request
+  CPU    2.6% | self=   5.302ms | calls=  117 | aten::cudnn_batch_norm
+--- pytorch-cifar-resnet18 [balanced/cold] (total_cuda=256.272ms, total_cpu=145.402ms) ---
+  CUDA  25.8% | self=  66.170ms | calls=    3 | ## Call CompiledFxGraph f3gjlkdx5ufyqfbecvq3qkj6
+  CUDA  19.3% | self=  49.356ms | calls=    3 | ## Call CompiledFxGraph f63jgi63sw27r4rs7duwx4cj
+  CUDA  10.1% | self=  25.958ms | calls=  117 | aten::convolution_backward
+  CUDA   4.1% | self=  10.458ms | calls=  117 | aten::cudnn_convolution
+  CUDA   1.7% | self=   4.362ms | calls=   27 | sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b
+  CUDA   1.6% | self=   4.023ms | calls=   30 | sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f
+  CUDA   1.5% | self=   3.926ms | calls=   30 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CUDA   1.5% | self=   3.758ms | calls=   30 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CPU   20.6% | self=  29.917ms | calls=    3 | ## Call CompiledFxGraph f3gjlkdx5ufyqfbecvq3qkj6
+  CPU   17.1% | self=  24.932ms | calls=    3 | ## Call CompiledFxGraph f63jgi63sw27r4rs7duwx4cj
+  CPU    8.1% | self=  11.807ms | calls=  117 | aten::convolution_backward
+  CPU    7.2% | self=  10.536ms | calls= 1251 | cuLaunchKernel
+  CPU    3.7% | self=   5.426ms | calls=  117 | aten::cudnn_convolution
+  CPU    3.2% | self=   4.662ms | calls=    3 | Activity Buffer Request
+  CPU    2.5% | self=   3.665ms | calls=    3 | DataParallel.forward
+  CPU    2.4% | self=   3.442ms | calls=   24 | cudaDeviceSynchronize
+--- pytorch-cifar-resnet18 [balanced/warm] (total_cuda=259.79ms, total_cpu=147.917ms) ---
+  CUDA  24.7% | self=  64.081ms | calls=    3 | ## Call CompiledFxGraph f3gjlkdx5ufyqfbecvq3qkj6
+  CUDA  20.8% | self=  54.001ms | calls=    3 | ## Call CompiledFxGraph f63jgi63sw27r4rs7duwx4cj
+  CUDA  10.0% | self=  25.930ms | calls=  117 | aten::convolution_backward
+  CUDA   4.1% | self=  10.636ms | calls=  117 | aten::cudnn_convolution
+  CUDA   1.7% | self=   4.370ms | calls=   27 | sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b
+  CUDA   1.6% | self=   4.042ms | calls=   30 | sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f
+  CUDA   1.5% | self=   3.851ms | calls=   30 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CUDA   1.5% | self=   3.783ms | calls=    3 | aten::_fused_sgd_
+  CPU   19.0% | self=  28.042ms | calls=    3 | ## Call CompiledFxGraph f3gjlkdx5ufyqfbecvq3qkj6
+  CPU   17.7% | self=  26.246ms | calls=    3 | ## Call CompiledFxGraph f63jgi63sw27r4rs7duwx4cj
+  CPU    7.8% | self=  11.468ms | calls=  117 | aten::convolution_backward
+  CPU    7.4% | self=  10.913ms | calls= 1254 | cuLaunchKernel
+  CPU    4.6% | self=   6.768ms | calls=  117 | aten::cudnn_convolution
+  CPU    3.2% | self=   4.744ms | calls=    3 | Activity Buffer Request
+  CPU    2.5% | self=   3.685ms | calls=    3 | DataParallel.forward
+  CPU    2.4% | self=   3.555ms | calls=   24 | cudaDeviceSynchronize
+--- pytorch-cifar-resnet18 [aggressive/cold] (total_cuda=256.676ms, total_cpu=153.224ms) ---
+  CUDA  25.4% | self=  65.276ms | calls=    3 | ## Call CompiledFxGraph f7lvenllvbazruyscon2wjb3
+  CUDA  20.6% | self=  52.882ms | calls=    3 | ## Call CompiledFxGraph fugcgxwyggmtkjmyi5yr7d2o
+  CUDA  10.2% | self=  26.181ms | calls=  117 | aten::convolution_backward
+  CUDA   3.6% | self=   9.122ms | calls=   90 | aten::cudnn_convolution
+  CUDA   1.7% | self=   4.485ms | calls=   27 | sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b
+  CUDA   1.6% | self=   4.061ms | calls=   30 | sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f
+  CUDA   1.5% | self=   3.867ms | calls=   30 | void cutlass__5x_cudnn::Kernel<cutlass_tensorop_
+  CUDA   1.5% | self=   3.750ms | calls=    3 | aten::_fused_sgd_
+  CPU   19.8% | self=  30.356ms | calls=    3 | ## Call CompiledFxGraph f7lvenllvbazruyscon2wjb3
+  CPU   18.2% | self=  27.930ms | calls=    3 | ## Call CompiledFxGraph fugcgxwyggmtkjmyi5yr7d2o
+  CPU    7.6% | self=  11.715ms | calls=  117 | aten::convolution_backward
+  CPU    7.0% | self=  10.795ms | calls= 1257 | cuLaunchKernel
+  CPU    4.2% | self=   6.369ms | calls=    3 | Activity Buffer Request
+  CPU    3.1% | self=   4.693ms | calls=   90 | aten::cudnn_convolution
+  CPU    2.4% | self=   3.663ms | calls=    3 | DataParallel.forward
+  CPU    2.3% | self=   3.512ms | calls=   24 | cudaDeviceSynchronize
+--- pytorch-cifar-resnet18 [aggressive/warm] (total_cuda=249.212ms, total_cpu=138.445ms) ---
+  CUDA  24.3% | self=  60.513ms | calls=    3 | ## Call CompiledFxGraph f7lvenllvbazruyscon2wjb3
+  CUDA  19.8% | self=  49.222ms | calls=    3 | ## Call CompiledFxGraph fugcgxwyggmtkjmyi5yr7d2o
+  CUDA  10.5% | self=  26.213ms | calls=  117 | aten::convolution_backward
+  CUDA   3.7% | self=   9.290ms | calls=   90 | aten::cudnn_convolution
+  CUDA   1.8% | self=   4.477ms | calls=   27 | sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b
+  CUDA   1.5% | self=   3.746ms | calls=    3 | aten::_fused_sgd_
+  CUDA   1.5% | self=   3.746ms | calls=    3 | void at::native::(anonymous namespace)::multi_te
+  CUDA   1.5% | self=   3.746ms | calls=    3 | Optimizer.step#SGD.step
+  CPU   19.4% | self=  26.867ms | calls=    3 | ## Call CompiledFxGraph f7lvenllvbazruyscon2wjb3
+  CPU   18.0% | self=  24.915ms | calls=    3 | ## Call CompiledFxGraph fugcgxwyggmtkjmyi5yr7d2o
+  CPU    8.0% | self=  11.009ms | calls=  117 | aten::convolution_backward
+  CPU    7.4% | self=  10.300ms | calls= 1257 | cuLaunchKernel
+  CPU    3.5% | self=   4.810ms | calls=   90 | aten::cudnn_convolution
+  CPU    3.4% | self=   4.732ms | calls=    3 | Activity Buffer Request
+  CPU    2.5% | self=   3.480ms | calls=    3 | DataParallel.forward
+  CPU    2.5% | self=   3.434ms | calls=   24 | cudaDeviceSynchronize
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+pytorch-cifar-resnet18 [baseline/none] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [baseline/none] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.float32, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.float32, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.float32, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-cifar-resnet18 [safe/none] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [safe/none] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.float32, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.float32, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.float32, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-cifar-resnet18 [balanced/cold] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [balanced/cold] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.bfloat16, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.bfloat16, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.bfloat16, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-cifar-resnet18 [balanced/warm] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [balanced/warm] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.bfloat16, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.bfloat16, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.bfloat16, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-cifar-resnet18 [aggressive/cold] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [aggressive/cold] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.bfloat16, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.bfloat16, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.bfloat16, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-cifar-resnet18 [aggressive/warm] DataParallel: params=15142970, train_calls=3910, eval_calls=1000, unique_shapes=3 -> ["(((128, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((80, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)", "(((100, 3, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-cifar-resnet18 [aggressive/warm] CrossEntropyLoss: params=0, train_calls=4910, eval_calls=0, unique_shapes=3 -> ["(((128, 10), torch.bfloat16, device(type='cuda', index=0)), ((128,), torch.int64, device(type='cuda', index=0)))", "(((80, 10), torch.bfloat16, device(type='cuda', index=0)), ((80,), torch.int64, device(type='cuda', index=0)))", "(((100, 10), torch.bfloat16, device(type='cuda', index=0)), ((100,), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] pytorch-cifar-resnet18 (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/01_pytorch-cifar-resnet18__baseline__none
+[SKIPPED] pytorch-cifar-resnet18 (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] pytorch-cifar-resnet18 (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/02_pytorch-cifar-resnet18__safe__none
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] pytorch-cifar-resnet18 (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] pytorch-cifar-resnet18 (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] pytorch-cifar-resnet18 (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] pytorch-cifar-resnet18 (safe/none) -> kernels.auto: kernels.enabled is False
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (safe/none) -> optimizer.SGD: fused=True
+[SKIPPED] pytorch-cifar-resnet18 (safe/none) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[ARTIFACTS] pytorch-cifar-resnet18 (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/03_pytorch-cifar-resnet18__balanced__cold
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpe3p8de0b/pytorch-cifar-resnet18/balanced)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> optimizer.SGD: fused=True
+[SKIPPED] pytorch-cifar-resnet18 (balanced/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] pytorch-cifar-resnet18 (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> compile.auto: Compiled DataParallel (mode=default, dynamic=False)
+[FALLBACK] pytorch-cifar-resnet18 (balanced/cold) -> runtime.cudnn_benchmark: Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel
+[FALLBACK] pytorch-cifar-resnet18 (balanced/cold) -> compile.auto: Dynamic input shapes detected on DataParallel; switching to dynamic=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/cold) -> compile.auto: Recompiled(dynamic) DataParallel (mode=default, dynamic=True)
+[ARTIFACTS] pytorch-cifar-resnet18 (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/04_pytorch-cifar-resnet18__balanced__warm
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpe3p8de0b/pytorch-cifar-resnet18/balanced)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> optimizer.SGD: fused=True
+[SKIPPED] pytorch-cifar-resnet18 (balanced/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] pytorch-cifar-resnet18 (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> compile.auto: Compiled DataParallel (mode=default, dynamic=False)
+[FALLBACK] pytorch-cifar-resnet18 (balanced/warm) -> runtime.cudnn_benchmark: Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel
+[FALLBACK] pytorch-cifar-resnet18 (balanced/warm) -> compile.auto: Dynamic input shapes detected on DataParallel; switching to dynamic=True
+[APPLIED] pytorch-cifar-resnet18 (balanced/warm) -> compile.auto: Recompiled(dynamic) DataParallel (mode=default, dynamic=True)
+[ARTIFACTS] pytorch-cifar-resnet18 (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/05_pytorch-cifar-resnet18__aggressive__cold
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpe3p8de0b/pytorch-cifar-resnet18/aggressive)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> optimizer.SGD: fused=True
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on DataParallel: params=15142970 > 15000000 (large compute-bound module)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> compile.auto: Compiled DataParallel (mode=max-autotune-no-cudagraphs, dynamic=False)
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/cold) -> runtime.cudnn_benchmark: Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/cold) -> compile.auto: Dynamic input shapes detected on DataParallel; switching to dynamic=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> compile.auto: Recompiled(dynamic) DataParallel (mode=default, dynamic=True)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/cold) -> inference.cuda_graphs: Compiled eval DataParallel with mode=reduce-overhead (CUDA Graphs)
+[ARTIFACTS] pytorch-cifar-resnet18 (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/134546_20261119-real-pytorch-cifar-resnet18/runs/06_pytorch-cifar-resnet18__aggressive__warm
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpe3p8de0b/pytorch-cifar-resnet18/aggressive)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> optimizer.SGD: fused=True
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on DataParallel: params=15142970 > 15000000 (large compute-bound module)
+[SKIPPED] pytorch-cifar-resnet18 (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> compile.auto: Compiled DataParallel (mode=max-autotune-no-cudagraphs, dynamic=False)
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/warm) -> runtime.cudnn_benchmark: Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/warm) -> compile.auto: Dynamic input shapes detected on DataParallel; switching to dynamic=True
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> compile.auto: Recompiled(dynamic) DataParallel (mode=default, dynamic=True)
+[APPLIED] pytorch-cifar-resnet18 (aggressive/warm) -> inference.cuda_graphs: Compiled eval DataParallel with mode=reduce-overhead (CUDA Graphs)
+[FAIL] pytorch-cifar-resnet18 (balanced): test_acc rel=0.0838>0.05
+[FAIL] pytorch-cifar-resnet18 (aggressive): test_acc rel=0.0762>0.05
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[COMPILE:GRAPH_BREAK] pytorch-cifar-resnet18 (balanced/cold): 5 graph breaks (unique_graphs=3) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-cifar-resnet18 (balanced/cold): avg GPU utilization is 44.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[FALLBACK] pytorch-cifar-resnet18 (balanced/cold): runtime.cudnn_benchmark fell back (Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel: None)
+[FALLBACK] pytorch-cifar-resnet18 (balanced/cold): compile.auto fell back (Dynamic input shapes detected on DataParallel; switching to dynamic=True: None)
+[COMPILE:GRAPH_BREAK] pytorch-cifar-resnet18 (balanced/warm): 5 graph breaks (unique_graphs=3) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[FALLBACK] pytorch-cifar-resnet18 (balanced/warm): runtime.cudnn_benchmark fell back (Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel: None)
+[FALLBACK] pytorch-cifar-resnet18 (balanced/warm): compile.auto fell back (Dynamic input shapes detected on DataParallel; switching to dynamic=True: None)
+[COMPILE:GRAPH_BREAK] pytorch-cifar-resnet18 (aggressive/cold): 5 graph breaks (unique_graphs=3) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-cifar-resnet18 (aggressive/cold): avg GPU utilization is 38.3% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/cold): runtime.cudnn_benchmark fell back (Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel: None)
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/cold): compile.auto fell back (Dynamic input shapes detected on DataParallel; switching to dynamic=True: None)
+[COMPILE:GRAPH_BREAK] pytorch-cifar-resnet18 (aggressive/warm): 5 graph breaks (unique_graphs=3) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/warm): runtime.cudnn_benchmark fell back (Disabled cudnn_benchmark due to dynamic Conv shapes on DataParallel: None)
+[FALLBACK] pytorch-cifar-resnet18 (aggressive/warm): compile.auto fell back (Dynamic input shapes detected on DataParallel; switching to dynamic=True: None)
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================
