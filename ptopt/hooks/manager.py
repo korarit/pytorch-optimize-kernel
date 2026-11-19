@@ -83,6 +83,7 @@ class HookManager:
         self.strict: bool = False
         self.verbose: bool = False
         self.fallback_report: bool = False
+        self.telemetry_only: bool = False
         self._passes: list[tuple[str, PassCallable]] = []
         self._events: list[FallbackEvent] = []
         self._import_hook: _TorchImportHook | None = None
@@ -98,6 +99,7 @@ class HookManager:
         self.strict = False
         self.verbose = False
         self.fallback_report = False
+        self.telemetry_only = False
         self._passes.clear()
         self._events.clear()
         self._import_hook = None
@@ -127,6 +129,7 @@ class HookManager:
         self.strict = env_map.get("PTOPT_STRICT") == "1"
         self.verbose = env_map.get("PTOPT_VERBOSE") == "1"
         self.fallback_report = env_map.get("PTOPT_FALLBACK_REPORT") == "1"
+        self.telemetry_only = env_map.get("PTOPT_TELEMETRY_ONLY") == "1"
 
         raw_cfg = env_map.get("PTOPT_CONFIG_JSON")
         if raw_cfg:
@@ -182,21 +185,29 @@ class HookManager:
         from ptopt.hooks.checkpoint_compat import install_checkpoint_compat_hooks  # noqa: PLC0415
         from ptopt.hooks.telemetry_hook import maybe_install_telemetry_hook  # noqa: PLC0415
 
-        install_checkpoint_compat_hooks(torch_mod)
+        telemetry_only = self.telemetry_only or os.environ.get("PTOPT_TELEMETRY_ONLY") == "1"
+        if telemetry_only:
+            self.record_event(
+                "ptopt.passes",
+                "SKIPPED",
+                "PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)",
+            )
+        else:
+            install_checkpoint_compat_hooks(torch_mod)
 
-        for pass_name, pass_fn in self._passes:
-            try:
-                msg = pass_fn(cfg, self)
-                if isinstance(msg, str) and msg.startswith("SKIPPED:"):
-                    self.record_event(pass_name, "SKIPPED", msg.removeprefix("SKIPPED:").strip())
-                else:
-                    self.record_event(pass_name, "APPLIED", msg or "Applied successfully")
-            except Exception as exc:  # noqa: BLE001
-                if self.strict:
-                    raise
-                self.record_event(pass_name, "FALLBACK", "Runtime error during pass init", str(exc))
-                if self.verbose:
-                    warnings.warn(f"[ptopt] Pass '{pass_name}' fell back: {exc}", RuntimeWarning, stacklevel=2)
+            for pass_name, pass_fn in self._passes:
+                try:
+                    msg = pass_fn(cfg, self)
+                    if isinstance(msg, str) and msg.startswith("SKIPPED:"):
+                        self.record_event(pass_name, "SKIPPED", msg.removeprefix("SKIPPED:").strip())
+                    else:
+                        self.record_event(pass_name, "APPLIED", msg or "Applied successfully")
+                except Exception as exc:  # noqa: BLE001
+                    if self.strict:
+                        raise
+                    self.record_event(pass_name, "FALLBACK", "Runtime error during pass init", str(exc))
+                    if self.verbose:
+                        warnings.warn(f"[ptopt] Pass '{pass_name}' fell back: {exc}", RuntimeWarning, stacklevel=2)
 
         # Install telemetry AFTER passes so nn.Module.__call__ telemetry sits outer to ModuleCallDispatcher
         telemetry_collector = maybe_install_telemetry_hook(torch_mod, self)
@@ -230,9 +241,11 @@ def get_hook_manager() -> HookManager:
 
 def bootstrap_from_env(env: Mapping[str, str] | None = None) -> bool:
     """Convenience entrypoint called by sitecustomize bootstrap."""
-    from ptopt.passes import register_builtin_passes  # noqa: PLC0415
+    env_map = os.environ if env is None else env
+    if env_map.get("PTOPT_TELEMETRY_ONLY") != "1":
+        from ptopt.passes import register_builtin_passes  # noqa: PLC0415
 
-    register_builtin_passes(_GLOBAL_MANAGER)
+        register_builtin_passes(_GLOBAL_MANAGER)
     return _GLOBAL_MANAGER.bootstrap(env=env)
 
 

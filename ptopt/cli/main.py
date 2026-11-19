@@ -37,12 +37,14 @@ _VALUE_FLAGS = frozenset({
     "--target-arch",
     "--mock-profile",
     "--override",
+    "--telemetry-out",
 })
 _BOOL_FLAGS = frozenset({
     "--no-compile",
     "--no-amp",
     "--no-dataloader-tune",
     "--no-kernels",
+    "--telemetry-only",
     "--strict",
     "--verbose",
     "--fallback-report",
@@ -105,6 +107,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--amp-dtype", default=None, choices=["fp32", "fp16", "bf16"])
     parser.add_argument("--no-dataloader-tune", action="store_true", help="Disable DataLoader auto-tuning")
     parser.add_argument("--no-kernels", action="store_true", help="Disable custom Triton/CUDA kernels")
+    parser.add_argument(
+        "--telemetry-only",
+        action="store_true",
+        help="Disable all optimization passes/env tweaks and run as an untouched baseline telemetry probe",
+    )
+    parser.add_argument("--telemetry-out", type=Path, default=None, help="Write runtime telemetry JSON to path")
     parser.add_argument("--strict", action="store_true", help="Fail fast instead of falling back on hook errors")
     parser.add_argument("--verbose", action="store_true", help="Print runtime hook warnings")
     parser.add_argument("--fallback-report", action="store_true", help="Print pass/fallback summary on exit")
@@ -156,6 +164,8 @@ def build_child_env(
     strict: bool = False,
     verbose: bool = False,
     fallback_report: bool = False,
+    telemetry_only: bool = False,
+    telemetry_out: str | Path | None = None,
     events_out: str | Path | None = None,
     base_env: Mapping[str, str] | None = None,
     repo_root: Path | None = None,
@@ -178,9 +188,16 @@ def build_child_env(
     env["PTOPT_STRICT"] = "1" if strict else "0"
     env["PTOPT_VERBOSE"] = "1" if verbose else "0"
     env["PTOPT_FALLBACK_REPORT"] = "1" if fallback_report else "0"
+    if telemetry_out is not None:
+        env["PTOPT_TELEMETRY_OUT"] = str(telemetry_out)
     if events_out is not None:
         env["PTOPT_EVENTS_OUT"] = str(events_out)
-    apply_prelaunch_env(migrated_cfg, env)
+    is_telemetry_only = telemetry_only or env.get("PTOPT_TELEMETRY_ONLY") == "1"
+    if is_telemetry_only:
+        env["PTOPT_TELEMETRY_ONLY"] = "1"
+        env["PTOPT_DISABLE_BUILTIN_PASSES"] = "1"
+    else:
+        apply_prelaunch_env(migrated_cfg, env)
     return env
 
 
@@ -248,6 +265,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             strict=args.strict,
             verbose=args.verbose,
             fallback_report=args.fallback_report,
+            telemetry_only=args.telemetry_only,
+            telemetry_out=args.telemetry_out,
             events_out=events_tmp,
         )
         rc = _launch_subprocess(parsed.command, child_env)
@@ -262,7 +281,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 events,
                 run_name=args.run_name or default_name,
                 fp=fp,
-                profile=result.config.profile,
+                profile="telemetry-only" if args.telemetry_only else result.config.profile,
                 command=parsed.command,
                 exit_code=rc,
                 report_dir=args.save_report,

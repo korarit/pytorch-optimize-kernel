@@ -174,6 +174,10 @@ ptopt --profile balanced --override runtime.activation_checkpointing=always -- p
 # Print applied/skipped/fallback audit summary & save structured run report
 ptopt --fallback-report --save-report report/ -- python3 your_script.py
 PTOPT_DEBUG_PROFILE=1 PTOPT_TORCH_PROFILE=1 ptopt -- python3 your_script.py
+
+# Untouched baseline telemetry probe (no passes/env tweaks) + Real-World GitHub Repo Benchmark
+ptopt --telemetry-only --telemetry-out base_tel.json -- python3 external_repo/train.py
+python3 pipline-for-test/real_bench.py --cwd /path/to/cloned_repo --cmd "python3 train.py" --measure-pure-wall
 ```
 
 ### 4. Automated Regression Gate (CI & Colab GPU)
@@ -209,5 +213,5 @@ python3 scripts/run_gate.py --mode full
 - [`ptopt/hooks/`](ptopt/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, unified `ModuleCallDispatcher` (`module_dispatch.py`), checkpoint prefix/layout/optimizer compatibility (`checkpoint_compat.py`), `fallback_reporter.py`, and Deep Debug Profiler telemetry.
 - [`ptopt/passes/`](ptopt/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune` w/ CUDA stream prefetch, `optimizer_fusion`, `auto_amp` w/ async watchdog, `channels_last` 2D/3D, `auto_compile` w/ tiny/dynamic gates & `train_cuda_graphs`, `inference_opt` w/ compiled + static FP8, `activation_checkpoint` w/ SAC & strided checkpointing).
 - [`ptopt/kernels/`](ptopt/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `fused_linear_cross_entropy`, `rope_or_swiglu`) with `KernelSpec`, Hybrid LCE dispatch, compile-aware routing, & `FallbackRegistry`.
-- [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md) and root-cause / optimization architecture docs ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Phase 5](ai-docs-dev/optimize-history/phase-5-kernel-compile-and-pipeline-refinements.md), [Phase 6](ai-docs-dev/optimize-history/phase-6-dispatch-hybrid-and-llm-polish.md), [Phase 7](ai-docs-dev/optimize-history/phase-7-hardening-calibration-and-namespace.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
+- [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md), [Real-World GitHub Benchmark Guide](ai-docs-dev/REAL-WORLD-BENCHMARK.md), and root-cause / optimization architecture docs ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Phase 5](ai-docs-dev/optimize-history/phase-5-kernel-compile-and-pipeline-refinements.md), [Phase 6](ai-docs-dev/optimize-history/phase-6-dispatch-hybrid-and-llm-polish.md), [Phase 7](ai-docs-dev/optimize-history/phase-7-hardening-calibration-and-namespace.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
 - [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`, Full Gate **`15/15 PASS`** in [064444](report/064444_20261119-phase-4.txt)), Phase 5/6/7 verification scripts (`verify_phase5*.py`, `verify_phase6*.py`, `verify_phase7.py`), 150 unit tests / 3-axis migrate matrices, and CI workflow.

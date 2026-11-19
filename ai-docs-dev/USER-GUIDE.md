@@ -35,6 +35,7 @@ python3 -m ptopt.cli.main --profile balanced -- python train.py
 | `--profile {supersafe,safe,balanced,aggressive}` | Select safety vs performance trade-off (default: `balanced`). |
 | `--override section.field=value` | Fine-tune any Schema v1 field (e.g. `--override compile.cache_dir=/tmp/ptopt_cache`). |
 | `--no-compile`, `--no-amp`, `--no-dataloader-tune`, `--no-kernels` | Disable individual subsystems cleanly without editing code. |
+| `--telemetry-only`, `--telemetry-out PATH` | Disable all optimization passes/env tweaks and record pure PyTorch baseline telemetry JSON to `PATH`. |
 | `--compile-mode {default,reduce-overhead,max-autotune}` | Override `torch.compile` mode. |
 | `--amp-dtype {fp32,fp16,bf16}` | Override AMP tensor dtype. |
 | `--strict` | Re-raise hook/pass setup exceptions instead of falling back gracefully. |

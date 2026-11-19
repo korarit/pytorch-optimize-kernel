@@ -8,6 +8,7 @@ import importlib
 import json
 import os
 import statistics
+import sys
 import threading
 import time
 from collections.abc import Iterator
@@ -57,8 +58,13 @@ def _extract_cuda_memory_debug(torch_mod: Any) -> dict[str, Any] | None:
         return None
 
 
-def _summarize_profiler_ops(prof: Any, has_cuda: bool, limit: int = 12) -> dict[str, Any]:
+def _summarize_profiler_ops(prof: Any, has_cuda: bool, limit: int | None = None) -> dict[str, Any]:
     """Extract top CPU and CUDA ops from an exited `torch.profiler.profile` instance."""
+    if limit is None:
+        try:
+            limit = max(1, min(50, int(os.environ.get("PTOPT_TORCH_PROFILE_TOP_K", "20"))))
+        except ValueError:
+            limit = 20
     events = list(prof.key_averages())
     sort_attr = "self_cuda_time_total" if has_cuda else "self_cpu_time_total"
     # PyTorch 2.x also exposes `self_device_time_total` as the unified CUDA/XPU field
@@ -163,6 +169,8 @@ class TelemetryCollector:
         self.profile_num_steps = max(1, profile_num_steps)
         self.t_start = time.perf_counter()
         self.step_times_ms: list[float] = []
+        self.train_step_times_ms: list[float] = []
+        self.eval_step_times_ms: list[float] = []
         self.losses: list[float] = []
         self._last_step_end: float | None = None
         self._optimizer_used: bool = False
@@ -179,6 +187,7 @@ class TelemetryCollector:
         self._step_idx: int = 0
         self._cur_step: dict[str, Any] = _new_step_bucket()
         self.debug_steps: list[dict[str, Any]] = []
+        self._module_stats: dict[str, dict[str, Any]] = {}
         self._profiler: Any = None
         self._profiler_active: bool = False
         self._profiler_summary: dict[str, Any] | None = None
@@ -218,7 +227,8 @@ class TelemetryCollector:
             activities = [prof_mod.ProfilerActivity.CPU]
             if self._torch.cuda.is_available():
                 activities.append(prof_mod.ProfilerActivity.CUDA)
-            self._profiler = prof_mod.profile(activities=activities, record_shapes=False)
+            record_shapes = os.environ.get("PTOPT_TORCH_PROFILE_SHAPES") == "1"
+            self._profiler = prof_mod.profile(activities=activities, record_shapes=record_shapes)
             self._profiler.__enter__()
             self._profiler_active = True
         except Exception:  # noqa: BLE001
@@ -256,6 +266,8 @@ class TelemetryCollector:
 
         @functools.wraps(orig_backward)
         def _wrapped_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
+            if collector._suppress_depth > 0:
+                return orig_backward(tensor_self, *args, **kwargs)
             try:
                 if tensor_self.numel() == 1:
                     collector.losses.append(float(tensor_self.detach().cpu().item()))
@@ -286,7 +298,7 @@ class TelemetryCollector:
             reg_post_hook = getattr(opt_mod, "register_optimizer_step_post_hook", None)
             if callable(reg_pre_hook) and (collector.debug_profile or collector.torch_profile):
                 def _opt_pre_hook(_opt: Any, _args: Any, _kwargs: Any) -> None:
-                    if not collector.debug_profile:
+                    if collector._suppress_depth > 0 or not collector.debug_profile:
                         return
                     _sync_if_cuda(torch_mod)
                     t_opt_start = time.perf_counter()
@@ -299,15 +311,22 @@ class TelemetryCollector:
 
             if callable(reg_post_hook):
                 def _opt_post_hook(opt: Any, _args: Any, _kwargs: Any) -> None:
+                    if collector._suppress_depth > 0:
+                        return
                     if getattr(opt, "_ptopt_in_scaler_step", False) and not (collector.debug_profile or collector.torch_profile):
                         return
-                    collector._optimizer_used = True
+                    if not collector._optimizer_used:
+                        collector._optimizer_used = True
+                        # Keep step_times_ms focused on training steps once optimizer activity begins.
+                        collector.step_times_ms.clear()
                     if collector._last_step_end is None:
                         collector._last_step_end = collector.t_start
                     _sync_if_cuda(torch_mod)
                     now = time.perf_counter()
                     total_ms = (now - collector._last_step_end) * 1000.0
-                    collector.step_times_ms.append(round(total_ms, 4))
+                    rounded_ms = round(total_ms, 4)
+                    collector.train_step_times_ms.append(rounded_ms)
+                    collector.step_times_ms.append(rounded_ms)
                     collector._last_step_end = now
 
                     if collector.debug_profile:
@@ -350,9 +369,18 @@ class TelemetryCollector:
                 return orig_mod_call(mod_self, *args, **kwargs)
             collector._module_depth += 1
             is_top = collector._module_depth == 1
+            is_eval_call = not getattr(mod_self, "training", True)
+            is_interleaved_eval = bool(
+                is_top and collector._optimizer_used and is_eval_call and not collector._cur_step["in_step"]
+            )
             t0 = 0.0
             if is_top:
                 if collector.debug_profile:
+                    _record_module_trace(collector._module_stats, mod_self, args, kwargs, torch_mod, is_eval_call)
+                if is_interleaved_eval:
+                    _sync_if_cuda(torch_mod)
+                    t0 = time.perf_counter()
+                elif collector.debug_profile:
                     _sync_if_cuda(torch_mod)
                     t_pre_prof = time.perf_counter()
                     cur = collector._cur_step
@@ -372,19 +400,28 @@ class TelemetryCollector:
                 else:
                     if collector.torch_profile:
                         collector._start_profiler_if_ready()
-                    if not collector._optimizer_used and not getattr(mod_self, "training", True):
+                    if not collector._optimizer_used and is_eval_call:
                         t0 = time.perf_counter()
             try:
                 out = orig_mod_call(mod_self, *args, **kwargs)
-                if is_top and collector.debug_profile:
+                if is_interleaved_eval:
+                    _sync_if_cuda(torch_mod)
+                    t1 = time.perf_counter()
+                    collector.eval_step_times_ms.append(round((t1 - t0) * 1000.0, 4))
+                    # Advance _last_step_end only for grad-free validation so eval loops don't inflate next train step.
+                    if not _output_requires_grad(out, torch_mod):
+                        collector._last_step_end = t1
+                elif is_top and collector.debug_profile:
                     _sync_if_cuda(torch_mod)
                     t1 = time.perf_counter()
                     dt_ms = (t1 - t0) * 1000.0
                     cur = collector._cur_step
                     cur["forward_ms"] += dt_ms
                     cur["last_phase_end"] = t1
-                    if not collector._optimizer_used and not getattr(mod_self, "training", True):
-                        collector.step_times_ms.append(round(dt_ms, 4))
+                    if not collector._optimizer_used and is_eval_call:
+                        rounded_ms = round(dt_ms, 4)
+                        collector.eval_step_times_ms.append(rounded_ms)
+                        collector.step_times_ms.append(rounded_ms)
                         total_ms = cur["data_other_ms"] + dt_ms
                         collector.debug_steps.append({
                             "step": collector._step_idx,
@@ -402,10 +439,12 @@ class TelemetryCollector:
                         collector._stop_profiler_if_done(force=False)
                         if was_prof_active and not collector._profiler_active:
                             collector._last_step_end = time.perf_counter()
-                elif is_top and not collector._optimizer_used and not getattr(mod_self, "training", True):
+                elif is_top and not collector._optimizer_used and is_eval_call:
                     _sync_if_cuda(torch_mod)
                     dt_ms = (time.perf_counter() - t0) * 1000.0
-                    collector.step_times_ms.append(round(dt_ms, 4))
+                    rounded_ms = round(dt_ms, 4)
+                    collector.eval_step_times_ms.append(rounded_ms)
+                    collector.step_times_ms.append(rounded_ms)
                     if collector.torch_profile:
                         collector._step_idx += 1
                         collector._stop_profiler_if_done(force=False)
@@ -446,11 +485,19 @@ class TelemetryCollector:
             except Exception:  # noqa: BLE001
                 pass
 
+        telemetry_only = os.environ.get("PTOPT_TELEMETRY_ONLY") == "1"
         payload: dict[str, Any] = {
             "telemetry_schema_version": 1,
-            "mode": self.manager.config.profile if self.manager.config else "unknown",
+            "mode": (
+                "baseline"
+                if telemetry_only
+                else (self.manager.config.profile if self.manager.config else "unknown")
+            ),
+            "telemetry_only": telemetry_only,
             "end_to_end_sec": round(time.perf_counter() - self.t_start, 4),
             "step_times_ms": list(self.step_times_ms),
+            "train_step_times_ms": list(self.train_step_times_ms),
+            "eval_step_times_ms": list(self.eval_step_times_ms),
             "losses": [round(x, 6) for x in self.losses],
             "memory_mb": {
                 "peak_allocated": peak_alloc_mb,
@@ -462,25 +509,157 @@ class TelemetryCollector:
             debug_block: dict[str, Any] = {}
             if self.debug_steps:
                 debug_block["phase_breakdown"] = _aggregate_phase_breakdown(self.debug_steps)
+            if self._module_stats:
+                debug_block["module_summary"] = dict(self._module_stats)
             mem_debug = _extract_cuda_memory_debug(torch_mod) if torch_mod is not None else None
             if mem_debug is not None:
                 debug_block["cuda_memory_debug"] = mem_debug
             if self._profiler_summary is not None:
                 debug_block["torch_profiler"] = self._profiler_summary
+            dynamo_debug = _extract_dynamo_debug()
+            if dynamo_debug is not None:
+                debug_block["dynamo_compile"] = dynamo_debug
             payload["debug_profile"] = debug_block
         return payload
 
     def flush(self) -> None:
-        """Write collected telemetry JSON once to `self.out_path`."""
+        """Write collected telemetry JSON once to `self.out_path` (worker & multi-rank safe)."""
         if self._flushed:
+            return
+        if _is_dataloader_worker(self._torch):
+            self._flushed = True
             return
         self._flushed = True
         self._stop_profiler_if_done(force=True)
+        target_path = _resolve_rank_output_path(self.out_path)
         try:
-            self.out_path.parent.mkdir(parents=True, exist_ok=True)
-            self.out_path.write_text(json.dumps(self.snapshot(), indent=2) + "\n", encoding="utf-8")
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            target_path.write_text(json.dumps(self.snapshot(), indent=2) + "\n", encoding="utf-8")
         except Exception:  # noqa: BLE001
             pass
+
+
+def _is_dataloader_worker(torch_mod: Any) -> bool:
+    """Return True inside a DataLoader worker subprocess so it never overwrites main telemetry."""
+    if torch_mod is None:
+        return False
+    try:
+        get_worker = getattr(getattr(getattr(torch_mod, "utils", None), "data", None), "get_worker_info", None)
+        return bool(callable(get_worker) and get_worker() is not None)
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _resolve_rank_output_path(out_path: Path) -> Path:
+    """Suffix non-zero distributed ranks (`RANK != 0`) so DDP workers don't clobber rank 0."""
+    rank = os.environ.get("RANK")
+    if rank is not None and rank not in ("", "0"):
+        return out_path.with_name(f"{out_path.stem}.rank{rank}{out_path.suffix}")
+    return out_path
+
+
+def _record_module_trace(
+    trace_map: dict[str, dict[str, Any]],
+    mod_self: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    is_eval: bool,
+) -> None:
+    """Record compact top-level module call counts, parameter count, and distinct input shapes."""
+    cls_name = type(mod_self).__qualname__
+    entry = trace_map.get(cls_name)
+    if entry is None:
+        if len(trace_map) >= 16:
+            return
+        params = 0
+        if hasattr(mod_self, "parameters"):
+            try:
+                params = sum(int(p.numel()) for p in mod_self.parameters())
+            except Exception:  # noqa: BLE001
+                params = 0
+        entry = {"train_calls": 0, "eval_calls": 0, "params": params, "input_shapes": []}
+        trace_map[cls_name] = entry
+
+    entry["eval_calls" if is_eval else "train_calls"] += 1
+    if len(entry["input_shapes"]) < 8 and torch_mod is not None:
+        try:
+            from ptopt.hooks.module_dispatch import build_shape_signature  # noqa: PLC0415
+
+            sig_str = str(build_shape_signature(args, kwargs, torch_mod, include_device=True))[:180]
+            if sig_str not in entry["input_shapes"]:
+                entry["input_shapes"].append(sig_str)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _extract_dynamo_debug() -> dict[str, Any] | None:
+    """Extract TorchDynamo/Inductor compile counters and compile timings if Dynamo was loaded."""
+    du = sys.modules.get("torch._dynamo.utils")
+    if du is None:
+        return None
+    raw_counters = getattr(du, "counters", None)
+    if not raw_counters:
+        return None
+
+    counters: dict[str, dict[str, int]] = {}
+    for sec_name, sec_map in raw_counters.items():
+        if not sec_map:
+            continue
+        sorted_items = sorted(sec_map.items(), key=lambda kv: int(kv[1]), reverse=True)[:20]
+        counters[str(sec_name)] = {str(k)[:240]: int(v) for k, v in sorted_items}
+
+    if not counters:
+        return None
+
+    frames = counters.get("frames", {})
+    stats = counters.get("stats", {})
+    aot = counters.get("aot_autograd", {})
+    ind = counters.get("inductor", {})
+    gb_count = sum(counters.get("graph_break", {}).values()) + sum(counters.get("unimplemented", {}).values())
+    recomp_count = sum(counters.get("recompiles", {}).values())
+
+    summary = {
+        "frames_total": int(frames.get("total", 0)),
+        "frames_ok": int(frames.get("ok", 0)),
+        "calls_captured": int(stats.get("calls_captured", 0)),
+        "unique_graphs": int(stats.get("unique_graphs", 0)),
+        "graph_break_count": int(gb_count),
+        "recompiles_count": int(recomp_count),
+        "inductor_cache_hit": int(ind.get("fxgraph_cache_hit", 0)),
+        "inductor_cache_miss": int(ind.get("fxgraph_cache_miss", 0)),
+        "aot_cache_hit": int(aot.get("autograd_cache_hit", 0)),
+        "aot_cache_miss": int(aot.get("autograd_cache_miss", 0)),
+    }
+
+    compile_times_str = ""
+    compile_times_fn = getattr(du, "compile_times", None)
+    if callable(compile_times_fn):
+        try:
+            compile_times_str = str(compile_times_fn(repr="str"))[:8000]
+        except Exception:  # noqa: BLE001
+            compile_times_str = ""
+
+    return {
+        "summary": summary,
+        "counters": counters,
+        "compile_times": compile_times_str,
+    }
+
+
+def _output_requires_grad(out: Any, torch_mod: Any) -> bool:
+    """Check whether a forward output (tensor or nested container) carries `requires_grad=True`."""
+    tensor_cls = getattr(torch_mod, "Tensor", None) if torch_mod is not None else None
+    if tensor_cls is None or out is None:
+        return False
+    if isinstance(out, tensor_cls):
+        return bool(getattr(out, "requires_grad", False))
+    try:
+        from ptopt.hooks.module_dispatch import iter_nested_tensors  # noqa: PLC0415
+
+        return any(bool(getattr(t, "requires_grad", False)) for t in iter_nested_tensors(out, tensor_cls, max_items=16))
+    except Exception:  # noqa: BLE001
+        return False
 
 
 def _sync_if_cuda(torch_mod: Any) -> None:
