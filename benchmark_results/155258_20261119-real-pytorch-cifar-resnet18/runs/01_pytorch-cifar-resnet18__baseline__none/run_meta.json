@@ -1,0 +1,32 @@
+{
+  "target": "pytorch-cifar-resnet18",
+  "arm": "baseline",
+  "cache_state": "none",
+  "cwd": "/content/external_repos/pytorch-cifar",
+  "target_cmd": [
+    "/usr/bin/python3",
+    "-c",
+    "import pathlib, re; src = re.sub(r'start_epoch\\s*\\+\\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})"
+  ],
+  "ptopt_cmd": [
+    "/usr/bin/python3",
+    "-m",
+    "ptopt.cli.main",
+    "--telemetry-only",
+    "--telemetry-out",
+    "/tmp/tmp4hp4etg6/telemetry.json",
+    "--",
+    "/usr/bin/python3",
+    "-c",
+    "import pathlib, re; src = re.sub(r'start_epoch\\s*\\+\\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})"
+  ],
+  "env_overrides": {},
+  "exit_code": 0,
+  "end_to_end_sec": 317.1674,
+  "pure_wall_sec": 316.4229,
+  "nvsmi_peak_mb": 2182.0,
+  "gpu_util_avg_pct": 89.8,
+  "extracted_metrics": {
+    "test_acc": 79.67
+  }
+}
