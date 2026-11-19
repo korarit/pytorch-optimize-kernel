@@ -413,6 +413,111 @@ class TestRealBenchHarness(unittest.TestCase):
                     with self.assertRaises(ProcessLookupError):
                         os.kill(grandchild_pid, 0)
 
+    def test_telemetry_short_circuits_when_compiling_and_multipass_metric_parity(self) -> None:
+        from real_bench import RealRunRecord, _evaluate_arm_parity
+        from telemetry import compute_step_stats
+
+        # 1. TelemetryCollector skips module/backward instrumentation while torch.compiler.is_compiling() is True
+        with tempfile.TemporaryDirectory() as tmp:
+            tel_path = Path(tmp) / "tel.json"
+            mgr = HookManager()
+            mgr.config = OptimizeConfig(profile="balanced")
+            col = TelemetryCollector(tel_path, mgr, debug_profile=False)
+            with patch.object(torch.compiler, "is_compiling", return_value=True):
+                col.install(torch)
+                try:
+                    m = nn.Linear(4, 2)
+                    out = m(torch.randn(2, 4, requires_grad=True))
+                    out.sum().backward()
+                    self.assertEqual(col.losses, [])
+                    self.assertEqual(col.eval_step_times_ms, [])
+                finally:
+                    col.uninstall()
+                    mgr.reset()
+
+        # 2. Multi-pass metric parity passes non-deterministic baseline variance but rejects real regressions
+        zero_stats = compute_step_stats([])
+        base_nondet = RealRunRecord(
+            target="cifar",
+            arm="baseline",
+            cache_state="none",
+            exit_code=0,
+            end_to_end_sec=100.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=100.0,
+            peak_reserved_mb=100.0,
+            extracted_metrics={"test_acc": 76.95},
+            pure_wall_metrics={"test_acc": 70.60},
+        )
+        arm_nondet_ok = RealRunRecord(
+            target="cifar",
+            arm="balanced",
+            cache_state="cold",
+            exit_code=0,
+            end_to_end_sec=100.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=100.0,
+            peak_reserved_mb=100.0,
+            extracted_metrics={"test_acc": 70.50},
+            pure_wall_metrics={"test_acc": 78.60},
+        )
+        ok_var, _, note_var = _evaluate_arm_parity(
+            base_nondet, arm_nondet_ok, parity_mode="metric", metric_rel_tol=0.05
+        )
+        self.assertTrue(ok_var)
+        self.assertIn("within baseline variance", note_var)
+
+        arm_real_drop = RealRunRecord(
+            target="cifar",
+            arm="balanced",
+            cache_state="cold",
+            exit_code=0,
+            end_to_end_sec=100.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=100.0,
+            peak_reserved_mb=100.0,
+            extracted_metrics={"test_acc": 55.0},
+            pure_wall_metrics={"test_acc": 56.0},
+        )
+        ok_drop, _, _ = _evaluate_arm_parity(
+            base_nondet, arm_real_drop, parity_mode="metric", metric_rel_tol=0.05
+        )
+        self.assertFalse(ok_drop)
+
+        base_det = RealRunRecord(
+            target="cifar",
+            arm="baseline",
+            cache_state="none",
+            exit_code=0,
+            end_to_end_sec=100.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=100.0,
+            peak_reserved_mb=100.0,
+            extracted_metrics={"test_acc": 76.95},
+            pure_wall_metrics={"test_acc": 76.95},
+        )
+        arm_det_drop = RealRunRecord(
+            target="cifar",
+            arm="balanced",
+            cache_state="cold",
+            exit_code=0,
+            end_to_end_sec=100.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=100.0,
+            peak_reserved_mb=100.0,
+            extracted_metrics={"test_acc": 70.50},
+            pure_wall_metrics={"test_acc": 70.50},
+        )
+        ok_det, _, _ = _evaluate_arm_parity(
+            base_det, arm_det_drop, parity_mode="metric", metric_rel_tol=0.05
+        )
+        self.assertFalse(ok_det)
+
 
 if __name__ == "__main__":
     unittest.main()

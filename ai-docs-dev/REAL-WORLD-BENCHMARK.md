@@ -102,12 +102,12 @@ cd /content/external_repos/pytorch-cifar
 python3 -c "import torchvision; torchvision.datasets.CIFAR10(root='./data', train=True, download=True); torchvision.datasets.CIFAR10(root='./data', train=False, download=True)"
 ```
 
-รัน Benchmark โดยจำกัดเหลือ **10 epochs** ใน memory (เพราะ `main.py` ของ repo นี้ฮาร์ดโค้ดไว้ `start_epoch+200` และไม่มี flag `--epochs` ทำให้รันครบ 200 epochs เกิน 1800s/3600s และมี `Acc:` ตามด้วยเครื่องหมาย `:`):
+รัน Benchmark โดยจำกัดเหลือ **10 epochs** และล็อก seed ใน memory (เพราะ `main.py` ของ repo นี้ฮาร์ดโค้ด `start_epoch+200`, ไม่มี flag `--epochs`, และไม่ได้ fix random seed ทำให้ค่า `Acc:` ช่วง 10 epoch แรกแกว่ง ~70–80% ได้ระหว่างรอบ):
 ```bash
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name pytorch-cifar-resnet18 \
   --cwd /content/external_repos/pytorch-cifar \
-  --cmd "python3 -c \"import pathlib, re; src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})\"" \
+  --cmd "python3 -c \"import pathlib, random, re, torch; random.seed(0); torch.manual_seed(0); torch.cuda.manual_seed_all(0); src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})\"" \
   --profiles safe,balanced,aggressive \
   --cache-modes auto \
   --metric-regex "test_acc=Acc[:@\s]*([0-9.]+)%" \

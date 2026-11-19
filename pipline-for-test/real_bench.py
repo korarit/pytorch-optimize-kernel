@@ -86,6 +86,7 @@ class RealRunRecord:
     peak_reserved_mb: float
     losses: list[float] = field(default_factory=list)
     extracted_metrics: dict[str, float] = field(default_factory=dict)
+    pure_wall_metrics: dict[str, float] = field(default_factory=dict)
     fallback_events: list[dict[str, Any]] = field(default_factory=list)
     pure_wall_sec: float | None = None
     nvsmi_peak_mb: float | None = None
@@ -565,6 +566,7 @@ def _execute_arm(
         print(f"{status_lbl} ({wall_sec:.2f}s)", flush=True)
 
     pure_wall_sec: float | None = None
+    pure_wall_metrics: dict[str, float] = {}
     nvsmi_peak_mb: float | None = None
     gpu_util_avg: float | None = None
     nvsmi_samples: list[dict[str, float]] = []
@@ -599,6 +601,7 @@ def _execute_arm(
         pure_wall_log = f"CMD: {' '.join(wall_cmd)}\nRC: {w_rc}\nWALL_SEC: {pure_dt:.4f}\n\n=== STDOUT ===\n{w_out}\n\n=== STDERR ===\n{w_err}\n"
         if w_rc == 0:
             pure_wall_sec = round(pure_dt, 4)
+            pure_wall_metrics = extract_metrics_from_output((w_out + "\n" + w_err).strip(), spec.metric_regexes)
             nvsmi_peak_mb = sampled_mb
             gpu_util_avg = util_avg
             nvsmi_samples = samples
@@ -688,6 +691,7 @@ def _execute_arm(
                 "nvsmi_peak_mb": nvsmi_peak_mb,
                 "gpu_util_avg_pct": gpu_util_avg,
                 "extracted_metrics": extracted,
+                "pure_wall_metrics": pure_wall_metrics,
             },
             stdout_text=stdout_txt,
             stderr_text=stderr_txt,
@@ -715,6 +719,7 @@ def _execute_arm(
         peak_reserved_mb=round(float(mem.get("peak_reserved") or 0.0), 2),
         losses=[float(x) for x in (tel_data.get("losses") or [])],
         extracted_metrics=extracted,
+        pure_wall_metrics=pure_wall_metrics,
         fallback_events=events,
         pure_wall_sec=pure_wall_sec,
         nvsmi_peak_mb=nvsmi_peak_mb,
@@ -870,6 +875,7 @@ def _evaluate_arm_parity(
         profile_key = "balanced"
 
     metric_issues: list[str] = []
+    variance_notes: list[str] = []
     for k, arm_val in arm.extracted_metrics.items():
         if not math.isfinite(arm_val):
             metric_issues.append(f"{k}=non-finite")
@@ -878,6 +884,31 @@ def _evaluate_arm_parity(
             b_val = base.extracted_metrics[k]
             rel = abs(arm_val - b_val) / max(abs(b_val), 1e-8)
             if rel > metric_rel_tol:
+                b_wall = base.pure_wall_metrics.get(k)
+                a_wall = arm.pure_wall_metrics.get(k)
+                if (
+                    b_wall is not None
+                    and a_wall is not None
+                    and math.isfinite(b_wall)
+                    and math.isfinite(a_wall)
+                ):
+                    base_vals = (b_val, b_wall)
+                    arm_vals = (arm_val, a_wall)
+                    base_mean = 0.5 * (base_vals[0] + base_vals[1])
+                    arm_mean = 0.5 * (arm_vals[0] + arm_vals[1])
+                    base_spread_rel = abs(base_vals[0] - base_vals[1]) / max(abs(base_mean), 1e-8)
+                    rel_mean = abs(arm_mean - base_mean) / max(abs(base_mean), 1e-8)
+                    if (
+                        base_spread_rel > 0.01
+                        and rel_mean <= max(metric_rel_tol, base_spread_rel * 0.75)
+                        and max(arm_vals) >= min(base_vals) * (1.0 - metric_rel_tol)
+                    ):
+                        variance_notes.append(
+                            f"{k} within baseline variance "
+                            f"(base={min(base_vals):.2f}..{max(base_vals):.2f}, "
+                            f"arm={min(arm_vals):.2f}..{max(arm_vals):.2f})"
+                        )
+                        continue
                 metric_issues.append(f"{k} rel={rel:.4f}>{metric_rel_tol}")
 
     has_losses = bool(base.losses and arm.losses)
@@ -888,6 +919,8 @@ def _evaluate_arm_parity(
             return False, None, "; ".join(metric_issues)
         if not arm.extracted_metrics:
             return False, None, "No extracted metrics matched"
+        if variance_notes:
+            return True, None, "; ".join(variance_notes)
         return True, None, "Extracted metrics within tolerance"
 
     if has_losses:
@@ -897,13 +930,16 @@ def _evaluate_arm_parity(
         if res.has_non_finite:
             return False, res.max_rel_diff, res.reason
         if not res.passed and arm.extracted_metrics and not metric_issues:
-            return True, res.max_rel_diff, f"Metrics OK (batch loss rel={res.max_rel_diff})"
+            note = "; ".join(variance_notes) if variance_notes else f"Metrics OK (batch loss rel={res.max_rel_diff})"
+            return True, res.max_rel_diff, note
         if metric_issues:
             return False, res.max_rel_diff, "; ".join(metric_issues)
         return res.passed, res.max_rel_diff, res.reason
 
     if metric_issues:
         return False, None, "; ".join(metric_issues)
+    if variance_notes:
+        return True, None, "; ".join(variance_notes)
     return True, None, "Eval/inference completed cleanly"
 
 
