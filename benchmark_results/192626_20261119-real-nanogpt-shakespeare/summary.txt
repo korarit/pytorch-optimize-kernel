@@ -1,0 +1,386 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-19 19:26:26 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 3dfd990
+Targets            : 1
+Total Runs         : 9
+Comparisons        : 8
+Overall Status     : PASS
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target              | Arm               | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)         | VRAM MB (B->A/d)       | LossRel  | Stdout Metrics | Audit        | Status
+--------------------+-------------------+-------+-------+----------------+----------+-------------------------+------------------------+----------+----------------+--------------+-------
+nanogpt-shakespeare | safe              | none  | train | 55.52->56.30   | 0.99x    | 15.02s->15.42s (0.97x)  | 1639.4->1632.2 (-7.2)  | 0.000483 | val_loss=2.396 | A:6 S:4 F:0  | PASS  
+nanogpt-shakespeare | balanced          | cold  | train | 55.52->51.71   | 1.07x    | 15.02s->43.44s (0.35x)  | 1639.4->1612.2 (-27.2) | 0.014671 | val_loss=2.409 | A:12 S:2 F:0 | PASS  
+nanogpt-shakespeare | balanced          | warm  | train | 55.52->53.05   | 1.05x    | 15.02s->20.92s (0.72x)  | 1639.4->1612.2 (-27.2) | 0.009023 | val_loss=2.404 | A:12 S:2 F:0 | PASS  
+nanogpt-shakespeare | aggressive        | cold  | train | 55.52->53.32   | 1.04x    | 15.02s->235.09s (0.06x) | 1639.4->1664.7 (+25.3) | 0.008825 | val_loss=2.404 | A:14 S:7 F:0 | PASS  
+nanogpt-shakespeare | aggressive        | warm  | train | 55.52->53.06   | 1.05x    | 15.02s->21.54s (0.70x)  | 1639.4->1611.8 (-27.5) | 0.009307 | val_loss=2.402 | A:14 S:7 F:0 | PASS  
+nanogpt-shakespeare | native_opt        | none  | train | 55.52->53.47   | 1.04x    | 15.02s->24.61s (0.61x)  | 1639.4->1619.3 (-20.1) | 0.009578 | val_loss=2.403 | A:0 S:1 F:0  | PASS  
+nanogpt-shakespeare | conflict:balanced | cold  | train | 55.52->53.71   | 1.03x    | 15.02s->43.22s (0.35x)  | 1639.4->1612.2 (-27.2) | 0.008731 | val_loss=2.403 | A:11 S:3 F:0 | PASS  
+nanogpt-shakespeare | conflict:balanced | warm  | train | 55.52->54.11   | 1.03x    | 15.02s->21.51s (0.70x)  | 1639.4->1612.2 (-27.2) | 0.00823  | val_loss=2.402 | A:11 S:3 F:0 | PASS  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target              | Arm/Cache              | Step0 ms | Data/Other | Forward      | Loss/Clip | Backward     | Optim     | Steady Tot
+--------------------+------------------------+----------+------------+--------------+-----------+--------------+-----------+-----------
+nanogpt-shakespeare | baseline/none          | 1769.3   | 4.63 (8%)  | 16.67 (28%)  | 4.65 (8%) | 32.36 (54%)  | 1.56 (3%) | 59.88     
+nanogpt-shakespeare | safe/none              | 1669.0   | 4.56 (8%)  | 16.84 (28%)  | 4.61 (8%) | 32.53 (54%)  | 1.57 (3%) | 60.10     
+nanogpt-shakespeare | balanced/cold          | 11838.5  | 4.39 (3%)  | 78.00 (53%)  | 4.77 (3%) | 57.72 (39%)  | 1.60 (1%) | 146.48    
+nanogpt-shakespeare | balanced/warm          | 4706.9   | 4.46 (7%)  | 23.84 (39%)  | 4.64 (8%) | 27.05 (44%)  | 1.59 (3%) | 61.57     
+nanogpt-shakespeare | aggressive/cold        | 12097.6  | 4.59 (0%)  | 329.71 (28%) | 5.36 (0%) | 840.38 (71%) | 1.63 (0%) | 1181.68   
+nanogpt-shakespeare | aggressive/warm        | 4724.8   | 4.52 (7%)  | 25.29 (40%)  | 4.74 (8%) | 26.90 (43%)  | 1.60 (2%) | 63.05     
+nanogpt-shakespeare | native_opt/none        | 5586.9   | 4.45 (7%)  | 21.60 (36%)  | 4.70 (8%) | 27.48 (46%)  | 1.59 (3%) | 59.83     
+nanogpt-shakespeare | conflict:balanced/cold | 11896.3  | 4.63 (3%)  | 78.81 (53%)  | 5.07 (3%) | 58.55 (39%)  | 1.62 (1%) | 148.68    
+nanogpt-shakespeare | conflict:balanced/warm | 4777.3   | 4.63 (7%)  | 24.20 (39%)  | 4.91 (8%) | 26.87 (43%)  | 1.61 (3%) | 62.22     
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target              | Arm/Cache              | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+--------------------+------------------------+----------------+--------+--------+------------+--------------------+--------------
+nanogpt-shakespeare | balanced/cold          | 2/2            | 2      | 0      | 0          | 0/3                | 0/2          
+nanogpt-shakespeare | balanced/warm          | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+nanogpt-shakespeare | aggressive/cold        | 2/2            | 2      | 0      | 0          | 0/3                | 0/2          
+nanogpt-shakespeare | aggressive/warm        | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+nanogpt-shakespeare | native_opt/none        | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+nanogpt-shakespeare | conflict:balanced/cold | 2/2            | 2      | 0      | 0          | 0/3                | 0/2          
+nanogpt-shakespeare | conflict:balanced/warm | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target              | Arm/Cache              | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+--------------------+------------------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+nanogpt-shakespeare | baseline/none          | 1639.4/1714.0 | 74.6        | 20849.1     | 7.6%      | 0/0         | 1962.0   | 61.9%       
+nanogpt-shakespeare | safe/none              | 1632.2/1684.0 | 51.8        | 20879.1     | 7.5%      | 0/0         | 1932.0   | 62.8%       
+nanogpt-shakespeare | balanced/cold          | 1612.2/1646.0 | 33.8        | 20917.1     | 7.3%      | 0/0         | 1894.0   | 27.9%       
+nanogpt-shakespeare | balanced/warm          | 1612.2/1646.0 | 33.8        | 20917.1     | 7.3%      | 0/0         | 1894.0   | 42.8%       
+nanogpt-shakespeare | aggressive/cold        | 1664.7/1908.0 | 243.3       | 20655.1     | 8.5%      | 0/0         | 2178.0   | 13.4%       
+nanogpt-shakespeare | aggressive/warm        | 1611.8/1828.0 | 216.2       | 20735.1     | 8.1%      | 0/0         | 2096.0   | 41.1%       
+nanogpt-shakespeare | native_opt/none        | 1619.3/1678.0 | 35.0        | 20909.1     | 7.3%      | 0/0         | 1902.0   | 36.5%       
+nanogpt-shakespeare | conflict:balanced/cold | 1612.2/1646.0 | 33.8        | 20917.1     | 7.3%      | 0/0         | 1894.0   | 27.4%       
+nanogpt-shakespeare | conflict:balanced/warm | 1612.2/1646.0 | 33.8        | 20917.1     | 7.3%      | 0/0         | 1894.0   | 41.7%       
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target              | Arm/Cache              | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+--------------------+------------------------+-----------------+--------------------+-------------+-----------+------------------
+nanogpt-shakespeare | baseline/none          | -               | -                  | -           | -         | 20849.1 (7.6%)   
+nanogpt-shakespeare | safe/none              | -               | -                  | -           | -         | 20879.1 (7.5%)   
+nanogpt-shakespeare | balanced/cold          | -               | -                  | off         | -         | 20917.1 (7.3%)   
+nanogpt-shakespeare | balanced/warm          | -               | -                  | off         | -         | 20917.1 (7.3%)   
+nanogpt-shakespeare | aggressive/cold        | -               | -                  | off         | -         | 20655.1 (8.5%)   
+nanogpt-shakespeare | aggressive/warm        | -               | -                  | off         | -         | 20735.1 (8.1%)   
+nanogpt-shakespeare | native_opt/none        | -               | -                  | -           | -         | 20909.1 (7.3%)   
+nanogpt-shakespeare | conflict:balanced/cold | -               | -                  | -           | -         | 20917.1 (7.3%)   
+nanogpt-shakespeare | conflict:balanced/warm | -               | -                  | -           | -         | 20917.1 (7.3%)   
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- nanogpt-shakespeare [baseline/none] (total_cuda=86.691ms, total_cpu=44.418ms) ---
+  CUDA  19.9% | self=  17.215ms | calls=   75 | aten::mm
+  CUDA  12.3% | self=  10.702ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   8.8% | self=   7.663ms | calls=  551 | aten::add
+  CUDA   8.5% | self=   7.331ms | calls=   36 | void at::native::unrolled_elementwise_kernel<at:
+  CUDA   8.0% | self=   6.972ms | calls=   18 | aten::gelu
+  CUDA   8.0% | self=   6.972ms | calls=   18 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   7.3% | self=   6.331ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   5.0% | self=   4.361ms | calls=   39 | aten::native_layer_norm
+  CPU   43.7% | self=  19.395ms | calls=    6 | cudaDeviceSynchronize
+  CPU    6.9% | self=   3.083ms | calls=  318 | cudaLaunchKernel
+  CPU    5.5% | self=   2.459ms | calls=   75 | aten::mm
+  CPU    4.7% | self=   2.093ms | calls=    1 | Activity Buffer Request
+  CPU    4.2% | self=   1.863ms | calls=  551 | aten::add
+  CPU    2.7% | self=   1.219ms | calls=  200 | aten::empty
+  CPU    2.6% | self=   1.164ms | calls=  127 | aten::copy_
+  CPU    2.5% | self=   1.129ms | calls=  121 | aten::_to_copy
+--- nanogpt-shakespeare [safe/none] (total_cuda=85.297ms, total_cpu=43.786ms) ---
+  CUDA  19.9% | self=  17.002ms | calls=   75 | aten::mm
+  CUDA  12.3% | self=  10.518ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   9.1% | self=   7.721ms | calls=  551 | aten::add
+  CUDA   8.7% | self=   7.403ms | calls=   36 | void at::native::unrolled_elementwise_kernel<at:
+  CUDA   8.1% | self=   6.890ms | calls=   18 | aten::gelu
+  CUDA   8.1% | self=   6.890ms | calls=   18 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   7.4% | self=   6.306ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   4.7% | self=   4.017ms | calls=   39 | aten::native_layer_norm
+  CPU   45.5% | self=  19.937ms | calls=    6 | cudaDeviceSynchronize
+  CPU    6.9% | self=   3.027ms | calls=  318 | cudaLaunchKernel
+  CPU    5.4% | self=   2.348ms | calls=   75 | aten::mm
+  CPU    4.9% | self=   2.131ms | calls=    1 | Activity Buffer Request
+  CPU    4.3% | self=   1.879ms | calls=  551 | aten::add
+  CPU    2.9% | self=   1.281ms | calls=  127 | aten::copy_
+  CPU    2.6% | self=   1.123ms | calls=  200 | aten::empty
+  CPU    2.4% | self=   1.053ms | calls=  139 | aten::empty_strided
+--- nanogpt-shakespeare [balanced/cold] (total_cuda=108.283ms, total_cpu=45.09ms) ---
+  CUDA  33.7% | self=  36.512ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CUDA  15.6% | self=  16.900ms | calls=   75 | aten::mm
+  CUDA   9.7% | self=  10.533ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.2% | self=   6.699ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   6.2% | self=   6.699ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.7% | self=   6.199ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.9% | self=   4.232ms | calls=   18 | aten::_flash_attention_forward
+  CUDA   3.9% | self=   4.232ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CPU   47.1% | self=  21.217ms | calls=    6 | cudaDeviceSynchronize
+  CPU   16.2% | self=   7.301ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CPU    4.6% | self=   2.086ms | calls=    1 | Activity Buffer Request
+  CPU    4.3% | self=   1.931ms | calls=   75 | aten::mm
+  CPU    2.8% | self=   1.266ms | calls=  144 | cuLaunchKernel
+  CPU    2.7% | self=   1.238ms | calls=  512 | aten::add
+  CPU    2.4% | self=   1.073ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    1.8% | self=   0.810ms | calls=  514 | aten::item
+--- nanogpt-shakespeare [balanced/warm] (total_cuda=107.437ms, total_cpu=44.525ms) ---
+  CUDA  33.6% | self=  36.126ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CUDA  15.5% | self=  16.674ms | calls=   75 | aten::mm
+  CUDA   9.7% | self=  10.370ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.2% | self=   6.709ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   6.2% | self=   6.709ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.7% | self=   6.144ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.9% | self=   4.191ms | calls=   18 | aten::_flash_attention_forward
+  CUDA   3.9% | self=   4.191ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CPU   48.0% | self=  21.376ms | calls=    6 | cudaDeviceSynchronize
+  CPU   15.9% | self=   7.070ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CPU    4.7% | self=   2.095ms | calls=    1 | Activity Buffer Request
+  CPU    4.3% | self=   1.906ms | calls=   75 | aten::mm
+  CPU    2.8% | self=   1.246ms | calls=  512 | aten::add
+  CPU    2.7% | self=   1.187ms | calls=  144 | cuLaunchKernel
+  CPU    2.1% | self=   0.936ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    1.8% | self=   0.807ms | calls=   90 | cudaLaunchKernel
+--- nanogpt-shakespeare [aggressive/cold] (total_cuda=107.357ms, total_cpu=45.577ms) ---
+  CUDA  33.6% | self=  36.111ms | calls=    3 | ## Call CompiledFxGraph fqx45eglokpru77pdgbr3unr
+  CUDA  33.1% | self=  35.544ms | calls=    3 | Torch-Compiled Region: 0/0
+  CUDA   9.8% | self=  10.509ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.2% | self=   6.690ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.7% | self=   6.153ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.8% | self=   4.090ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CUDA   2.0% | self=   2.198ms | calls=    6 | triton_per_fused__to_copy__unsafe_view_add_nativ
+  CUDA   1.4% | self=   1.458ms | calls=    6 | triton_per_fused__to_copy__unsafe_view_add_nativ
+  CPU   76.9% | self=  35.064ms | calls=    6 | cudaDeviceSynchronize
+  CPU    4.7% | self=   2.161ms | calls=    1 | Activity Buffer Request
+  CPU    2.9% | self=   1.300ms | calls=  512 | aten::add
+  CPU    2.7% | self=   1.235ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    2.1% | self=   0.949ms | calls=    3 | ## Call CompiledFxGraph fqx45eglokpru77pdgbr3unr
+  CPU    1.9% | self=   0.848ms | calls=  514 | aten::item
+  CPU    1.3% | self=   0.580ms | calls=  258 | aten::select
+  CPU    1.2% | self=   0.536ms | calls=    3 | Torch-Compiled Region: 0/0
+--- nanogpt-shakespeare [aggressive/warm] (total_cuda=107.096ms, total_cpu=45.04ms) ---
+  CUDA  33.6% | self=  35.970ms | calls=    3 | ## Call CompiledFxGraph fqx45eglokpru77pdgbr3unr
+  CUDA  33.1% | self=  35.477ms | calls=    3 | Torch-Compiled Region: 0/0
+  CUDA   9.8% | self=  10.504ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.3% | self=   6.709ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.6% | self=   6.047ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.8% | self=   4.109ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CUDA   2.0% | self=   2.185ms | calls=    6 | triton_per_fused__to_copy__unsafe_view_add_nativ
+  CUDA   1.3% | self=   1.442ms | calls=    6 | triton_per_fused__to_copy__unsafe_view_add_nativ
+  CPU   77.9% | self=  35.068ms | calls=    6 | cudaDeviceSynchronize
+  CPU    4.7% | self=   2.110ms | calls=    1 | Activity Buffer Request
+  CPU    2.8% | self=   1.253ms | calls=  512 | aten::add
+  CPU    2.2% | self=   0.997ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    2.0% | self=   0.913ms | calls=    3 | ## Call CompiledFxGraph fqx45eglokpru77pdgbr3unr
+  CPU    1.8% | self=   0.801ms | calls=  514 | aten::item
+  CPU    1.4% | self=   0.638ms | calls=  258 | aten::select
+  CPU    1.0% | self=   0.460ms | calls=    3 | Torch-Compiled Region: 0/0
+--- nanogpt-shakespeare [native_opt/none] (total_cuda=108.287ms, total_cpu=44.576ms) ---
+  CUDA  33.7% | self=  36.455ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CUDA  15.4% | self=  16.730ms | calls=   75 | aten::mm
+  CUDA   9.6% | self=  10.419ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.2% | self=   6.757ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   6.2% | self=   6.757ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.7% | self=   6.143ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   4.0% | self=   4.287ms | calls=   18 | aten::_flash_attention_forward
+  CUDA   4.0% | self=   4.287ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CPU   48.9% | self=  21.802ms | calls=    6 | cudaDeviceSynchronize
+  CPU   15.5% | self=   6.907ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CPU    4.7% | self=   2.091ms | calls=    1 | Activity Buffer Request
+  CPU    4.4% | self=   1.948ms | calls=   75 | aten::mm
+  CPU    3.0% | self=   1.332ms | calls=  512 | aten::add
+  CPU    2.6% | self=   1.179ms | calls=  144 | cuLaunchKernel
+  CPU    1.9% | self=   0.833ms | calls=  514 | aten::item
+  CPU    1.8% | self=   0.810ms | calls=   90 | cudaLaunchKernel
+--- nanogpt-shakespeare [conflict:balanced/cold] (total_cuda=107.876ms, total_cpu=44.821ms) ---
+  CUDA  33.6% | self=  36.275ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CUDA  15.6% | self=  16.817ms | calls=   75 | aten::mm
+  CUDA   9.7% | self=  10.437ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.2% | self=   6.695ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   6.2% | self=   6.695ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.8% | self=   6.219ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.9% | self=   4.233ms | calls=   18 | aten::_flash_attention_forward
+  CUDA   3.9% | self=   4.233ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CPU   47.8% | self=  21.446ms | calls=    6 | cudaDeviceSynchronize
+  CPU   15.8% | self=   7.071ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CPU    4.6% | self=   2.071ms | calls=    1 | Activity Buffer Request
+  CPU    4.3% | self=   1.947ms | calls=   75 | aten::mm
+  CPU    2.8% | self=   1.268ms | calls=  512 | aten::add
+  CPU    2.8% | self=   1.253ms | calls=  144 | cuLaunchKernel
+  CPU    2.4% | self=   1.088ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    1.9% | self=   0.831ms | calls=  514 | aten::item
+--- nanogpt-shakespeare [conflict:balanced/warm] (total_cuda=107.239ms, total_cpu=45.039ms) ---
+  CUDA  33.7% | self=  36.099ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CUDA  15.5% | self=  16.572ms | calls=   75 | aten::mm
+  CUDA   9.6% | self=  10.303ms | calls=   54 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.3% | self=   6.731ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   6.3% | self=   6.731ms | calls=   18 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   5.7% | self=   6.116ms | calls=   18 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   3.9% | self=   4.201ms | calls=   18 | aten::_flash_attention_forward
+  CUDA   3.9% | self=   4.201ms | calls=   18 | void pytorch_flash::flash_fwd_kernel<Flash_fwd_k
+  CPU   47.3% | self=  21.289ms | calls=    6 | cudaDeviceSynchronize
+  CPU   15.5% | self=   6.998ms | calls=    3 | ## Call CompiledFxGraph fcsk6ix7i6cueafnqrwlqe67
+  CPU    4.7% | self=   2.122ms | calls=    1 | Activity Buffer Request
+  CPU    4.2% | self=   1.914ms | calls=   75 | aten::mm
+  CPU    2.9% | self=   1.309ms | calls=  512 | aten::add
+  CPU    2.8% | self=   1.240ms | calls=  144 | cuLaunchKernel
+  CPU    2.2% | self=   1.013ms | calls=    3 | TorchDynamo Cache Lookup
+  CPU    1.9% | self=   0.835ms | calls=  514 | aten::item
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+nanogpt-shakespeare [baseline/none] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [safe/none] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [balanced/cold] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [balanced/warm] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [aggressive/cold] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [aggressive/warm] GPT: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [native_opt/none] OptimizedModule: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [conflict:balanced/cold] OptimizedModule: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-shakespeare [conflict:balanced/warm] OptimizedModule: params=10745088, train_calls=151, eval_calls=80, unique_shapes=1 -> ["(((64, 256), torch.int64, device(type='cuda', index=0)), ((64, 256), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] nanogpt-shakespeare (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/01_nanogpt-shakespeare__baseline__none
+[SKIPPED] nanogpt-shakespeare (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] nanogpt-shakespeare (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/02_nanogpt-shakespeare__safe__none
+[APPLIED] nanogpt-shakespeare (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] nanogpt-shakespeare (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] nanogpt-shakespeare (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] nanogpt-shakespeare (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] nanogpt-shakespeare (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] nanogpt-shakespeare (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] nanogpt-shakespeare (safe/none) -> kernels.auto: kernels.enabled is False
+[ARTIFACTS] nanogpt-shakespeare (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/03_nanogpt-shakespeare__balanced__cold
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/balanced)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] nanogpt-shakespeare (balanced/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-shakespeare (balanced/cold) -> compile.auto: Compiled GPT (mode=default, dynamic=False)
+[ARTIFACTS] nanogpt-shakespeare (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/04_nanogpt-shakespeare__balanced__warm
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/balanced)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] nanogpt-shakespeare (balanced/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-shakespeare (balanced/warm) -> compile.auto: Compiled GPT (mode=default, dynamic=False)
+[ARTIFACTS] nanogpt-shakespeare (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/05_nanogpt-shakespeare__aggressive__cold
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/aggressive)
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: active Dropout stochastic mask risk (set PTOPT_TRAIN_CG_ALLOW_DROPOUT=1 to override)
+[SKIPPED] nanogpt-shakespeare (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-shakespeare (aggressive/cold) -> compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+[ARTIFACTS] nanogpt-shakespeare (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/06_nanogpt-shakespeare__aggressive__warm
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/aggressive)
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: active Dropout stochastic mask risk (set PTOPT_TRAIN_CG_ALLOW_DROPOUT=1 to override)
+[SKIPPED] nanogpt-shakespeare (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-shakespeare (aggressive/warm) -> compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+[ARTIFACTS] nanogpt-shakespeare (native_opt/none) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/07_nanogpt-shakespeare__native_opt__none
+[SKIPPED] nanogpt-shakespeare (native_opt/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] nanogpt-shakespeare (conflict:balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/08_nanogpt-shakespeare__conflict_balanced__cold
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/conflict_balanced)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (conflict:balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/cold) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/cold) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[ARTIFACTS] nanogpt-shakespeare (conflict:balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/192626_20261119-real-nanogpt-shakespeare/runs/09_nanogpt-shakespeare__conflict_balanced__warm
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/conflict_balanced)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-shakespeare (conflict:balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/warm) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[SKIPPED] nanogpt-shakespeare (conflict:balanced/warm) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (balanced/cold): avg GPU utilization is 27.9% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (balanced/warm): avg GPU utilization is 42.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (aggressive/cold): avg GPU utilization is 13.4% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (aggressive/warm): avg GPU utilization is 41.1% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (native_opt/none): avg GPU utilization is 36.5% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (conflict:balanced/cold): avg GPU utilization is 27.4% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] nanogpt-shakespeare (conflict:balanced/warm): avg GPU utilization is 41.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================

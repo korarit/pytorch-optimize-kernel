@@ -1,0 +1,115 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+USDT:2026-11-19 19:43:29 211514:211514 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-19 19:43:29 211514:211514 SyncActivityProfilerHandler.cpp:46] profiler_stop
+V1119 19:43:30.379000 211514 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function forward in /content/external_repos/nanoGPT/model.py:170
+V1119 19:43:30.379000 211514 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1119 19:43:30.379000 211514 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+[ptopt fallback/hook summary]
+  profile=aggressive
+  Counts: APPLIED=14 | SKIPPED=7 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/aggressive)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.cross_entropy: sm_89, triton=True
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+  - [APPLIED] inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+  - [APPLIED] compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+  - [SKIPPED (by arch/config)] compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: active Dropout stochastic mask risk (set PTOPT_TRAIN_CG_ALLOW_DROPOUT=1 to override)
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: compile = False
+Overriding: max_iters = 150
+Overriding: eval_interval = 50
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 16,384
+found vocab_size = 65 (inside data/shakespeare_char/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 10.65M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+step 0: train loss 4.2873, val loss 4.2810
+iter 0: loss 4.2653, time 6624.03ms, mfu -100.00%
+iter 10: loss 3.1586, time 54.89ms, mfu 6.79%
+iter 20: loss 2.7379, time 53.11ms, mfu 6.81%
+iter 30: loss 2.6085, time 53.02ms, mfu 6.83%
+iter 40: loss 2.5349, time 53.49ms, mfu 6.85%
+step 50: train loss 2.5057, val loss 2.5106
+saving checkpoint to out-shakespeare-char
+iter 50: loss 2.5118, time 599.79ms, mfu 6.22%
+iter 60: loss 2.5058, time 53.54ms, mfu 6.30%
+iter 70: loss 2.4879, time 57.71ms, mfu 6.31%
+iter 80: loss 2.4839, time 54.51ms, mfu 6.37%
+iter 90: loss 2.4611, time 52.85ms, mfu 6.43%
+step 100: train loss 2.4603, val loss 2.4924
+saving checkpoint to out-shakespeare-char
+iter 100: loss 2.4620, time 593.50ms, mfu 5.85%
+iter 110: loss 2.4430, time 52.92ms, mfu 5.97%
+iter 120: loss 2.4515, time 57.97ms, mfu 6.02%
+iter 130: loss 2.4382, time 53.33ms, mfu 6.11%
+iter 140: loss 2.4390, time 59.44ms, mfu 6.13%
+step 150: train loss 2.3632, val loss 2.4020
+saving checkpoint to out-shakespeare-char
+iter 150: loss 2.4001, time 600.00ms, mfu 5.58%
+

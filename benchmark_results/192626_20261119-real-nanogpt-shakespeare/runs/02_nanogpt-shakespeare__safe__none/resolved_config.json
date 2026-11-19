@@ -1,0 +1,199 @@
+{
+  "schema_version": 1,
+  "hardware_fingerprint": {
+    "host": {
+      "hostname": "a868e19c7bf4",
+      "os_name": "Linux",
+      "os_release": "6.6.159+",
+      "cpu_arch": "x86_64",
+      "cpu_model": "Intel(R) Xeon(R) CPU @ 2.20GHz",
+      "physical_cores": 6,
+      "logical_cores": 12,
+      "isa_flags": [
+        "avx2",
+        "avx512f"
+      ],
+      "total_ram_mb": 54229.1,
+      "available_ram_mb": 52233.7,
+      "shm_total_mb": 26155.0,
+      "shm_free_mb": 26155.0,
+      "is_colab": true,
+      "colab_release_tag": "release-colab-external-images_20261117-060102_RC00",
+      "python_version": "3.13.16",
+      "torch_version": "2.14.1+cu130",
+      "cuda_version": "13.0",
+      "hip_version": null,
+      "triton_version": "3.8.0",
+      "jemalloc_path": null,
+      "tcmalloc_path": "libtcmalloc.so.4"
+    },
+    "gpu": {
+      "backend": "cuda",
+      "device_count": 1,
+      "selected_index": 0,
+      "cuda_visible_devices": null,
+      "devices": [
+        {
+          "index": 0,
+          "name": "NVIDIA L4",
+          "compute_capability": "8.9",
+          "major": 8,
+          "minor": 9,
+          "sm_int": 89,
+          "sm_name": "sm_89",
+          "total_vram_mb": 22563.1,
+          "sm_count": 58,
+          "bf16_supported": true,
+          "tf32_supported": true,
+          "fp8_supported": true,
+          "flash_sdp_supported": true,
+          "mem_efficient_sdp_supported": true
+        }
+      ],
+      "driver_version": "580.82.07",
+      "probe_errors": []
+    }
+  },
+  "config": {
+    "schema_version": 1,
+    "profile": "safe",
+    "runtime": {
+      "tf32": true,
+      "cudnn_benchmark": false,
+      "alloc_conf": "expandable_segments:True",
+      "omp_threads": 6,
+      "jemalloc": false,
+      "activation_checkpointing": "off",
+      "bandwidth_boost": false
+    },
+    "amp": {
+      "enabled": false,
+      "dtype": "bf16",
+      "grad_scaler": false
+    },
+    "compile": {
+      "enabled": false,
+      "mode": "default",
+      "dynamic": false,
+      "cache_dir": ".torch_inductor_cache",
+      "train_cuda_graphs": false
+    },
+    "optimizer": {
+      "fused": true,
+      "foreach": true
+    },
+    "attention": {
+      "flash_sdp": true,
+      "mem_efficient_sdp": true,
+      "math_sdp": true
+    },
+    "dataloader": {
+      "auto_tune": true,
+      "pin_memory": true,
+      "persistent_workers": true,
+      "num_workers": 3,
+      "prefetch_factor": 2,
+      "cuda_prefetch": false
+    },
+    "inference": {
+      "inference_mode": true,
+      "cuda_graphs": false
+    },
+    "kernels": {
+      "enabled": false,
+      "allow_list": [],
+      "fallback_on_error": true
+    }
+  },
+  "matched_rules": [
+    "base_safe_defaults",
+    "host_linux_x86_64",
+    "host_colab_runtime",
+    "gpu_cuda_ada_sm89",
+    "vram_12_24gb",
+    "profile_safe_cuda",
+    "profile_balanced_dataloader"
+  ],
+  "trace": [
+    {
+      "layer": "host_arch",
+      "rule_name": "host_linux_x86_64",
+      "field_path": "runtime.omp_threads",
+      "old_value": 0,
+      "new_value": 6,
+      "reason": "Tune CPU threads and jemalloc for Linux x86_64"
+    },
+    {
+      "layer": "gpu_arch",
+      "rule_name": "gpu_cuda_ada_sm89",
+      "field_path": "amp.dtype",
+      "old_value": "fp32",
+      "new_value": "bf16",
+      "reason": "CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): BF16 & Flash SDPA capable"
+    },
+    {
+      "layer": "gpu_arch",
+      "rule_name": "gpu_cuda_ada_sm89",
+      "field_path": "attention.flash_sdp",
+      "old_value": false,
+      "new_value": true,
+      "reason": "CUDA Ada Lovelace sm_89 (e.g. Colab L4/RTX 40xx): BF16 & Flash SDPA capable"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_safe_cuda",
+      "field_path": "runtime.tf32",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe profile on CUDA: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_safe_cuda",
+      "field_path": "optimizer.fused",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe profile on CUDA: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_safe_cuda",
+      "field_path": "inference.inference_mode",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe profile on CUDA: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_balanced_dataloader",
+      "field_path": "dataloader.auto_tune",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_balanced_dataloader",
+      "field_path": "dataloader.pin_memory",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_balanced_dataloader",
+      "field_path": "dataloader.persistent_workers",
+      "old_value": false,
+      "new_value": true,
+      "reason": "Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning"
+    },
+    {
+      "layer": "user_profile",
+      "rule_name": "profile_balanced_dataloader",
+      "field_path": "dataloader.num_workers",
+      "old_value": null,
+      "new_value": 3,
+      "reason": "Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "target": "nanogpt-shakespeare",
+  "arm": "safe",
+  "cache_state": "none",
+  "cwd": "/content/external_repos/nanoGPT",
+  "target_cmd": [
+    "/usr/bin/python3",
+    "train.py",
+    "config/train_shakespeare_char.py",
+    "--compile=False",
+    "--max_iters=150",
+    "--eval_interval=50",
+    "--eval_iters=10",
+    "--always_save_checkpoint=True"
+  ],
+  "ptopt_cmd": [
+    "/usr/bin/python3",
+    "-m",
+    "ptopt.cli.main",
+    "--profile",
+    "safe",
+    "--telemetry-out",
+    "/tmp/tmp8gnba9xq/telemetry.json",
+    "--override",
+    "compile.cache_dir=/tmp/tmpmn3bak4a/nanogpt-shakespeare/safe",
+    "--",
+    "/usr/bin/python3",
+    "train.py",
+    "config/train_shakespeare_char.py",
+    "--compile=False",
+    "--max_iters=150",
+    "--eval_interval=50",
+    "--eval_iters=10",
+    "--always_save_checkpoint=True"
+  ],
+  "env_overrides": {},
+  "exit_code": 0,
+  "end_to_end_sec": 15.3082,
+  "pure_wall_sec": 15.4185,
+  "nvsmi_peak_mb": 1932.0,
+  "gpu_util_avg_pct": 62.8,
+  "extracted_metrics": {
+    "val_loss": 2.3955
+  },
+  "pure_wall_metrics": {
+    "val_loss": 2.394
+  }
+}

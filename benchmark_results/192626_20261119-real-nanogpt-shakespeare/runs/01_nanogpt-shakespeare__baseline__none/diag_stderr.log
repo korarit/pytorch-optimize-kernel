@@ -1,0 +1,91 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/external_repos/nanoGPT/train.py:196: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+USDT:2026-11-19 19:27:00 201906:201906 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-19 19:27:00 201906:201906 SyncActivityProfilerHandler.cpp:46] profiler_stop
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: compile = False
+Overriding: max_iters = 150
+Overriding: eval_interval = 50
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 16,384
+found vocab_size = 65 (inside data/shakespeare_char/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 10.65M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+step 0: train loss 4.2873, val loss 4.2810
+iter 0: loss 4.2654, time 1329.76ms, mfu -100.00%
+iter 10: loss 3.1522, time 58.82ms, mfu 6.33%
+iter 20: loss 2.7432, time 59.36ms, mfu 6.33%
+iter 30: loss 2.6101, time 59.63ms, mfu 6.32%
+iter 40: loss 2.5326, time 59.50ms, mfu 6.31%
+step 50: train loss 2.5063, val loss 2.5095
+saving checkpoint to out-shakespeare-char
+iter 50: loss 2.5120, time 675.49ms, mfu 5.74%
+iter 60: loss 2.5090, time 59.56ms, mfu 5.79%
+iter 70: loss 2.4805, time 58.84ms, mfu 5.84%
+iter 80: loss 2.4865, time 60.82ms, mfu 5.87%
+iter 90: loss 2.4658, time 59.24ms, mfu 5.91%
+step 100: train loss 2.4623, val loss 2.4885
+saving checkpoint to out-shakespeare-char
+iter 100: loss 2.4624, time 650.60ms, mfu 5.38%
+iter 110: loss 2.4424, time 59.61ms, mfu 5.47%
+iter 120: loss 2.4460, time 59.36ms, mfu 5.55%
+iter 130: loss 2.4318, time 60.28ms, mfu 5.61%
+iter 140: loss 2.4304, time 58.75ms, mfu 5.68%
+step 150: train loss 2.3588, val loss 2.3952
+saving checkpoint to out-shakespeare-char
+iter 150: loss 2.4026, time 654.68ms, mfu 5.17%
+

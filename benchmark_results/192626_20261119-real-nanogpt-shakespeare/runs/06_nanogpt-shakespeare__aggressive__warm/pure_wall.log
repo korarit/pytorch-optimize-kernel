@@ -1,0 +1,85 @@
+CMD: /usr/bin/python3 -m ptopt.cli.main --profile aggressive --override compile.cache_dir=/tmp/tmpmn3bak4a/nanogpt-shakespeare/aggressive -- /usr/bin/python3 train.py config/train_shakespeare_char.py --compile=False --max_iters=150 --eval_interval=50 --eval_iters=10 --always_save_checkpoint=True
+RC: 0
+WALL_SEC: 21.5398
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: compile = False
+Overriding: max_iters = 150
+Overriding: eval_interval = 50
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 16,384
+found vocab_size = 65 (inside data/shakespeare_char/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 10.65M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+step 0: train loss 4.2873, val loss 4.2810
+iter 0: loss 4.2653, time 6229.87ms, mfu -100.00%
+iter 10: loss 3.1586, time 51.89ms, mfu 7.18%
+iter 20: loss 2.7379, time 54.03ms, mfu 7.15%
+iter 30: loss 2.6085, time 52.86ms, mfu 7.14%
+iter 40: loss 2.5350, time 55.60ms, mfu 7.10%
+step 50: train loss 2.5056, val loss 2.5105
+saving checkpoint to out-shakespeare-char
+iter 50: loss 2.5119, time 795.02ms, mfu 6.44%
+iter 60: loss 2.5058, time 52.39ms, mfu 6.50%
+iter 70: loss 2.4882, time 57.67ms, mfu 6.50%
+iter 80: loss 2.4840, time 52.45ms, mfu 6.56%
+iter 90: loss 2.4610, time 57.20ms, mfu 6.55%
+step 100: train loss 2.4615, val loss 2.4939
+saving checkpoint to out-shakespeare-char
+iter 100: loss 2.4630, time 765.53ms, mfu 5.95%
+iter 110: loss 2.4432, time 52.78ms, mfu 6.06%
+iter 120: loss 2.4507, time 59.16ms, mfu 6.08%
+iter 130: loss 2.4387, time 52.60ms, mfu 6.18%
+iter 140: loss 2.4536, time 57.64ms, mfu 6.21%
+step 150: train loss 2.3658, val loss 2.4064
+saving checkpoint to out-shakespeare-char
+iter 150: loss 2.4049, time 775.87ms, mfu 5.64%
+
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+

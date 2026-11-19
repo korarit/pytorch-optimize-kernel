@@ -1,0 +1,83 @@
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: compile = True
+Overriding: max_iters = 150
+Overriding: eval_interval = 50
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 16,384
+found vocab_size = 65 (inside data/shakespeare_char/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 10.65M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+compiling the model... (takes a ~minute)
+step 0: train loss 4.2873, val loss 4.2810
+iter 0: loss 4.2653, time 25552.11ms, mfu -100.00%
+iter 10: loss 3.1586, time 52.15ms, mfu 7.14%
+iter 20: loss 2.7379, time 58.88ms, mfu 7.06%
+iter 30: loss 2.6085, time 52.40ms, mfu 7.07%
+iter 40: loss 2.5349, time 56.87ms, mfu 7.02%
+step 50: train loss 2.5056, val loss 2.5105
+saving checkpoint to out-shakespeare-char
+iter 50: loss 2.5118, time 596.34ms, mfu 6.38%
+iter 60: loss 2.5058, time 53.03ms, mfu 6.44%
+iter 70: loss 2.4878, time 59.08ms, mfu 6.43%
+iter 80: loss 2.4841, time 52.17ms, mfu 6.50%
+iter 90: loss 2.4614, time 57.49ms, mfu 6.50%
+step 100: train loss 2.4603, val loss 2.4924
+saving checkpoint to out-shakespeare-char
+iter 100: loss 2.4620, time 590.36ms, mfu 5.91%
+iter 110: loss 2.4430, time 52.71ms, mfu 6.03%
+iter 120: loss 2.4517, time 59.53ms, mfu 6.05%
+iter 130: loss 2.4382, time 52.98ms, mfu 6.15%
+iter 140: loss 2.4384, time 57.83ms, mfu 6.18%
+step 150: train loss 2.3632, val loss 2.4027
+saving checkpoint to out-shakespeare-char
+iter 150: loss 2.3999, time 599.05ms, mfu 5.62%
+
+
+=== STDERR ===
+/content/external_repos/nanoGPT/train.py:196: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+W1119 19:43:52.897000 211732 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+

@@ -1,0 +1,5 @@
+[ptopt fallback/hook summary]
+  profile=native_opt | exit_code=0 | cmd=/usr/bin/python3 train.py config/train_shakespeare_char.py --compile=True --max_iters=150 --eval_interval=50 --eval_iters=10 --always_save_checkpoint=True
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)

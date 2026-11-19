@@ -1,0 +1,112 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+W1119 19:29:36.203000 203495 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+I1119 19:29:36.217000 203495 torch/_inductor/graph.py:1045] [0/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention.default
+USDT:2026-11-19 19:29:41 203495:203495 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-19 19:29:41 203495:203495 SyncActivityProfilerHandler.cpp:46] profiler_stop
+V1119 19:29:42.498000 203495 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function forward in /content/external_repos/nanoGPT/model.py:170
+V1119 19:29:42.498000 203495 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1119 19:29:42.498000 203495 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+I1119 19:29:46.962000 203495 torch/_inductor/graph.py:1045] [0/1] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention.default
+I1119 19:29:53.562000 203495 torch/_inductor/graph.py:1045] [0/1] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention_backward.default
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=12 | SKIPPED=2 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpmn3bak4a/nanogpt-shakespeare/balanced_diag_cold)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] compile.auto: Compiled GPT (mode=default, dynamic=False)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: compile = False
+Overriding: max_iters = 150
+Overriding: eval_interval = 50
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 16,384
+found vocab_size = 65 (inside data/shakespeare_char/meta.pkl)
+Initializing a new model from scratch
+number of parameters: 10.65M
+num decayed parameter tensors: 26, with 10,740,096 parameters
+num non-decayed parameter tensors: 13, with 4,992 parameters
+using fused AdamW: True
+step 0: train loss 4.2873, val loss 4.2810
+iter 0: loss 4.2653, time 28062.38ms, mfu -100.00%
+iter 10: loss 3.1585, time 54.49ms, mfu 6.84%
+iter 20: loss 2.7379, time 53.35ms, mfu 6.85%
+iter 30: loss 2.6086, time 53.37ms, mfu 6.87%
+iter 40: loss 2.5350, time 53.74ms, mfu 6.87%
+step 50: train loss 2.5057, val loss 2.5106
+saving checkpoint to out-shakespeare-char
+iter 50: loss 2.5118, time 592.61ms, mfu 6.25%
+iter 60: loss 2.5058, time 53.14ms, mfu 6.32%
+iter 70: loss 2.4882, time 54.39ms, mfu 6.38%
+iter 80: loss 2.4840, time 56.51ms, mfu 6.40%
+iter 90: loss 2.4612, time 54.66ms, mfu 6.44%
+step 100: train loss 2.4612, val loss 2.4937
+saving checkpoint to out-shakespeare-char
+iter 100: loss 2.4627, time 585.68ms, mfu 5.86%
+iter 110: loss 2.4430, time 53.25ms, mfu 5.97%
+iter 120: loss 2.4512, time 58.23ms, mfu 6.02%
+iter 130: loss 2.4388, time 53.11ms, mfu 6.12%
+iter 140: loss 2.4518, time 54.09ms, mfu 6.19%
+step 150: train loss 2.3655, val loss 2.4066
+saving checkpoint to out-shakespeare-char
+iter 150: loss 2.4047, time 598.62ms, mfu 5.64%
+
