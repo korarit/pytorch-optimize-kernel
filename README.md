@@ -166,7 +166,8 @@ ptopt --explain
 # Supported presets: t4, sm_75, low_shm_t4, a100, sm_80, sm_86, l4, sm_89, h100, sm_90, cpu, mps
 ptopt --target-arch l4 --profile balanced --explain
 
-# Override specific passes (examples: training CUDA graphs, async CUDA prefetch, always act-ckpt)
+# Override specific passes (examples: Phase 8 opt-in bandwidth boost, training CUDA graphs, async CUDA prefetch, always act-ckpt)
+ptopt --profile balanced --bandwidth-boost -- python3 your_train_script.py
 ptopt --profile balanced --override compile.train_cuda_graphs=true -- python3 small_static_train.py
 ptopt --profile balanced --override dataloader.cuda_prefetch=true -- python3 vision_train.py
 ptopt --profile balanced --override runtime.activation_checkpointing=always -- python3 high_vram_train.py
@@ -198,6 +199,7 @@ python3 scripts/run_gate.py --mode full
 - `PTOPT_HYBRID_LCE=1`: Enables Hybrid `torch.compile` Backbone + `FusedLinearCrossEntropy` terminal head (`0`/`1`; enabled by default in `balanced`/`aggressive`).
 - `PTOPT_ACTIVATION_CKPT=auto|always|off`: Controls auto activation checkpointing (defaults to `auto` in `balanced`/`aggressive`, triggering above `PTOPT_ACT_CKPT_VRAM_THRESHOLD`, default `0.82`), with partial strided ratio (`PTOPT_ACT_CKPT_RATIO`, default `0.5`), Selective Activation Checkpointing (`PTOPT_ACT_CKPT_SAC=1`), and Step-0 OOM rescue.
 - `PTOPT_OPTIM_CAPTURABLE=1`: Allows CUDA graph capturable optimizers when needed (checkpoint `step` tensors are normalized automatically on `state_dict()`).
+- `PTOPT_BANDWIDTH_BOOST=1`: Enables the opt-in Phase 8 VRAM-Headroom Bandwidth Booster (disabled by default; equivalent to `--bandwidth-boost` / `--override runtime.bandwidth_boost=true`). On `>= 12 GB` CUDA GPUs (non-`supersafe`), enables `cudnn_benchmark`, adaptive multi-batch `cuda_prefetch` (up to depth `3` with auto VRAM back-off), `prefetch_factor=4`, scaled `num_workers`, `max-autotune` `coordinate_descent_tuning`, and `M >= 128` FP8 prewarm / `0.85` auto-drop.
 - `PTOPT_CUDA_PREFETCH=1`: Enables cached async CUDA stream DataLoader prefetch (`dataloader.cuda_prefetch`).
 - `PTOPT_FORCE_ALL_KERNELS=1`: Forces all custom Triton kernels even when `torch.compile` is enabled.
 - `PTOPT_CHANNELS_LAST=1`: Forces `channels_last` / `channels_last_3d` conversion even for small spatial CNN inputs.

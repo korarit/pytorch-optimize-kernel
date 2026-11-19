@@ -43,6 +43,13 @@ def _recommended_workers(fp: HardwareFingerprint) -> int:
     return min(4, max(1, cores // 2))
 
 
+def recommended_workers_high_vram(fp: HardwareFingerprint) -> int:
+    """Return high-VRAM DataLoader worker recommendation (up to 8 when RAM >= 16 GB)."""
+    cores = fp.host.physical_cores or fp.host.logical_cores or 2
+    cap = 8 if (fp.host.total_ram_mb or 0.0) >= 16384.0 else 4
+    return min(cap, max(2, cores // 2))
+
+
 def get_builtin_rules() -> list[ConfigRule]:
     """Return ordered built-in rules across all hardware and profile layers."""
     return [
@@ -59,6 +66,7 @@ def get_builtin_rules() -> list[ConfigRule]:
                 "runtime.omp_threads": 0,
                 "runtime.jemalloc": False,
                 "runtime.activation_checkpointing": "off",
+                "runtime.bandwidth_boost": False,
                 "amp.enabled": False,
                 "amp.dtype": "fp32",
                 "amp.grad_scaler": False,

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from ptopt.config import OptimizeConfig, detect_runtime_cache_key, validate_or_scope_cache_dir
+from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
 from ptopt.hooks.module_dispatch import (
     build_shape_signature,
     has_cuda_context,
@@ -269,7 +270,112 @@ class AutoCompileRuntime:
         self.train_cg_count = 0
         self.fallback_count = 0
         self.setup_time_ms = 0.0
+        self.bw_tune_checked = False
         self.cache_dir = _configure_cache_and_dynamo(cfg, torch_mod, strict=manager.strict)
+
+
+def configure_inductor_bandwidth_tuning(
+    cfg: OptimizeConfig,
+    torch_mod: Any,
+    manager: "HookManager",
+    *,
+    chosen_mode: str,
+) -> dict[str, Any]:
+    """Enable Inductor coordinate-descent & epilogue bandwidth tuning when VRAM headroom allows."""
+    env_flag = os.environ.get("PTOPT_INDUCTOR_BW_TUNE")
+    if env_flag == "0":
+        info = {"enabled": False, "reason": "Disabled by PTOPT_INDUCTOR_BW_TUNE=0"}
+        try:
+            torch_mod._ptopt_inductor_bw_tune = info
+        except Exception:  # noqa: BLE001
+            pass
+        manager.record_event("compile.inductor_bw_tune", "SKIPPED", info["reason"])
+        return info
+
+    is_max_auto = chosen_mode.startswith("max-autotune")
+    boost_enabled = bool(getattr(cfg.runtime, "bandwidth_boost", False))
+    if env_flag != "1" and not (boost_enabled and is_max_auto):
+        reason_skip = (
+            "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)"
+            if not boost_enabled
+            else f"mode={chosen_mode} (requires max-autotune or PTOPT_INDUCTOR_BW_TUNE=1)"
+        )
+        info = {"enabled": False, "reason": reason_skip}
+        try:
+            torch_mod._ptopt_inductor_bw_tune = info
+        except Exception:  # noqa: BLE001
+            pass
+        manager.record_event("compile.inductor_bw_tune", "SKIPPED", info["reason"])
+        return info
+
+    headroom = probe_cuda_vram_headroom(torch_mod)
+    if env_flag != "1":
+        if headroom is None:
+            info = {"enabled": False, "reason": "CUDA VRAM headroom unavailable"}
+            try:
+                torch_mod._ptopt_inductor_bw_tune = info
+            except Exception:  # noqa: BLE001
+                pass
+            manager.record_event("compile.inductor_bw_tune", "SKIPPED", info["reason"])
+            return info
+        if headroom["total_mb"] < 16384.0 or headroom["used_ratio"] >= 0.75:
+            info = {
+                "enabled": False,
+                "reason": (
+                    f"VRAM headroom insufficient (total={headroom['total_mb']}MB, "
+                    f"used={headroom['used_ratio']:.1%})"
+                ),
+                "vram_free_mb": headroom["free_mb"],
+                "used_ratio": headroom["used_ratio"],
+            }
+            try:
+                torch_mod._ptopt_inductor_bw_tune = info
+            except Exception:  # noqa: BLE001
+                pass
+            manager.record_event("compile.inductor_bw_tune", "SKIPPED", info["reason"])
+            return info
+
+    applied_flags: list[str] = []
+    try:
+        import importlib
+
+        ind_cfg = getattr(importlib.import_module("torch._inductor"), "config", None)
+        if ind_cfg is not None:
+            if hasattr(ind_cfg, "coordinate_descent_tuning"):
+                ind_cfg.coordinate_descent_tuning = True
+                applied_flags.append("coordinate_descent_tuning=True")
+            if hasattr(ind_cfg, "epilogue_fusion"):
+                ind_cfg.epilogue_fusion = True
+                applied_flags.append("epilogue_fusion=True")
+    except Exception as exc:  # noqa: BLE001
+        info = {"enabled": False, "reason": f"Inductor config unavailable: {exc}"}
+        try:
+            torch_mod._ptopt_inductor_bw_tune = info
+        except Exception:  # noqa: BLE001
+            pass
+        manager.record_event("compile.inductor_bw_tune", "SKIPPED", info["reason"])
+        return info
+
+    info = {
+        "enabled": bool(applied_flags),
+        "flags": applied_flags,
+        "vram_free_mb": headroom["free_mb"] if headroom else None,
+        "used_ratio": headroom["used_ratio"] if headroom else None,
+    }
+    try:
+        torch_mod._ptopt_inductor_bw_tune = info
+    except Exception:  # noqa: BLE001
+        pass
+    if applied_flags:
+        hr_note = f", free_vram={headroom['free_mb']:.1f}MB ({headroom['used_ratio']:.1%} used)" if headroom else ""
+        manager.record_event(
+            "compile.inductor_bw_tune",
+            "APPLIED",
+            f"Enabled {', '.join(applied_flags)}{hr_note}",
+        )
+    else:
+        manager.record_event("compile.inductor_bw_tune", "SKIPPED", "No tunable Inductor flags exposed")
+    return info
 
 
 def _resolve_non_cg_compile_mode(requested_mode: str) -> str:
@@ -297,6 +403,9 @@ def _attempt_compile_module(
         return False
 
     chosen_mode = mode_override if mode_override is not None else rt.mode
+    if not rt.bw_tune_checked:
+        rt.bw_tune_checked = True
+        configure_inductor_bandwidth_tuning(rt.cfg, torch_mod, rt.manager, chosen_mode=chosen_mode)
     compile_kwargs: dict[str, Any] = {"mode": chosen_mode}
     if dynamic_override is not None:
         compile_kwargs["dynamic"] = dynamic_override

@@ -519,7 +519,13 @@ class TelemetryCollector:
             dynamo_debug = _extract_dynamo_debug()
             if dynamo_debug is not None:
                 debug_block["dynamo_compile"] = dynamo_debug
+            bw_stats = _extract_bandwidth_booster_stats(torch_mod)
+            if bw_stats is not None:
+                debug_block["bandwidth_vram_booster"] = bw_stats
             payload["debug_profile"] = debug_block
+        bw_light = _extract_bandwidth_booster_stats(torch_mod, include_headroom=False)
+        if bw_light is not None:
+            payload["bandwidth_vram_booster"] = bw_light
         return payload
 
     def flush(self) -> None:
@@ -645,6 +651,40 @@ def _extract_dynamo_debug() -> dict[str, Any] | None:
         "counters": counters,
         "compile_times": compile_times_str,
     }
+
+
+def _extract_bandwidth_booster_stats(
+    torch_mod: Any,
+    *,
+    include_headroom: bool = True,
+) -> dict[str, Any] | None:
+    """Collect VRAM-headroom prefetch queue, Inductor BW tuning, and FP8 cache telemetry."""
+    if torch_mod is None:
+        return None
+    prefetch = getattr(torch_mod, "_ptopt_prefetch_stats", None)
+    inductor_bw = getattr(torch_mod, "_ptopt_inductor_bw_tune", None)
+    fp8_policy = getattr(torch_mod, "_ptopt_fp8_cache_policy", None)
+    headroom = None
+    if include_headroom:
+        try:
+            from ptopt.passes.memory_allocator import probe_cuda_vram_headroom  # noqa: PLC0415
+
+            headroom = probe_cuda_vram_headroom(torch_mod)
+        except Exception:  # noqa: BLE001
+            headroom = None
+
+    if not any(isinstance(x, dict) for x in (prefetch, inductor_bw, fp8_policy, headroom)):
+        return None
+    out: dict[str, Any] = {}
+    if isinstance(prefetch, dict):
+        out["prefetch_stats"] = dict(prefetch)
+    if isinstance(inductor_bw, dict):
+        out["inductor_bw_tune"] = dict(inductor_bw)
+    if isinstance(fp8_policy, dict):
+        out["fp8_cache_policy"] = dict(fp8_policy)
+    if isinstance(headroom, dict):
+        out["vram_headroom"] = dict(headroom)
+    return out
 
 
 def _output_requires_grad(out: Any, torch_mod: Any) -> bool:

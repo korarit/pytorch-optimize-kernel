@@ -6,7 +6,12 @@ import os
 from dataclasses import asdict, dataclass, field
 from typing import Any, Mapping, Sequence
 
-from ptopt.config.rules_builtin import LAYER_ORDER, ConfigRule, get_builtin_rules
+from ptopt.config.rules_builtin import (
+    LAYER_ORDER,
+    ConfigRule,
+    get_builtin_rules,
+    recommended_workers_high_vram,
+)
 from ptopt.config.schema import ConfigValidationError, OptimizeConfig, VALID_PROFILES, validate_config
 from ptopt.detect.fingerprint import HardwareFingerprint
 
@@ -25,6 +30,7 @@ _ENV_PARSERS: dict[str, tuple[str, Any]] = {
     "PTOPT_CUDNN_BENCHMARK": ("runtime.cudnn_benchmark", _parse_bool_env),
     "PTOPT_OMP_THREADS": ("runtime.omp_threads", lambda v, _n: int(v)),
     "PTOPT_JEMALLOC": ("runtime.jemalloc", _parse_bool_env),
+    "PTOPT_BANDWIDTH_BOOST": ("runtime.bandwidth_boost", _parse_bool_env),
     "PTOPT_ACTIVATION_CKPT": (
         "runtime.activation_checkpointing",
         lambda v, _n: (
@@ -152,9 +158,78 @@ class ConfigResolver:
                 trace,
             )
 
+        self._apply_bandwidth_boost_if_enabled(cfg, fingerprint, matched_rules, trace)
         self._normalize_cross_fields(cfg, matched_rules, trace)
         validate_config(cfg, backend=fingerprint.effective_backend)
         return ResolutionResult(config=cfg, matched_rules=matched_rules, trace=trace)
+
+    def _apply_bandwidth_boost_if_enabled(
+        self,
+        cfg: OptimizeConfig,
+        fingerprint: HardwareFingerprint,
+        matched_rules: list[str],
+        trace: list[TraceEntry],
+    ) -> None:
+        """Apply opt-in Phase 8 VRAM-Headroom Bandwidth Booster only when `runtime.bandwidth_boost` is True."""
+        if not cfg.runtime.bandwidth_boost:
+            return
+
+        if fingerprint.effective_backend != "cuda" or fingerprint.primary_gpu is None:
+            self._apply_updates(
+                cfg,
+                "bandwidth_boost",
+                "vram_bandwidth_boost_guard",
+                "Bandwidth boost requires CUDA GPU; keeping disabled on non-CUDA backend",
+                {"runtime.bandwidth_boost": False},
+                trace,
+            )
+            return
+
+        if cfg.profile == "supersafe":
+            self._apply_updates(
+                cfg,
+                "bandwidth_boost",
+                "vram_bandwidth_boost_guard",
+                "supersafe enforces strict FP32 parity; bandwidth_boost ignored",
+                {"runtime.bandwidth_boost": False},
+                trace,
+            )
+            return
+
+        if 0.0 < fingerprint.vram_mb < 12288.0:
+            self._apply_updates(
+                cfg,
+                "bandwidth_boost",
+                "vram_bandwidth_boost_guard",
+                f"VRAM {fingerprint.vram_mb:.0f} MB < 12 GB; insufficient headroom for bandwidth_boost",
+                {"runtime.bandwidth_boost": False},
+                trace,
+            )
+            return
+
+        explicit_fields = {t.field_path for t in trace if t.layer == "explicit_override"}
+        dl_disabled_explicitly = "dataloader.auto_tune" in explicit_fields and not cfg.dataloader.auto_tune
+        boost_updates: dict[str, Any] = {}
+        if "runtime.cudnn_benchmark" not in explicit_fields:
+            boost_updates["runtime.cudnn_benchmark"] = True
+        if not fingerprint.is_low_shm and not dl_disabled_explicitly:
+            if "dataloader.cuda_prefetch" not in explicit_fields:
+                boost_updates["dataloader.cuda_prefetch"] = True
+            if "dataloader.prefetch_factor" not in explicit_fields and cfg.dataloader.auto_tune:
+                boost_updates["dataloader.prefetch_factor"] = 4
+            if "dataloader.num_workers" not in explicit_fields and cfg.dataloader.auto_tune:
+                boost_updates["dataloader.num_workers"] = recommended_workers_high_vram(fingerprint)
+
+        matched_rules.append("vram_bandwidth_boost")
+        if boost_updates:
+            self._apply_updates(
+                cfg,
+                "bandwidth_boost",
+                "vram_bandwidth_boost",
+                f"Opt-in Phase 8 bandwidth boost on {fingerprint.vram_mb:.0f} MB VRAM: cuDNN benchmark + GPU prefetch + deeper DataLoader",
+                boost_updates,
+                trace,
+            )
 
     @staticmethod
     def _apply_updates(

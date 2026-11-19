@@ -8,10 +8,12 @@ import io
 import os
 import pickle
 import sys
+from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Callable
 
 from ptopt.config import OptimizeConfig
+from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
 
 if TYPE_CHECKING:
     from ptopt.hooks.manager import HookManager
@@ -86,8 +88,69 @@ def _move_batch_to_cuda(obj: Any, torch_mod: Any, device: Any, tracked_tensors: 
     return obj
 
 
+def compute_adaptive_prefetch_depth(
+    torch_mod: Any,
+    *,
+    max_depth: int | None = None,
+    backoff_ratio: float | None = None,
+) -> tuple[int, dict[str, float] | None]:
+    """Choose GPU prefetch queue depth (0..4) dynamically from live VRAM headroom."""
+    raw_override = os.environ.get("PTOPT_CUDA_PREFETCH_DEPTH")
+    headroom = probe_cuda_vram_headroom(torch_mod)
+    if raw_override is not None:
+        try:
+            return max(0, min(4, int(raw_override))), headroom
+        except ValueError:
+            pass
+
+    if max_depth is None:
+        try:
+            max_depth = max(1, min(4, int(os.environ.get("PTOPT_CUDA_PREFETCH_MAX_DEPTH", "3"))))
+        except ValueError:
+            max_depth = 3
+
+    if backoff_ratio is None:
+        try:
+            backoff_ratio = float(os.environ.get("PTOPT_CUDA_PREFETCH_BACKOFF_RATIO", "0.78"))
+        except ValueError:
+            backoff_ratio = 0.78
+
+    if headroom is None:
+        return 1, None
+
+    used = float(headroom["used_ratio"])
+    if used >= backoff_ratio:
+        return 0, headroom
+    if used < 0.50:
+        return min(max_depth, 3), headroom
+    if used < 0.68:
+        return min(max_depth, 2), headroom
+    return 1, headroom
+
+
+def _get_or_init_prefetch_stats(torch_mod: Any) -> dict[str, Any]:
+    stats = getattr(torch_mod, "_ptopt_prefetch_stats", None)
+    if not isinstance(stats, dict):
+        stats = {
+            "loaders_wrapped": 0,
+            "batches_prefetched": 0,
+            "batches_served": 0,
+            "initial_depth": 0,
+            "current_depth": 0,
+            "max_queue_depth": 0,
+            "backoff_events": 0,
+            "last_vram_used_ratio": None,
+            "last_vram_free_mb": None,
+        }
+        try:
+            torch_mod._ptopt_prefetch_stats = stats
+        except Exception:  # noqa: BLE001
+            pass
+    return stats
+
+
 class _AsyncCudaPrefetchIter:
-    """Prefetch next DataLoader batch onto GPU using a dedicated CUDA copy stream (`wait_stream` + `record_stream`)."""
+    """Adaptive multi-batch GPU prefetch ring queue using a dedicated CUDA copy stream with VRAM back-off."""
 
     def __init__(
         self,
@@ -96,9 +159,13 @@ class _AsyncCudaPrefetchIter:
         *,
         device: Any = None,
         stream: Any = None,
+        manager: "HookManager | None" = None,
+        max_depth: int | None = None,
     ) -> None:
         self._iter = inner_iter
         self._torch = torch_mod
+        self._manager = manager
+        self._max_depth = max_depth
         cuda_api = getattr(torch_mod, "cuda", None)
         if device is not None:
             self._device = device
@@ -122,50 +189,112 @@ class _AsyncCudaPrefetchIter:
                 cached_stream = cuda_api.Stream(device=self._device)
                 cache[dev_key] = cached_stream
             self._stream = cached_stream
-        self._next_item: Any = None
-        self._prefetched_tensors: list[Any] = []
+        self._queue: deque[tuple[Any, list[Any], Any]] = deque()
         self._exhausted = False
-        self._preload()
+        self._backoff_logged = False
+        self._stats = _get_or_init_prefetch_stats(torch_mod)
+        self._stats["loaders_wrapped"] += 1
 
-    def _preload(self) -> None:
+        init_depth, headroom = compute_adaptive_prefetch_depth(torch_mod, max_depth=self._max_depth)
+        self._current_depth = init_depth
+        self._stats["initial_depth"] = init_depth
+        self._stats["current_depth"] = init_depth
+        if headroom is not None:
+            self._stats["last_vram_used_ratio"] = headroom["used_ratio"]
+            self._stats["last_vram_free_mb"] = headroom["free_mb"]
+        if init_depth > 0:
+            self._fill_queue(init_depth)
+        elif manager is not None:
+            self._record_backoff(headroom)
+
+    def _record_backoff(self, headroom: dict[str, float] | None) -> None:
+        if self._backoff_logged:
+            return
+        self._backoff_logged = True
+        self._stats["backoff_events"] += 1
+        if self._manager is not None:
+            pct = f"{headroom['used_ratio']:.1%}" if headroom is not None else "high"
+            free_mb = f"{headroom['free_mb']:.1f}MB" if headroom is not None else "N/A"
+            self._manager.record_event(
+                "dataloader.cuda_prefetch",
+                "FALLBACK",
+                f"VRAM pressure ({pct} used, {free_mb} free): backed off GPU prefetch queue depth -> 0",
+            )
+
+    def _stage_one_batch(self) -> tuple[Any, list[Any], Any] | None:
+        if self._exhausted:
+            return None
         try:
             raw = next(self._iter)
         except StopIteration:
             self._exhausted = True
-            self._next_item = None
-            self._prefetched_tensors = []
-            return
+            return None
 
         tracked: list[Any] = []
+        copy_event: Any = None
         try:
             with self._torch.cuda.stream(self._stream):
                 staged = _move_batch_to_cuda(raw, self._torch, self._device, tracked)
-            self._next_item = staged
-            self._prefetched_tensors = tracked
+                event_cls = getattr(getattr(self._torch, "cuda", None), "Event", None)
+                if callable(event_cls) and tracked:
+                    copy_event = event_cls()
+                    copy_event.record(self._stream)
+            self._stats["batches_prefetched"] += 1
+            return staged, tracked, copy_event
         except Exception:  # noqa: BLE001
-            self._next_item = raw
-            self._prefetched_tensors = []
+            return raw, [], None
+
+    def _fill_queue(self, target_depth: int) -> None:
+        while not self._exhausted and len(self._queue) < target_depth:
+            item = self._stage_one_batch()
+            if item is None:
+                break
+            self._queue.append(item)
+        if len(self._queue) > int(self._stats["max_queue_depth"]):
+            self._stats["max_queue_depth"] = len(self._queue)
 
     def __iter__(self) -> "_AsyncCudaPrefetchIter":
         return self
 
     def __next__(self) -> Any:
-        if self._exhausted:
+        if self._queue:
+            cur_item, cur_tensors, cur_event = self._queue.popleft()
+        elif self._exhausted:
             raise StopIteration
-        cur_item = self._next_item
-        cur_tensors = self._prefetched_tensors
+        else:
+            on_demand = self._stage_one_batch()
+            if on_demand is None:
+                raise StopIteration
+            cur_item, cur_tensors, cur_event = on_demand
+
         cuda_api = getattr(self._torch, "cuda", None)
         if cuda_api is not None and cur_tensors:
             try:
                 cur_stream = cuda_api.current_stream(self._device)
             except TypeError:
                 cur_stream = cuda_api.current_stream()
-            cur_stream.wait_stream(self._stream)
+            wait_event_fn = getattr(cur_stream, "wait_event", None)
+            if cur_event is not None and callable(wait_event_fn):
+                wait_event_fn(cur_event)
+            else:
+                cur_stream.wait_stream(self._stream)
             for tensor in cur_tensors:
                 record_fn = getattr(tensor, "record_stream", None)
                 if callable(record_fn):
                     record_fn(cur_stream)
-        self._preload()
+        self._stats["batches_served"] += 1
+
+        new_depth, headroom = compute_adaptive_prefetch_depth(self._torch, max_depth=self._max_depth)
+        self._current_depth = new_depth
+        self._stats["current_depth"] = new_depth
+        if headroom is not None:
+            self._stats["last_vram_used_ratio"] = headroom["used_ratio"]
+            self._stats["last_vram_free_mb"] = headroom["free_mb"]
+        if new_depth == 0:
+            self._record_backoff(headroom)
+        else:
+            self._backoff_logged = False
+            self._fill_queue(new_depth)
         return cur_item
 
 
@@ -260,6 +389,13 @@ def decide_dataloader_params(
     }, notes
 
 
+def _effective_prefetch_max_depth(cfg: OptimizeConfig) -> int | None:
+    """Default to 3-batch lookahead when bandwidth_boost is enabled, 1 otherwise (unless env overrides)."""
+    if os.environ.get("PTOPT_CUDA_PREFETCH_DEPTH") or os.environ.get("PTOPT_CUDA_PREFETCH_MAX_DEPTH"):
+        return None
+    return 3 if getattr(cfg.runtime, "bandwidth_boost", False) else 1
+
+
 def install_dataloader_hook(
     cfg: OptimizeConfig,
     manager: "HookManager",
@@ -335,10 +471,17 @@ def install_dataloader_hook(
                 if not b_args.get("pin_memory", False):
                     b_args["pin_memory"] = True
                 dl_self._ptopt_cuda_prefetch = True
+                max_d = _effective_prefetch_max_depth(cfg)
+                init_depth, headroom = compute_adaptive_prefetch_depth(torch_mod, max_depth=max_d)
+                hr_info = (
+                    f"depth={init_depth}, free_vram={headroom['free_mb']:.1f}MB ({headroom['used_ratio']:.1%} used)"
+                    if headroom is not None
+                    else f"depth={init_depth}"
+                )
                 manager.record_event(
                     "dataloader.cuda_prefetch",
                     "APPLIED",
-                    "Dedicated CUDA copy-stream prefetch enabled for DataLoader",
+                    f"Adaptive CUDA copy-stream prefetch enabled ({hr_info})",
                 )
             elif prefetch_req and not cuda_ok:
                 manager.record_event("dataloader.cuda_prefetch", "SKIPPED", "CUDA unavailable for cuda_prefetch")
@@ -383,7 +526,25 @@ def install_dataloader_hook(
             or os.environ.get("PTOPT_CUDA_PREFETCH") == "1"
         )
         if prefetch_active and cuda_ok and not getattr(dl_self, "_ptopt_cuda_ds", False):
-            return _AsyncCudaPrefetchIter(base_it, torch_mod)
+            # When active automatically via ptopt CLI (and not forced by PTOPT_CUDA_PREFETCH=1),
+            # guard CPU-only scripts on GPU hosts by requiring CUDA context initialization first.
+            is_init_fn = getattr(getattr(torch_mod, "cuda", None), "is_initialized", None)
+            if (
+                os.environ.get("PTOPT_ACTIVE") == "1"
+                and os.environ.get("PTOPT_CUDA_PREFETCH") != "1"
+                and callable(is_init_fn)
+                and not is_init_fn()
+            ):
+                if not getattr(dl_self, "_ptopt_prefetch_cpu_skipped", False):
+                    dl_self._ptopt_prefetch_cpu_skipped = True
+                    manager.record_event(
+                        "dataloader.cuda_prefetch",
+                        "SKIPPED",
+                        "CUDA context uninitialized at DataLoader.__iter__; keeping CPU batches",
+                    )
+                return base_it
+            max_d = _effective_prefetch_max_depth(cfg)
+            return _AsyncCudaPrefetchIter(base_it, torch_mod, manager=manager, max_depth=max_d)
         return base_it
 
     dl_cls.__init__ = _tuned_init  # type: ignore[method-assign]

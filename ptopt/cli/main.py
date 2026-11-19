@@ -44,6 +44,7 @@ _BOOL_FLAGS = frozenset({
     "--no-amp",
     "--no-dataloader-tune",
     "--no-kernels",
+    "--bandwidth-boost",
     "--telemetry-only",
     "--strict",
     "--verbose",
@@ -108,6 +109,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-dataloader-tune", action="store_true", help="Disable DataLoader auto-tuning")
     parser.add_argument("--no-kernels", action="store_true", help="Disable custom Triton/CUDA kernels")
     parser.add_argument(
+        "--bandwidth-boost",
+        action="store_true",
+        help="Opt-in Phase 8 VRAM-Headroom Bandwidth Booster (default: disabled)",
+    )
+    parser.add_argument(
         "--telemetry-only",
         action="store_true",
         help="Disable all optimization passes/env tweaks and run as an untouched baseline telemetry probe",
@@ -142,6 +148,8 @@ def _collect_overrides(args: argparse.Namespace) -> dict[str, Any]:
         overrides["dataloader.auto_tune"] = False
     if args.no_kernels:
         overrides["kernels.enabled"] = False
+    if args.bandwidth_boost:
+        overrides["runtime.bandwidth_boost"] = True
     overrides.update(parse_override_items(args.override, example="section.field=value"))
     return overrides
 

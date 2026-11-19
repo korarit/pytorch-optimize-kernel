@@ -122,13 +122,71 @@ class TestConfigResolverMatrix(unittest.TestCase):
         res = self.resolver.resolve(fp, profile="balanced", env={})
         cfg = res.config
         self.assertTrue(cfg.runtime.tf32)
+        self.assertFalse(cfg.runtime.bandwidth_boost)
         self.assertFalse(cfg.runtime.cudnn_benchmark)
+        self.assertFalse(cfg.dataloader.cuda_prefetch)
+        self.assertEqual(cfg.dataloader.prefetch_factor, 2)
+        self.assertNotIn("vram_bandwidth_boost", res.matched_rules)
         self.assertTrue(cfg.amp.enabled)
         self.assertEqual(cfg.amp.dtype, "bf16")
         self.assertFalse(cfg.amp.grad_scaler)
         self.assertTrue(cfg.attention.flash_sdp)
         self.assertTrue(cfg.compile.enabled)
         self.assertEqual(cfg.compile.mode, "default")
+
+        # Opt-in Phase 8 bandwidth boost enables high-VRAM throughput settings
+        res_boost = self.resolver.resolve(
+            fp,
+            profile="balanced",
+            env={"PTOPT_BANDWIDTH_BOOST": "1"},
+        )
+        self.assertTrue(res_boost.config.runtime.bandwidth_boost)
+        self.assertTrue(res_boost.config.runtime.cudnn_benchmark)
+        self.assertTrue(res_boost.config.dataloader.cuda_prefetch)
+        self.assertEqual(res_boost.config.dataloader.prefetch_factor, 4)
+        self.assertIn("vram_bandwidth_boost", res_boost.matched_rules)
+
+        res_cli = self.resolver.resolve(
+            fp,
+            profile="balanced",
+            overrides={"runtime.bandwidth_boost": True},
+            env={},
+        )
+        self.assertTrue(res_cli.config.runtime.bandwidth_boost)
+        self.assertIn("vram_bandwidth_boost", res_cli.matched_rules)
+
+        # Guards: supersafe, <12GB VRAM, and CPU keep Phase 8 boost inactive
+        res_sup = self.resolver.resolve(
+            fp,
+            profile="supersafe",
+            overrides={"runtime.bandwidth_boost": True},
+            env={},
+        )
+        self.assertNotIn("vram_bandwidth_boost", res_sup.matched_rules)
+        self.assertFalse(res_sup.config.runtime.cudnn_benchmark)
+        self.assertFalse(res_sup.config.dataloader.cuda_prefetch)
+
+        fp_small = _make_fp(gpu_name="GTX 1070", major=6, minor=1, vram_mb=8192.0)
+        res_small = self.resolver.resolve(
+            fp_small,
+            profile="balanced",
+            overrides={"runtime.bandwidth_boost": True},
+            env={},
+        )
+        self.assertNotIn("vram_bandwidth_boost", res_small.matched_rules)
+        self.assertFalse(res_small.config.runtime.cudnn_benchmark)
+        self.assertFalse(res_small.config.dataloader.cuda_prefetch)
+
+        fp_cpu = _make_fp(backend="cpu", gpu_name="cpu", major=0, minor=0, vram_mb=0.0)
+        res_cpu = self.resolver.resolve(
+            fp_cpu,
+            profile="balanced",
+            overrides={"runtime.bandwidth_boost": True},
+            env={},
+        )
+        self.assertNotIn("vram_bandwidth_boost", res_cpu.matched_rules)
+        self.assertFalse(res_cpu.config.runtime.cudnn_benchmark)
+        self.assertFalse(res_cpu.config.dataloader.cuda_prefetch)
 
     def test_l4_sm89_aggressive(self) -> None:
         fp = _make_fp(gpu_name="NVIDIA L4", major=8, minor=9, vram_mb=22563.1, triton_version="3.8.0")

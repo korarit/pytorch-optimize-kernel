@@ -33,6 +33,7 @@ python3 -m ptopt.cli.main --profile balanced -- python train.py
 | Flag | Purpose |
 | :--- | :--- |
 | `--profile {supersafe,safe,balanced,aggressive}` | Select safety vs performance trade-off (default: `balanced`). |
+| `--bandwidth-boost` | **Opt-in (default: disabled)** Phase 8 VRAM-Headroom Bandwidth Booster (`PTOPT_BANDWIDTH_BOOST=1`): on `>=12GB` CUDA GPUs (non-`supersafe`), enables `cudnn_benchmark`, `cuda_prefetch` (adaptive up to depth 3), `prefetch_factor=4`, scaled `num_workers`, `max-autotune` `coordinate_descent_tuning`, and `M>=128` FP8 prewarm / `0.85` auto-drop. |
 | `--override section.field=value` | Fine-tune any Schema v1 field (e.g. `--override compile.cache_dir=/tmp/ptopt_cache`). |
 | `--no-compile`, `--no-amp`, `--no-dataloader-tune`, `--no-kernels` | Disable individual subsystems cleanly without editing code. |
 | `--telemetry-only`, `--telemetry-out PATH` | Disable all optimization passes/env tweaks and record pure PyTorch baseline telemetry JSON to `PATH`. |

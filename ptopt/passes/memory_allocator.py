@@ -106,3 +106,51 @@ def apply_memory_allocator_pass(
         parts.append(f"ld_preload={os.environ['LD_PRELOAD']}")
 
     return ", ".join(parts) if parts else "default allocator/threads"
+
+
+def probe_cuda_vram_headroom(torch_mod: Any) -> dict[str, float] | None:
+    """Return live CUDA VRAM usage/headroom metrics in MB, or None when unavailable."""
+    if torch_mod is None:
+        return None
+    cuda_api = getattr(torch_mod, "cuda", None)
+    if cuda_api is None:
+        return None
+    try:
+        if not cuda_api.is_available():
+            return None
+        idx = int(cuda_api.current_device()) if hasattr(cuda_api, "current_device") else 0
+        total_cache = getattr(cuda_api, "_ptopt_total_vram_cache", None)
+        total_bytes = total_cache.get(idx) if isinstance(total_cache, dict) else None
+        if total_bytes is None:
+            props_fn = getattr(cuda_api, "get_device_properties", None)
+            if not callable(props_fn):
+                return None
+            total_bytes = float(getattr(props_fn(idx), "total_memory", 0.0) or 0.0)
+            if total_bytes > 0.0:
+                if not isinstance(total_cache, dict):
+                    total_cache = {}
+                    try:
+                        cuda_api._ptopt_total_vram_cache = total_cache
+                    except Exception:  # noqa: BLE001
+                        total_cache = None
+                if isinstance(total_cache, dict):
+                    total_cache[idx] = total_bytes
+        if total_bytes <= 0.0:
+            return None
+        alloc_fn = getattr(cuda_api, "memory_allocated", None)
+        resv_fn = getattr(cuda_api, "memory_reserved", None)
+        if not callable(alloc_fn) and not callable(resv_fn):
+            return None
+        alloc_bytes = float(alloc_fn(idx)) if callable(alloc_fn) else 0.0
+        resv_bytes = float(resv_fn(idx)) if callable(resv_fn) else alloc_bytes
+        used_bytes = max(alloc_bytes, resv_bytes)
+        mb = 1024.0 * 1024.0
+        return {
+            "total_mb": round(total_bytes / mb, 2),
+            "allocated_mb": round(alloc_bytes / mb, 2),
+            "reserved_mb": round(resv_bytes / mb, 2),
+            "free_mb": round(max(0.0, total_bytes - used_bytes) / mb, 2),
+            "used_ratio": round(min(1.0, max(0.0, used_bytes / total_bytes)), 4),
+        }
+    except Exception:  # noqa: BLE001
+        return None

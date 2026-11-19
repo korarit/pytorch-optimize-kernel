@@ -18,6 +18,7 @@ from ptopt.hooks.module_dispatch import (
     register_module_call_handler,
     unregister_module_call_handler,
 )
+from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
 
 if TYPE_CHECKING:
     from ptopt.hooks.manager import HookManager
@@ -346,6 +347,51 @@ def _build_fp8_weight_cache(
     return (ver, w_t, w_scale, bias_bf16, bias_fp16)
 
 
+def decide_fp8_weight_retention(
+    torch_mod: Any,
+    cfg: OptimizeConfig | None = None,
+    manager: "HookManager | None" = None,
+) -> tuple[bool, dict[str, Any]]:
+    """Determine whether FP8 eval should drop BF16 weights (`drop_w`) based on env, bandwidth_boost & VRAM headroom."""
+    raw = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "").strip().lower()
+    headroom = probe_cuda_vram_headroom(torch_mod)
+    boost_enabled = bool(getattr(getattr(cfg, "runtime", None), "bandwidth_boost", False))
+
+    if raw == "1":
+        policy = {"mode": "explicit_drop", "drop_bf16": True, "headroom": headroom}
+    elif raw == "0":
+        policy = {"mode": "explicit_dual_resident", "drop_bf16": False, "headroom": headroom}
+    elif raw == "auto" or (not raw and boost_enabled):
+        threshold = 0.85 if (not raw and boost_enabled) else 0.80
+        pressure = headroom is not None and headroom["used_ratio"] >= threshold
+        policy = {
+            "mode": ("boost_auto_drop" if pressure else "boost_dual_resident")
+            if (not raw and boost_enabled)
+            else ("auto_drop" if pressure else "auto_dual_resident"),
+            "drop_bf16": pressure,
+            "headroom": headroom,
+        }
+    else:
+        policy = {"mode": "dual_resident_default", "drop_bf16": False, "headroom": headroom}
+
+    try:
+        torch_mod._ptopt_fp8_cache_policy = policy
+    except Exception:  # noqa: BLE001
+        pass
+    if manager is not None:
+        hr_str = (
+            f", free_vram={headroom['free_mb']:.1f}MB ({headroom['used_ratio']:.1%} used)"
+            if headroom is not None
+            else ""
+        )
+        manager.record_event(
+            "inference.fp8_cache",
+            "APPLIED",
+            f"FP8 cache policy={policy['mode']} (drop_bf16={policy['drop_bf16']}{hr_str})",
+        )
+    return bool(policy["drop_bf16"]), policy
+
+
 def prewarm_fp8_weight_caches(module: Any, torch_mod: Any, *, min_work: int | None = None) -> int:
     """Pre-build FP8 weight caches on eligible patched CUDA Linear modules before `torch.compile`."""
     if module is None or torch_mod is None or not hasattr(module, "modules"):
@@ -357,7 +403,7 @@ def prewarm_fp8_weight_caches(module: Any, torch_mod: Any, *, min_work: int | No
     if fp8_dtype is None or bf16_dtype is None or fp32_dtype is None:
         return 0
     work_gate = int(os.environ.get("PTOPT_FP8_MIN_WORK", str(512 * 512))) if min_work is None else int(min_work)
-    drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
+    drop_w, _ = decide_fp8_weight_retention(torch_mod)
     built = 0
     for sub in module.modules():
         if getattr(sub, "training", True):
@@ -408,7 +454,7 @@ def apply_fp8_linear_eval_hooks(module: Any, torch_mod: Any, *, min_work: int | 
         return 0
 
     work_gate = int(os.environ.get("PTOPT_FP8_MIN_WORK", str(512 * 512))) if min_work is None else int(min_work)
-    drop_w = os.environ.get("PTOPT_FP8_DROP_BF16_EVAL", "0") == "1"
+    drop_w, _ = decide_fp8_weight_retention(torch_mod)
     static_scale_enabled = os.environ.get("PTOPT_FP8_STATIC_SCALE") == "1"
     calib_steps = _resolve_fp8_calib_steps()
     mha_opt = os.environ.get("PTOPT_FP8_MHA", "").strip()
@@ -873,6 +919,7 @@ def install_inference_opt_hook(
         # Optional FP8 Linear patching on sm >= 89 CUDA
         if rt.fp8_requested and rt.fp8_eligible and not getattr(mod_self, "_ptopt_fp8_checked", False):
             mod_self._ptopt_fp8_checked = True
+            decide_fp8_weight_retention(torch_mod, cfg=rt.cfg, manager=manager)
             n_patched = apply_fp8_linear_eval_hooks(mod_self, torch_mod)
             if n_patched > 0:
                 manager.record_event(
@@ -881,8 +928,8 @@ def install_inference_opt_hook(
                     f"Patched {n_patched} Linear layers on {type(mod_self).__name__} with FP8 _scaled_mm",
                 )
 
-        # When compiling eval module with FP8 enabled and large-M inputs (M >= 512), pre-build weight
-        # caches once before torch.compile traces so Dynamo lifts pre-quantized FP8 weights statically.
+        # When compiling eval module with FP8 enabled, pre-build weight caches once before torch.compile traces.
+        # Under opt-in bandwidth_boost with high VRAM headroom (>=16GB & <65% used), lower threshold 512 -> 128.
         if (
             rt.fp8_requested
             and rt.fp8_eligible
@@ -890,8 +937,20 @@ def install_inference_opt_hook(
             and not getattr(mod_self, "_ptopt_fp8_prewarmed", False)
         ):
             tensor_cls = getattr(torch_mod, "Tensor", None)
+            hr_fp8 = probe_cuda_vram_headroom(torch_mod)
+            boost_enabled = bool(getattr(getattr(rt.cfg, "runtime", None), "bandwidth_boost", False))
+            min_prewarm_rows = (
+                128
+                if (
+                    boost_enabled
+                    and hr_fp8 is not None
+                    and hr_fp8["total_mb"] >= 16384.0
+                    and hr_fp8["used_ratio"] < 0.65
+                )
+                else 512
+            )
             has_large_m = any(
-                _estimate_token_rows(tensor) >= 512
+                _estimate_token_rows(tensor) >= min_prewarm_rows
                 for item in (*args, *kwargs.values())
                 for tensor in iter_nested_tensors(item, tensor_cls)
             )

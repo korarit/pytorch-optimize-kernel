@@ -25,6 +25,7 @@ class RuntimeConfig:
     omp_threads: int = 0
     jemalloc: bool = False
     activation_checkpointing: str = "off"
+    bandwidth_boost: bool = False
 
 
 @dataclass
@@ -184,6 +185,7 @@ def validate_config(cfg: OptimizeConfig, backend: str | None = None) -> None:
     _require_bool(cfg.runtime.tf32, "runtime.tf32")
     _require_bool(cfg.runtime.cudnn_benchmark, "runtime.cudnn_benchmark")
     _require_bool(cfg.runtime.jemalloc, "runtime.jemalloc")
+    _require_bool(cfg.runtime.bandwidth_boost, "runtime.bandwidth_boost")
     _require_int(cfg.runtime.omp_threads, "runtime.omp_threads", minimum=0)
     if cfg.runtime.alloc_conf is not None and not isinstance(cfg.runtime.alloc_conf, str):
         raise ConfigValidationError("Field 'runtime.alloc_conf' must be str or None.")

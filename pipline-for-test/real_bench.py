@@ -1237,6 +1237,33 @@ def _render_real_report_text(
             mem_rows,
         )
 
+    # Phase 8 VRAM-Headroom Bandwidth Booster telemetry table
+    bw_rows = []
+    for r in records:
+        bw = r.debug_profile.get("bandwidth_vram_booster") or {}
+        if not bw:
+            continue
+        pf = bw.get("prefetch_stats") or {}
+        ibw = bw.get("inductor_bw_tune") or {}
+        fp8p = bw.get("fp8_cache_policy") or {}
+        hr = bw.get("vram_headroom") or {}
+        pf_depth = f"{pf.get('initial_depth', '-')}/{pf.get('max_queue_depth', '-')}/{pf.get('current_depth', '-')}" if pf else "-"
+        bw_rows.append([
+            r.target,
+            f"{r.arm}/{r.cache_state}",
+            pf_depth,
+            f"{pf.get('batches_prefetched', 0)}/{pf.get('backoff_events', 0)}" if pf else "-",
+            "on" if ibw.get("enabled") else ("off" if ibw else "-"),
+            fp8p.get("mode", "-"),
+            f"{hr.get('free_mb', 0.0):.1f} ({hr.get('used_ratio', 0.0):.1%})" if hr else "-",
+        ])
+    if bw_rows:
+        builder.add_table(
+            "VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY",
+            ["Target", "Arm/Cache", "Prefetch(I/M/C)", "Prefetched/Backoff", "Inductor BW", "FP8 Cache", "Free VRAM (Used%)"],
+            bw_rows,
+        )
+
     # Top CUDA / CPU ops hotspots per run
     hotspot_lines: list[str] = []
     for r in records:

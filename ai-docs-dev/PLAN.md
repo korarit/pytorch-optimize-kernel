@@ -53,6 +53,13 @@
 - **7.4** Core Hardening (`checkpoint_compat`, `channels_last`, `auto_amp`, `module_dispatch`, `rope`, `fingerprint`, `cli`, docs)
 - **7.5** Mandatory 7-Part Deep Debug Verification Report (`scripts/verify_phase7.py`)
 
+### Phase 8: VRAM-Headroom Bandwidth Booster & Detailed Telemetry ([Overview](./phase-8-vram-headroom-bandwidth-booster.md))
+- **8.1** Adaptive Multi-Batch GPU Prefetch Queue + Per-Batch `cuda.Event` Sync & VRAM Back-Off (`dataloader_tune.py`)
+- **8.2** Opt-In `--bandwidth-boost` Flag (`default=False`) & High-VRAM Rule (`vram_bandwidth_boost` in `resolver.py` / `cli/main.py` / `schema.py`)
+- **8.3** High-VRAM Inductor Bandwidth Autotuning (`coordinate_descent_tuning` in `auto_compile.py`, `max-autotune` + `bandwidth_boost`)
+- **8.4** VRAM-Headroom-Aware Inference FP8 Resident Cache & `M >= 128` Prewarm (`inference_opt.py`)
+- **8.5** Detailed Bandwidth/Prefetch Telemetry & Verification (`telemetry_hook.py`, `real_bench.py`, `scripts/verify_phase8.py`)
+
 ---
 
 ## โครงสร้างโฟลเดอร์เป้าหมาย (Target Repository Layout)
