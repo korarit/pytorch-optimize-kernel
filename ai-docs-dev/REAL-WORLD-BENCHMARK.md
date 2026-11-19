@@ -13,7 +13,7 @@
    - แยก `train_step_times_ms` กับ `eval_step_times_ms` ออกจากกัน (ลูป validation ระหว่าง epoch จะไม่ถูกนับรวมเข้าไปบิดเบือนเวลาของ train step ถัดไป)
    - กัน `DataLoader` worker subprocesses ไม่ให้เขียนทับไฟล์ telemetry ของ process หลัก และแยกไฟล์ตาม `.rank{RANK}` อัตโนมัติเมื่อรันผ่าน `torchrun`
 3. **Generic External Benchmark Runner & Artifact Bundle** ([`pipline-for-test/real_bench.py`](../pipline-for-test/real_bench.py))
-   - รันคำสั่งของ repo ภายนอกแบบ **4-Arm Comparison** ใน subprocess แยกอิสระ (รองรับ Cold/Warm Inductor cache, `--measure-pure-wall` *(เปิดเป็นค่าเริ่มต้น, ปิดด้วย `--no-pure-wall`)* + `nvidia-smi` timeline, `--diag-mode deep` *(เปิดเป็นค่าเริ่มต้น)*, `--metric-regex` ดึง `val_loss`/`Acc@1`/`tok/s` จาก stdout, `--parity-mode`, `--manifest`)
+   - รันคำสั่งของ repo ภายนอกแบบ **4-Arm Comparison** ใน subprocess แยกอิสระ (รองรับ Cold/Warm Inductor cache, `--measure-pure-wall` *(เปิดเป็นค่าเริ่มต้น, ปิดด้วย `--no-pure-wall`)* + `nvidia-smi` timeline, `--diag-mode deep` *(เปิดเป็นค่าเริ่มต้น)*, `--metric-regex` ดึง `val_loss`/`Acc@1`/`tok/s` จาก stdout, `--parity-mode`, `--manifest`, `--timeout` ค่าเริ่มต้น `3600` วินาที / 1 ชั่วโมงต่อ run)
    - **Live Per-Profile Output & Incremental Save**: แสดงสรุปผลเทียบ Baseline ทันทีที่จบ **แต่ละ profile/arm** (ไม่ต้องรอจบทั้งหมด), บันทึก `summary.txt`/`summary.json`/`comparisons.csv` อัปเดตทีละขั้น (กดหยุดกลางทางก็ยังมีผลที่จบแล้วครบ), และเพิ่ม `--stream` หากต้องการดู stdout/stderr ของโปรเจกต์ที่กำลังรันแบบ real-time
    - เก็บผลลัพธ์และ log เชิงลึกทั้งหมดลงในโฟลเดอร์ **`benchmark_results/HHMMSS_YYYYMMDD-<name>/`** (ปรับได้ด้วย `--results-dir`) พร้อมเขียนรายงานสรุปลง [`report/`](../report/)
 
@@ -102,20 +102,21 @@ cd /content/external_repos/pytorch-cifar
 python3 -c "import torchvision; torchvision.datasets.CIFAR10(root='./data', train=True, download=True); torchvision.datasets.CIFAR10(root='./data', train=False, download=True)"
 ```
 
-รัน Benchmark (แนะนำปรับ `--lr` หรือจำกัด epoch ตอนทดสอบ หรือรัน 1-2 epochs):
+รัน Benchmark โดยจำกัดเหลือ **10 epochs** ใน memory (เพราะ `main.py` ของ repo นี้ฮาร์ดโค้ดไว้ `start_epoch+200` และไม่มี flag `--epochs` ทำให้รันครบ 200 epochs เกิน 1800s/3600s และมี `Acc:` ตามด้วยเครื่องหมาย `:`):
 ```bash
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name pytorch-cifar-resnet18 \
   --cwd /content/external_repos/pytorch-cifar \
-  --cmd "python3 main.py" \
+  --cmd "python3 -c \"import pathlib, re; src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})\"" \
   --profiles safe,balanced,aggressive \
   --cache-modes auto \
-  --metric-regex "test_acc=Acc@?\s*([0-9.]+)%" \
+  --metric-regex "test_acc=Acc[:@\s]*([0-9.]+)%" \
   --parity-mode metric \
+  --timeout 3600 \
   --measure-pure-wall
 ```
 **ตรวจ Checkpoint Round-Trip เพิ่มเติม:**
-1. รัน `ptopt --profile balanced -- python3 main.py` (ให้เซฟ `./checkpoint/ckpt.pth`)
+1. รัน `ptopt --profile balanced -- python3 -c "import pathlib, re; src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})"` (ให้เซฟ `./checkpoint/ckpt.pth`)
 2. ปิด `ptopt` แล้วรัน Pure PyTorch: `python3 main.py --resume` -> ต้องโหลด `ckpt.pth` สำเร็จ 100% (ไม่มี `_orig_mod.` key mismatch)
 
 ---
@@ -163,7 +164,7 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
 ---
 
 #### 4.3 `pytorch/examples` (`imagenet/main.py`) — Standard Vision 224x224
-ทดสอบ `ResNet50` ที่ขนาดภาพจริง `224x224` (`channels_last` 4D, `TF32`, `BF16`, `compile`, `DataLoader` + `cuda_prefetch`) โดยใช้ `--dummy` เพื่อตัด I/O noise หรือเปลี่ยนเป็น Imagenette:
+ทดสอบ `ResNet50` ที่ขนาดภาพจริง `224x224` (`channels_last` 4D, `TF32`, `BF16`, `compile`, `DataLoader` + `cuda_prefetch`) โดยใช้ `--dummy` พร้อม cap ขนาด `FakeData` ใน memory (เพราะ `--dummy` ปกติของ `imagenet/main.py` สร้าง `FakeData(1281167, ...)` + `FakeData(50000, ...)` = 20,800 steps/epoch บน CPU PIL ซึ่งจะ timeout บน Colab จึงจำกัดเหลือ 6,400 train / 1,280 val samples หรือ ~100+20 batches):
 
 ```bash
 cd /content/external_repos
@@ -172,11 +173,12 @@ git clone --depth 1 https://github.com/pytorch/examples.git
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name pytorch-examples-resnet50 \
   --cwd /content/external_repos/examples/imagenet \
-  --cmd "python3 main.py -a resnet50 --dummy --epochs 1 --batch-size 64 --workers 2" \
+  --cmd "python3 -c \"import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')\"" \
   --profiles safe,balanced,aggressive \
   --ptopt-arg="--override dataloader.cuda_prefetch=true" \
   --cache-modes auto \
   --parity-mode auto \
+  --timeout 3600 \
   --measure-pure-wall
 ```
 
@@ -200,8 +202,11 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --test-conflict \
   --profiles safe,balanced,aggressive \
   --metric-regex "loss=Loss:\s*([0-9.]+)" \
+  --timeout 3600 \
   --measure-pure-wall
 ```
+> **หมายเหตุระยะเวลารัน (`timm`)**: คำสั่งนี้มี 8 arms (`--test-conflict` + 3 profiles) × 3 passes และบางเวอร์ชันของ `timm` อาจต้องใช้ `--dataset torch/cifar100 --dataset-download --img-size 224` แทน `--dataset fake` หากต้องการรันไวขึ้นบน Colab ให้ลดเหลือ `--profiles safe,balanced` ก่อน
+
 
 ---
 
@@ -298,11 +303,12 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
     {
       "name": "pytorch-cifar",
       "cwd": "/content/external_repos/pytorch-cifar",
-      "cmd": "python3 main.py",
+      "cmd": "python3 -c \"import pathlib, re; src = re.sub(r'start_epoch\\s*\\+\\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})\"",
       "profiles": ["safe", "balanced"],
       "cache_modes": ["auto"],
-      "metric_regex": { "acc": "Acc@?\\s*([0-9.]+)%" },
+      "metric_regex": { "acc": "Acc[:@\\s]*([0-9.]+)%" },
       "parity_mode": "metric",
+      "timeout_sec": 3600,
       "measure_pure_wall": true
     },
     {

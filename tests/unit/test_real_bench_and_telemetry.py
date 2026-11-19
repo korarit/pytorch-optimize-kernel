@@ -31,6 +31,7 @@ from ptopt.hooks import HookManager
 from ptopt.hooks.telemetry_hook import TelemetryCollector
 from real_bench import (
     RealTargetSpec,
+    _run_subprocess,
     export_real_csv,
     export_real_json,
     extract_metrics_from_output,
@@ -370,6 +371,47 @@ class TestRealBenchHarness(unittest.TestCase):
             self.assertEqual(len(loaded), 1)
             self.assertEqual(loaded[0].name, "manifest-tiny")
             self.assertEqual(loaded[0].cmd[0], sys.executable)
+            self.assertEqual(loaded[0].timeout_sec, 3600.0)
+            self.assertEqual(RealTargetSpec(name="x", cwd=tmp_dir, cmd=[sys.executable]).timeout_sec, 3600.0)
+
+    def test_subprocess_timeout_kills_process_group_and_keeps_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_dir = Path(tmp)
+            pid_file = tmp_dir / "grandchild.pid"
+            script = tmp_dir / "hang_with_child.py"
+            script.write_text(
+                "\n".join([
+                    "import pathlib, subprocess, sys, time",
+                    f"child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])",
+                    f"pathlib.Path({str(pid_file)!r}).write_text(str(child.pid), encoding='utf-8')",
+                    "print('BEFORE_TIMEOUT', flush=True)",
+                    "time.sleep(60)",
+                ]) + "\n",
+                encoding="utf-8",
+            )
+            rc, out, err, _wall, _, _, _ = _run_subprocess(
+                [sys.executable, str(script)],
+                cwd=tmp_dir,
+                env=os.environ,
+                timeout_sec=0.8,
+                sample_gpu=False,
+                stream_output=False,
+            )
+            self.assertEqual(rc, 124)
+            self.assertIn("BEFORE_TIMEOUT", out)
+            self.assertIn("Timed out after", err)
+            if os.name == "posix" and pid_file.is_file():
+                grandchild_pid = int(pid_file.read_text(encoding="utf-8").strip())
+                time.sleep(0.1)
+                stat_path = Path(f"/proc/{grandchild_pid}/stat")
+                if stat_path.exists():
+                    # Killed child reparented to PID 1 may linger briefly as a 'Z' (zombie) in containers.
+                    stat_txt = stat_path.read_text(encoding="utf-8", errors="replace")
+                    state = stat_txt.rsplit(")", 1)[-1].strip().split()[0]
+                    self.assertEqual(state, "Z", f"Expected grandchild killed/zombie, got: {stat_txt}")
+                else:
+                    with self.assertRaises(ProcessLookupError):
+                        os.kill(grandchild_pid, 0)
 
 
 if __name__ == "__main__":

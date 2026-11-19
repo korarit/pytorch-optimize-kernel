@@ -12,6 +12,7 @@ import os
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -67,7 +68,7 @@ class RealTargetSpec:
     stream_output: bool = False
     ptopt_args: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
-    timeout_sec: float = 1800.0
+    timeout_sec: float = 3600.0
 
 
 @dataclass(frozen=True)
@@ -311,6 +312,23 @@ def _with_repo_on_pythonpath(env: dict[str, str]) -> dict[str, str]:
     return out
 
 
+def _terminate_process_group(proc: subprocess.Popen[str]) -> None:
+    """Kill the subprocess and its entire POSIX process group so GPU workers cannot linger."""
+    if os.name == "posix":
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except OSError:
+            pass
+    if proc.poll() is None:
+        proc.kill()
+
+
+def _coerce_text(val: str | bytes | None) -> str:
+    if val is None:
+        return ""
+    return val if isinstance(val, str) else val.decode("utf-8", errors="replace")
+
+
 def _run_subprocess(
     cmd: Sequence[str],
     *,
@@ -327,18 +345,33 @@ def _run_subprocess(
 
     def _exec_inner() -> tuple[int, str, str]:
         if not stream_output:
-            proc = subprocess.run(
+            with subprocess.Popen(
                 list(cmd),
                 cwd=cwd,
                 env=dict(env),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=timeout_sec,
-                check=False,
-            )
-            return proc.returncode, proc.stdout or "", proc.stderr or ""
+                start_new_session=(os.name == "posix"),
+            ) as proc_p:
+                try:
+                    out_txt, err_txt = proc_p.communicate(timeout=timeout_sec)
+                    return proc_p.returncode, out_txt or "", err_txt or ""
+                except subprocess.TimeoutExpired:
+                    _terminate_process_group(proc_p)
+                    try:
+                        out_txt, err_txt = proc_p.communicate(timeout=5.0)
+                    except subprocess.TimeoutExpired:
+                        out_txt, err_txt = "", ""
+                    raise subprocess.TimeoutExpired(
+                        cmd=list(cmd),
+                        timeout=timeout_sec,
+                        output=out_txt or "",
+                        stderr=err_txt or "",
+                    )
 
         lines: list[str] = []
+        timed_out = threading.Event()
         with subprocess.Popen(
             list(cmd),
             cwd=cwd,
@@ -347,20 +380,32 @@ def _run_subprocess(
             stderr=subprocess.STDOUT,
             text=True,
             bufsize=1,
+            start_new_session=(os.name == "posix"),
         ) as proc_p:
             assert proc_p.stdout is not None
+
+            def _on_timeout() -> None:
+                timed_out.set()
+                _terminate_process_group(proc_p)
+
+            timer = threading.Timer(timeout_sec, _on_timeout)
+            timer.daemon = True
+            timer.start()
             try:
                 for line in proc_p.stdout:
                     sys.stdout.write(line)
                     sys.stdout.flush()
                     lines.append(line)
-                    if (time.perf_counter() - t0) > timeout_sec:
-                        proc_p.kill()
+                    if timed_out.is_set() or (time.perf_counter() - t0) > timeout_sec:
+                        timed_out.set()
+                        _terminate_process_group(proc_p)
                         raise subprocess.TimeoutExpired(cmd=list(cmd), timeout=timeout_sec, output="".join(lines))
+                if timed_out.is_set():
+                    raise subprocess.TimeoutExpired(cmd=list(cmd), timeout=timeout_sec, output="".join(lines))
                 rc_val = proc_p.wait(timeout=max(1.0, timeout_sec - (time.perf_counter() - t0)))
             finally:
-                if proc_p.poll() is None:
-                    proc_p.kill()
+                timer.cancel()
+                _terminate_process_group(proc_p)
         return rc_val, "".join(lines), ""
 
     try:
@@ -376,8 +421,8 @@ def _run_subprocess(
         return rc_val, out_txt, err_txt, wall, peak_nvsmi, gpu_util_avg, samples
     except subprocess.TimeoutExpired as exc:
         wall = time.perf_counter() - t0
-        out = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
-        err = (exc.stderr or "") if isinstance(exc.stderr, str) else ""
+        out = _coerce_text(exc.stdout)
+        err = _coerce_text(exc.stderr)
         return 124, out, f"Timed out after {timeout_sec:.0f}s\n{err}".strip(), wall, None, None, []
 
 
@@ -1421,7 +1466,7 @@ def load_manifest_specs(manifest_path: Path) -> list[RealTargetSpec]:
                 stream_output=bool(item.get("stream_output", False)),
                 ptopt_args=tuple(str(a) for a in (item.get("ptopt_args") or ())),
                 env={str(k): str(v) for k, v in (item.get("env") or {}).items()},
-                timeout_sec=float(item.get("timeout_sec", 1800.0)),
+                timeout_sec=float(item.get("timeout_sec", 3600.0)),
             )
         )
     return specs
@@ -1453,7 +1498,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--quiet", action="store_true", help="Suppress live per-profile progress cards (still prints final report)")
     parser.add_argument("--ptopt-arg", action="append", default=[], help="Extra flag passed to ptopt (e.g. --ptopt-arg=--no-compile)")
     parser.add_argument("--env", action="append", default=[], help="Extra subprocess environment variable KEY=VALUE")
-    parser.add_argument("--timeout", type=float, default=1800.0, help="Per-run timeout in seconds")
+    parser.add_argument("--timeout", type=float, default=3600.0, help="Per-run timeout in seconds (default: 3600 = 1h)")
     parser.add_argument("--cache-dir", type=Path, default=None, help="Persistent Inductor/Triton cache root")
     parser.add_argument("--results-dir", type=Path, default=REPO_ROOT / "benchmark_results", help="Root folder saving per-run artifact bundles (default: benchmark_results/)")
     parser.add_argument("--no-save-bundle", action="store_true", help="Skip saving per-run artifact bundle folder")
