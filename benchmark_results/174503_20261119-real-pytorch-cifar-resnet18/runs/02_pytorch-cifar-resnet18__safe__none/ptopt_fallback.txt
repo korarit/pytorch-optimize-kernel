@@ -1,0 +1,19 @@
+[ptopt fallback/hook summary]
+  profile=safe | exit_code=0 | cmd=/usr/bin/python3 -c import pathlib, re; src = re.sub(r'start_epoch\s*\+\s*200', 'start_epoch+10', pathlib.Path('main.py').read_text()); exec(compile(src, 'main.py', 'exec'), {'__name__': '__main__', '__file__': 'main.py'})
+  Counts: APPLIED=9 | SKIPPED=5 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] optimizer.SGD: fused=True
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.auto: compile.enabled is False
+  - [SKIPPED (by arch/config)] amp.auto: amp.enabled is False or dtype is fp32
+  - [SKIPPED (by arch/config)] runtime.activation_checkpointing: runtime.activation_checkpointing is off
+  - [SKIPPED (by arch/config)] kernels.auto: kernels.enabled is False
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)

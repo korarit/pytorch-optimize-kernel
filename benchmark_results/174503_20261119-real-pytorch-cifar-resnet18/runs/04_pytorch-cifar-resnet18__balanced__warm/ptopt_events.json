@@ -1,0 +1,110 @@
+[
+  {
+    "pass_name": "runtime.memory_allocator",
+    "status": "APPLIED",
+    "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.flags",
+    "status": "APPLIED",
+    "reason": "tf32=on, flash_sdp=True, mem_sdp=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "DataLoader auto-tune hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.fusion",
+    "status": "APPLIED",
+    "reason": "Optimizer fusion hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpe0_hpurc/pytorch-cifar-resnet18/balanced)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "APPLIED",
+    "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "APPLIED",
+    "reason": "Auto-AMP installed (dtype=bf16, grad_scaler=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.opt",
+    "status": "APPLIED",
+    "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.activation_checkpointing",
+    "status": "APPLIED",
+    "reason": "Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.fused_linear_cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True; hybrid compile+FusedLCE head enabled",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.auto",
+    "status": "APPLIED",
+    "reason": "Custom kernels active: fused_linear_cross_entropy",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "Preserved user num_workers=2; enabled pin_memory=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "Preserved user num_workers=2; enabled pin_memory=True",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.SGD",
+    "status": "APPLIED",
+    "reason": "fused=True",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.cudnn_benchmark",
+    "status": "FALLBACK",
+    "reason": "Disabled cudnn_benchmark due to DataLoader remainder shapes on DataParallel",
+    "error": null
+  },
+  {
+    "pass_name": "compile.inductor_bw_tune",
+    "status": "SKIPPED",
+    "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled(dynamic,dl_remainder:dataset=50000, batch_size=128) DataParallel (mode=default, dynamic=True)",
+    "error": null
+  }
+]
