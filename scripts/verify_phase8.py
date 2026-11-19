@@ -170,12 +170,13 @@ def main() -> int:
             ]
             baselines: dict[str, Any] = {}
             for case_lbl, wl_name, steps, bs, extra, var_lbl, is_base, ovr, xenv in specs:
+                var_profile = "aggressive" if "aggressive" in var_lbl else "balanced"
                 rec, summary, tel = run_workload_variant(
                     case_label=case_lbl,
                     wl_name=wl_name,
                     steps=steps,
                     device="cuda",
-                    profile="aggressive" if "aggressive" in var_lbl else "balanced",
+                    profile=var_profile,
                     variant_name=var_lbl,
                     extra_args=extra,
                     batch_size=bs,
@@ -193,7 +194,7 @@ def main() -> int:
                 base_rec = baselines.get(case_lbl, rec)
                 step0, p99 = extract_step0_and_p99(summary, tel)
                 spd = 1.0 if is_base else compute_speedup(base_rec.step_stats.median, rec.step_stats.median)
-                parity_ok = True if is_base else check_parity(base_rec.losses, rec.losses, profile="balanced").passed
+                parity_ok = True if is_base else check_parity(base_rec.losses, rec.losses, profile=var_profile).passed
                 status = "PASS" if (rec.exit_code == 0 and parity_ok) else "FAIL"
                 vram_d = compute_vram_delta(base_rec.peak_allocated_mb, rec.peak_allocated_mb)
                 ablation_rows.append([
@@ -208,6 +209,7 @@ def main() -> int:
                     f"{rec.peak_allocated_mb:.1f} MB ({vram_d:+.1f})",
                     status,
                 ])
+                step_traces.extend(format_step_trace_block(case_lbl, var_lbl, summary, tel))
                 if tel is not None:
                     pb_row = extract_phase_breakdown_row(case_lbl, var_lbl, tel)
                     if pb_row is not None:
@@ -215,8 +217,7 @@ def main() -> int:
                     al_row = extract_allocator_row(case_lbl, var_lbl, tel)
                     if al_row is not None:
                         alloc_rows.append(al_row)
-                    prof_blocks.append(format_torch_profiler_block(case_lbl, var_lbl, tel))
-                    step_traces.append(format_step_trace_block(case_lbl, var_lbl, summary, tel))
+                    prof_blocks.extend(format_torch_profiler_block(case_lbl, var_lbl, tel))
                     bw = (tel.get("debug_profile") or {}).get("bandwidth_vram_booster")
                     if bw:
                         diag_lines.append(f"[BW_BOOSTER] {case_lbl} ({var_lbl}): {bw}")

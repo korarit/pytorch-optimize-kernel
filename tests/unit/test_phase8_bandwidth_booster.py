@@ -439,6 +439,114 @@ class TestPhase8ConfigRulesAndInductorFP8(unittest.TestCase):
             self.assertIsNotNone(probe_cuda_vram_headroom(mock_t))
             mgr_t.reset()
 
+    def test_verify_phase8_cuda_report_rendering(self) -> None:
+        scripts_dir = str(REPO_ROOT / "scripts")
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        from scripts import verify_phase8
+
+        bench_dir = str(REPO_ROOT / "pipline-for-test")
+        if bench_dir not in sys.path:
+            sys.path.insert(0, bench_dir)
+        from telemetry import RunRecord, StepStats
+
+        def _fake_run(**kwargs: Any) -> tuple[RunRecord, dict[str, Any], dict[str, Any] | None]:
+            is_base = bool(kwargs.get("is_baseline", False))
+            case_lbl = str(kwargs["case_label"])
+            var_lbl = str(kwargs["variant_name"])
+            lat = 20.0 if is_base else 10.0
+            step_times = [lat * 2.0, lat, lat * 1.05, lat * 0.95]
+            stats = StepStats(
+                median=lat,
+                p95=lat * 1.05,
+                min=lat * 0.95,
+                max=lat * 2.0,
+                std=0.4,
+                mean=lat,
+                warmup_steps=1,
+                steady_steps=3,
+            )
+            rec = RunRecord(
+                workload=case_lbl,
+                mode=var_lbl,
+                cache_state="none" if is_base else "warm",
+                exit_code=0,
+                end_to_end_sec=0.5 if is_base else 0.3,
+                step_stats=stats,
+                throughput_value=100.0 if is_base else 200.0,
+                throughput_unit="samples/s",
+                peak_allocated_mb=512.0,
+                peak_reserved_mb=640.0,
+                losses=[1.0, 0.9, 0.8],
+            )
+            summary = {"step_times_ms": step_times}
+            if is_base:
+                return rec, summary, None
+            tel = {
+                "step_times_ms": step_times,
+                "debug_profile": {
+                    "phase_breakdown": {
+                        "step_0_cold": {"total_ms": step_times[0]},
+                        "steady_mean_ms": {
+                            "total_ms": lat,
+                            "data_other_ms": 1.0,
+                            "forward_ms": 4.0,
+                            "loss_clip_ms": 1.0,
+                            "backward_ms": 3.0,
+                            "optim_ms": 1.0,
+                        },
+                        "steady_shares_pct": {
+                            "data_other": 10.0,
+                            "forward": 40.0,
+                            "loss_clip": 10.0,
+                            "backward": 30.0,
+                            "optim": 10.0,
+                        },
+                    },
+                    "cuda_memory_debug": {
+                        "peak_allocated_mb": 512.0,
+                        "peak_reserved_mb": 640.0,
+                        "reserved_overhead_mb": 128.0,
+                        "headroom_mb": 20000.0,
+                        "utilization_pct": 2.5,
+                        "num_alloc_retries": 0,
+                    },
+                    "torch_profiler": {
+                        "window_steps": "2-5",
+                        "total_self_cuda_ms": 8.5,
+                        "total_self_cpu_ms": 2.1,
+                        "top_cuda_ops": [
+                            {"name": "aten::mm", "calls": 4, "self_cuda_ms": 4.0, "total_cuda_ms": 5.0, "pct": 47.0},
+                        ],
+                    },
+                    "bandwidth_vram_booster": {"prefetch_stats": {"initial_depth": 3}},
+                },
+            }
+            return rec, summary, tel
+
+        with tempfile.TemporaryDirectory() as tmp:
+            orig_write = verify_phase8.TextReportBuilder.write
+
+            def _write_tmp(self_builder: Any, name: str, report_dir: Path | None = None) -> Path:
+                return orig_write(self_builder, name=name, report_dir=Path(tmp))
+
+            with (
+                patch.object(verify_phase8.torch.cuda, "is_available", return_value=True),
+                patch.object(verify_phase8, "_run_unit_file", return_value=(True, 0.01, "", "")),
+                patch.object(verify_phase8, "run_workload_variant", side_effect=_fake_run),
+                patch.object(verify_phase8.TextReportBuilder, "write", _write_tmp),
+                patch("sys.stdout", new_callable=lambda: __import__("io").StringIO()),
+            ):
+                rc = verify_phase8.main()
+
+            self.assertEqual(rc, 0)
+            written = list(Path(tmp).glob("*-phase-8.txt"))
+            self.assertEqual(len(written), 1)
+            report_text = written[0].read_text(encoding="utf-8")
+            self.assertIn("[TOP PYTORCH PROFILER OPS (STEADY WINDOW)]", report_text)
+            self.assertIn("[WARMUP VS STEADY STEP TRACE]", report_text)
+            self.assertIn("aten::mm", report_text)
+
 
 if __name__ == "__main__":
     unittest.main()
