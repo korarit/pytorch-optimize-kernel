@@ -16,9 +16,12 @@ import torch
 import torch.nn as nn
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+UNIT_DIR = Path(__file__).resolve().parent
+for _p in (str(REPO_ROOT), str(UNIT_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
+from test_config_resolver import _make_fp  # noqa: E402
 from ptopt.config import ConfigResolver, OptimizeConfig
 from ptopt.hooks import HookManager
 from ptopt.hooks.telemetry_hook import TelemetryCollector
@@ -31,7 +34,6 @@ from ptopt.passes.dataloader_tune import (
 )
 from ptopt.passes.inference_opt import decide_fp8_weight_retention
 from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
-from tests.unit.test_config_resolver import _make_fp
 
 
 class _MockCudaTensor:

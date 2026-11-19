@@ -1,0 +1,105 @@
+
+
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | Phase 8: VRAM-Headroom Bandwidth Booster & Detailed Telemetry
+==============================================================================
+Timestamp          : 2026-11-19 10:55:43 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ c514b8f
+Git Commit         : sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140
+Backend / GPU      : cuda / NVIDIA L4 (sm_89, 22563.1 MB)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+Balanced Default Rules: base_safe_defaults, host_linux_x86_64, host_colab_runtime, gpu_cuda_ada_sm89, vram_12_24gb, profile_balanced_cuda, profile_balanced_dataloader
+Balanced Boost Rules: base_safe_defaults, host_linux_x86_64, host_colab_runtime, gpu_cuda_ada_sm89, vram_12_24gb, profile_balanced_cuda, profile_balanced_dataloader, cli_overrides, vram_bandwidth_boost
+Aggressive Boost Rules: base_safe_defaults, host_linux_x86_64, host_colab_runtime, gpu_cuda_ada_sm89, vram_12_24gb, profile_balanced_dataloader, profile_aggressive_cuda, profile_aggressive_high_vram_cuda, profile_aggressive_triton_kernels, cli_overrides, vram_bandwidth_boost
+
+[PHASE 8 AUDIT & FUNCTIONAL MATRIX]
+------------------------------------------------------------------------------
+ID  | Workstream                                                        | Scope  | Status | Notes                                                                                                                                                                                                                                                                                                                                                                                            
+----+-------------------------------------------------------------------+--------+--------+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+8.1 | Adaptive multi-batch GPU prefetch + Event sync + back-off         | Unit   | FAIL   | Ran test_phase8_bandwidth_booster.py in 2.10s                                                                                                                                                                                                                                                                                                                                                    
+8.2 | Opt-in vram_bandwidth_boost rule (--bandwidth-boost, default off) | Config | PASS   | default=['base_safe_defaults', 'host_linux_x86_64', 'host_colab_runtime', 'gpu_cuda_ada_sm89', 'vram_12_24gb', 'profile_balanced_cuda', 'profile_balanced_dataloader'] | boost=['base_safe_defaults', 'host_linux_x86_64', 'host_colab_runtime', 'gpu_cuda_ada_sm89', 'vram_12_24gb', 'profile_balanced_cuda', 'profile_balanced_dataloader', 'cli_overrides', 'vram_bandwidth_boost'] (dt=0.12s)
+8.3 | Inductor coordinate_descent_tuning opt-in VRAM gate               | Unit   | FAIL   | Tested default skip vs boost max-autotune apply & >=75% skip                                                                                                                                                                                                                                                                                                                                     
+8.4 | FP8 dual-resident vs boost/auto-drop & M>=128 prewarm             | Unit   | FAIL   | Tested dual_resident_default vs boost_auto_drop (>=85%) & auto (>=80%)                                                                                                                                                                                                                                                                                                                           
+8.5 | bandwidth_vram_booster telemetry & real_bench table               | Unit   | FAIL   | TelemetryCollector + real_bench summary verified                                                                                                                                                                                                                                                                                                                                                 
+
+[ABLATION MATRIX + P95 / P99 / E2E LATENCY SUMMARY]
+------------------------------------------------------------------------------
+Case               | Mode                  | Step0(ms) | SteadyP50 | P95(ms) | P99(ms) | Speedup | E2E    | PeakVRAM            | Status
+-------------------+-----------------------+-----------+-----------+---------+---------+---------+--------+---------------------+-------
+cnn_vision_224     | baseline              | 652.6     | 129.80    | 130.59  | 131.29  | 1.00x   | 6.32s  | 1675.5 MB (+0.0)    | PASS  
+cnn_vision_224     | balanced_default      | 19243.2   | 37.49     | 42.97   | 44.52   | 3.46x   | 25.40s | 844.0 MB (-831.4)   | PASS  
+cnn_vision_224     | balanced_phase8_boost | 20156.4   | 36.66     | 39.54   | 40.55   | 3.54x   | 26.37s | 1232.8 MB (-442.7)  | PASS  
+transformer_lm_med | baseline              | 467.1     | 188.10    | 192.80  | 193.62  | 1.00x   | 6.75s  | 2749.5 MB (+0.0)    | PASS  
+transformer_lm_med | aggressive_phase8_bw  | 51937.3   | 48.90     | 50.18   | 50.32   | 3.85x   | 58.42s | 1667.3 MB (-1082.2) | PASS  
+
+[PHASE BREAKDOWN (DEBUG PROFILE)]
+------------------------------------------------------------------------------
+Case               | Mode                  | Step0(ms) | Steady(ms) | Data/Other  | Forward       | Loss/Clip   | Backward      | Optim       
+-------------------+-----------------------+-----------+------------+-------------+---------------+-------------+---------------+-------------
+cnn_vision_224     | balanced_default      | 19243.23  | 38.21      | 2.15 (5.6%) | 10.01 (26.2%) | 0.46 (1.2%) | 24.96 (65.3%) | 0.63 (1.6%) 
+cnn_vision_224     | balanced_phase8_boost | 20156.35  | 37.17      | 2.06 (5.5%) | 9.95 (26.8%)  | 0.48 (1.3%) | 24.30 (65.4%) | 0.38 (1.0%) 
+transformer_lm_med | aggressive_phase8_bw  | 51937.25  | 48.28      | 0.64 (1.3%) | 14.11 (29.2%) | 0.70 (1.5%) | 24.97 (51.7%) | 7.87 (16.3%)
+
+[CUDA ALLOCATOR & MEMORY HEADROOM]
+------------------------------------------------------------------------------
+Case               | Mode                  | Alloc(MB) | Reserved(MB) | Overhead(MB) | Headroom(MB) | Util(%) | Retries
+-------------------+-----------------------+-----------+--------------+--------------+--------------+---------+--------
+cnn_vision_224     | balanced_default      | 844.0     | 872.0        | 27.9         | 21691.1      | 3.9%    | 0      
+cnn_vision_224     | balanced_phase8_boost | 1232.8    | 1290.0       | 57.2         | 21273.1      | 5.7%    | 0      
+transformer_lm_med | aggressive_phase8_bw  | 1667.3    | 1706.0       | 38.7         | 20857.1      | 7.6%    | 0      
+
+[TOP PYTORCH PROFILER OPS (STEADY WINDOW)]
+------------------------------------------------------------------------------
+[cnn_vision_224 | balanced_default] Profiler window=[2, 6] self_cuda=263.532ms self_cpu=153.409ms (top_cuda_ops):
+  aten::convolution_backward                       calls=40    self= 40.999ms (15.6%) total= 40.999ms
+  aten::cudnn_convolution                          calls=40    self= 16.308ms ( 6.2%) total= 16.308ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=20    self= 14.668ms ( 5.6%) total= 14.668ms
+  sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b calls=16    self=  8.629ms ( 3.3%) total=  8.629ms
+  triton_red_fused__native_batch_norm_legit_functi calls=12    self=  8.130ms ( 3.1%) total=  8.130ms
+  triton_red_fused__native_batch_norm_legit_functi calls=12    self=  8.130ms ( 3.1%) total=  8.130ms
+  sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f calls=16    self=  7.911ms ( 3.0%) total=  7.911ms
+  sm80_xmma_fprop_implicit_gemm_bf16bf16_bf16f32_f calls=16    self=  7.850ms ( 3.0%) total=  7.850ms
+[cnn_vision_224 | balanced_phase8_boost] Profiler window=[2, 6] self_cuda=260.988ms self_cpu=142.773ms (top_cuda_ops):
+  aten::convolution_backward                       calls=40    self= 39.510ms (15.1%) total= 39.510ms
+  aten::cudnn_convolution                          calls=40    self= 16.077ms ( 6.2%) total= 16.077ms
+  _ZN17cutlass__5x_cudnn6KernelINS_4conv6kernel23I calls=16    self= 11.288ms ( 4.3%) total= 11.288ms
+  void cutlass__5x_cudnn::Kernel<cutlass_tensorop_ calls=16    self=  8.628ms ( 3.3%) total=  8.628ms
+  triton_red_fused__native_batch_norm_legit_functi calls=12    self=  8.364ms ( 3.2%) total=  8.364ms
+  triton_red_fused__native_batch_norm_legit_functi calls=12    self=  8.364ms ( 3.2%) total=  8.364ms
+  sm80_xmma_dgrad_implicit_gemm_bf16bf16_bf16f32_f calls=16    self=  8.049ms ( 3.1%) total=  8.049ms
+  sm80_xmma_fprop_implicit_gemm_bf16bf16_bf16f32_f calls=16    self=  7.916ms ( 3.0%) total=  7.916ms
+[transformer_lm_med | aggressive_phase8_bw] Profiler window=[2, 6] self_cuda=380.215ms self_cpu=189.515ms (top_cuda_ops):
+  aten::mm                                         calls=372   self= 87.597ms (23.0%) total= 87.597ms
+  Optimizer.step#AdamW.step                        calls=4     self= 29.824ms ( 7.8%) total= 29.824ms
+  aten::_fused_adamw_                              calls=4     self= 29.374ms ( 7.7%) total= 29.374ms
+  void at::native::(anonymous namespace)::multi_te calls=4     self= 29.374ms ( 7.7%) total= 29.374ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=124   self= 28.996ms ( 7.6%) total= 28.996ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn   calls=100   self= 23.135ms ( 6.1%) total= 23.135ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=76    self= 21.070ms ( 5.5%) total= 21.070ms
+  triton_poi_fused__unsafe_view_mul_silu_silu_back calls=24    self= 12.850ms ( 3.4%) total= 12.850ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[cnn_vision_224 | baseline] step0=652.63ms | steady_med=129.96ms | s0=652.63ms, s1=131.36ms, s2=130.72ms, s3=130.42ms, s4=129.97ms, s5=129.96ms, s6=130.00ms, s7=129.52ms ...
+[cnn_vision_224 | balanced_default] step0=19243.23ms | steady_med=37.28ms | s0=19243.23ms, s1=36.88ms, s2=44.96ms, s3=38.34ms, s4=40.54ms, s5=37.81ms, s6=36.55ms, s7=36.58ms ...
+[cnn_vision_224 | balanced_phase8_boost] step0=20156.35ms | steady_med=36.71ms | s0=20156.35ms, s1=36.86ms, s2=40.84ms, s3=37.39ms, s4=37.39ms, s5=37.94ms, s6=36.60ms, s7=36.51ms ...
+[transformer_lm_med | baseline] step0=467.10ms | steady_med=187.97ms | s0=467.10ms, s1=181.40ms, s2=185.13ms, s3=187.35ms, s4=185.72ms, s5=187.97ms, s6=193.85ms, s7=188.24ms ...
+[transformer_lm_med | aggressive_phase8_bw] step0=51937.25ms | steady_med=48.42ms | s0=51937.25ms, s1=45.58ms, s2=49.66ms, s3=48.42ms, s4=49.38ms, s5=50.36ms, s6=46.19ms, s7=45.89ms ...
+
+[AUTOMATED DIAGNOSIS & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+[BW_BOOSTER] cnn_vision_224 (balanced_default): {'inductor_bw_tune': {'enabled': False, 'reason': 'runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)'}, 'vram_headroom': {'total_mb': 22563.12, 'allocated_mb': 22.5, 'reserved_mb': 872.0, 'free_mb': 21691.12, 'used_ratio': 0.0386}}
+[BW_BOOSTER] cnn_vision_224 (balanced_phase8_boost): {'prefetch_stats': {'loaders_wrapped': 1, 'batches_prefetched': 12, 'batches_served': 12, 'initial_depth': 3, 'current_depth': 3, 'max_queue_depth': 3, 'backoff_events': 0, 'last_vram_used_ratio': 0.0405, 'last_vram_free_mb': 21649.12}, 'inductor_bw_tune': {'enabled': False, 'reason': 'mode=default (requires max-autotune or PTOPT_INDUCTOR_BW_TUNE=1)'}, 'vram_headroom': {'total_mb': 22563.12, 'allocated_mb': 22.5, 'reserved_mb': 914.0, 'free_mb': 21649.12, 'used_ratio': 0.0405}}
+[BW_BOOSTER] transformer_lm_med (aggressive_phase8_bw): {'inductor_bw_tune': {'enabled': True, 'flags': ['coordinate_descent_tuning=True', 'epilogue_fusion=True'], 'vram_free_mb': 22321.12, 'used_ratio': 0.0107}, 'vram_headroom': {'total_mb': 22563.12, 'allocated_mb': 473.83, 'reserved_mb': 1706.0, 'free_mb': 20857.12, 'used_ratio': 0.0756}}
+[UNIT FAIL] test_phase8_bandwidth_booster.py:
+Traceback (most recent call last):
+  File "/content/pytorch-optimize-kernel/tests/unit/test_phase8_bandwidth_booster.py", line 34, in <module>
+    from tests.unit.test_config_resolver import _make_fp
+ModuleNotFoundError: No module named 'tests.unit'
+
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Run on Google Colab L4/A100 GPU & inspect bandwidth_vram_booster logs before closing Phase 8)
+==============================================================================
