@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import datetime
+import io
 import json
 import os
 import sys
 import tempfile
 import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -312,27 +314,39 @@ class TestRealBenchHarness(unittest.TestCase):
             self.assertTrue(json_p.is_file())
             self.assertTrue(csv_p.is_file())
 
-            # Verify CLI entrypoint creates dedicated results bundle inside --results-dir
+            # Verify CLI entrypoint prints live per-profile cards in order and creates results bundle
             cli_results_dir = tmp_dir / "cli_results"
             cli_reports_dir = tmp_dir / "cli_reports"
-            rc_cli = real_bench_main([
-                "--name",
-                "cli-tiny",
-                "--cwd",
-                str(ext_repo),
-                "--cmd",
-                "python3 train.py",
-                "--profiles",
-                "safe",
-                "--no-pure-wall",
-                "--diag-mode",
-                "off",
-                "--results-dir",
-                str(cli_results_dir),
-                "--report-dir",
-                str(cli_reports_dir),
-            ])
+            stdout_buf = io.StringIO()
+            with redirect_stdout(stdout_buf):
+                rc_cli = real_bench_main([
+                    "--name",
+                    "cli-tiny",
+                    "--cwd",
+                    str(ext_repo),
+                    "--cmd",
+                    "python3 train.py",
+                    "--profiles",
+                    "safe",
+                    "--no-pure-wall",
+                    "--diag-mode",
+                    "off",
+                    "--stream",
+                    "--results-dir",
+                    str(cli_results_dir),
+                    "--report-dir",
+                    str(cli_reports_dir),
+                ])
             self.assertEqual(rc_cli, 0)
+            cli_out = stdout_buf.getvalue()
+            idx_base_done = cli_out.find("[DONE] cli-tiny | BASELINE")
+            idx_safe_start = cli_out.find("[2/2] cli-tiny | arm=safe")
+            idx_safe_done = cli_out.find("[DONE] cli-tiny | arm=safe")
+            idx_final_hdr = cli_out.find("KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD")
+            self.assertGreater(idx_base_done, -1)
+            self.assertGreater(idx_safe_start, idx_base_done)
+            self.assertGreater(idx_safe_done, idx_safe_start)
+            self.assertGreater(idx_final_hdr, idx_safe_done)
             bundles = list(cli_results_dir.iterdir())
             self.assertEqual(len(bundles), 1)
             self.assertTrue((bundles[0] / "env_hardware.json").is_file())

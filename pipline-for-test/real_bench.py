@@ -19,7 +19,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 BENCH_DIR = Path(__file__).resolve().parent
 REPO_ROOT = BENCH_DIR.parent
@@ -64,6 +64,7 @@ class RealTargetSpec:
     metric_rel_tol: float = 0.05
     measure_pure_wall: bool = True
     diag_mode: str = "deep"  # deep | off
+    stream_output: bool = False
     ptopt_args: tuple[str, ...] = ()
     env: dict[str, str] = field(default_factory=dict)
     timeout_sec: float = 1800.0
@@ -317,27 +318,15 @@ def _run_subprocess(
     env: Mapping[str, str],
     timeout_sec: float,
     sample_gpu: bool = False,
+    stream_output: bool = False,
 ) -> tuple[int, str, str, float, float | None, float | None, list[dict[str, float]]]:
     t0 = time.perf_counter()
     peak_nvsmi: float | None = None
     gpu_util_avg: float | None = None
     samples: list[dict[str, float]] = []
-    try:
-        if sample_gpu:
-            with _NvidiaSmiSampler() as sampler:
-                proc = subprocess.run(
-                    list(cmd),
-                    cwd=cwd,
-                    env=dict(env),
-                    capture_output=True,
-                    text=True,
-                    timeout=timeout_sec,
-                    check=False,
-                )
-            peak_nvsmi = sampler.peak_mb
-            gpu_util_avg = sampler.gpu_util_avg_pct
-            samples = sampler.samples
-        else:
+
+    def _exec_inner() -> tuple[int, str, str]:
+        if not stream_output:
             proc = subprocess.run(
                 list(cmd),
                 cwd=cwd,
@@ -347,8 +336,44 @@ def _run_subprocess(
                 timeout=timeout_sec,
                 check=False,
             )
+            return proc.returncode, proc.stdout or "", proc.stderr or ""
+
+        lines: list[str] = []
+        with subprocess.Popen(
+            list(cmd),
+            cwd=cwd,
+            env=dict(env),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        ) as proc_p:
+            assert proc_p.stdout is not None
+            try:
+                for line in proc_p.stdout:
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                    lines.append(line)
+                    if (time.perf_counter() - t0) > timeout_sec:
+                        proc_p.kill()
+                        raise subprocess.TimeoutExpired(cmd=list(cmd), timeout=timeout_sec, output="".join(lines))
+                rc_val = proc_p.wait(timeout=max(1.0, timeout_sec - (time.perf_counter() - t0)))
+            finally:
+                if proc_p.poll() is None:
+                    proc_p.kill()
+        return rc_val, "".join(lines), ""
+
+    try:
+        if sample_gpu:
+            with _NvidiaSmiSampler() as sampler:
+                rc_val, out_txt, err_txt = _exec_inner()
+            peak_nvsmi = sampler.peak_mb
+            gpu_util_avg = sampler.gpu_util_avg_pct
+            samples = sampler.samples
+        else:
+            rc_val, out_txt, err_txt = _exec_inner()
         wall = time.perf_counter() - t0
-        return proc.returncode, proc.stdout or "", proc.stderr or "", wall, peak_nvsmi, gpu_util_avg, samples
+        return rc_val, out_txt, err_txt, wall, peak_nvsmi, gpu_util_avg, samples
     except subprocess.TimeoutExpired as exc:
         wall = time.perf_counter() - t0
         out = (exc.stdout or "") if isinstance(exc.stdout, str) else ""
@@ -453,6 +478,7 @@ def _execute_arm(
     extra_ptopt_args: Sequence[str],
     fp: HardwareFingerprint,
     run_artifact_dir: Path | None,
+    live_progress: bool = False,
 ) -> RealRunRecord:
     """Execute timing pass + optional pure-wall pass + optional deep diagnostic pass."""
     _prepare_cache_dir(cache_dir, cache_state)
@@ -460,6 +486,11 @@ def _execute_arm(
     base_env.update(spec.env)
     ptopt_env = _with_repo_on_pythonpath(base_env)
 
+    total_passes = 1 + (1 if spec.measure_pure_wall else 0) + (1 if spec.diag_mode == "deep" else 0)
+    pass_idx = 1
+
+    if live_progress:
+        print(f"  [pass {pass_idx}/{total_passes}] telemetry timing ...", end=" ", flush=True)
     with tempfile.TemporaryDirectory() as tmp:
         tel_path = Path(tmp) / "telemetry.json"
         cmd = _build_ptopt_cmd(
@@ -476,6 +507,7 @@ def _execute_arm(
             env=ptopt_env,
             timeout_sec=spec.timeout_sec,
             sample_gpu=False,
+            stream_output=spec.stream_output,
         )
         tel_data: dict[str, Any] = {}
         if tel_path.is_file():
@@ -483,6 +515,9 @@ def _execute_arm(
                 tel_data = json.loads(tel_path.read_text(encoding="utf-8"))
             except json.JSONDecodeError:
                 tel_data = {}
+    if live_progress:
+        status_lbl = "OK" if rc == 0 else f"FAIL(rc={rc})"
+        print(f"{status_lbl} ({wall_sec:.2f}s)", flush=True)
 
     pure_wall_sec: float | None = None
     nvsmi_peak_mb: float | None = None
@@ -491,6 +526,9 @@ def _execute_arm(
     pure_wall_log: str | None = None
 
     if spec.measure_pure_wall and rc == 0:
+        pass_idx += 1
+        if live_progress:
+            print(f"  [pass {pass_idx}/{total_passes}] pure_wall + nvidia-smi ...", end=" ", flush=True)
         _prepare_cache_dir(cache_dir, cache_state)
         if telemetry_only:
             wall_cmd = list(target_cmd)
@@ -511,6 +549,7 @@ def _execute_arm(
             env=wall_env,
             timeout_sec=spec.timeout_sec,
             sample_gpu=True,
+            stream_output=False,
         )
         pure_wall_log = f"CMD: {' '.join(wall_cmd)}\nRC: {w_rc}\nWALL_SEC: {pure_dt:.4f}\n\n=== STDOUT ===\n{w_out}\n\n=== STDERR ===\n{w_err}\n"
         if w_rc == 0:
@@ -518,10 +557,17 @@ def _execute_arm(
             nvsmi_peak_mb = sampled_mb
             gpu_util_avg = util_avg
             nvsmi_samples = samples
+        if live_progress:
+            nvsmi_info = f", nvsmi={sampled_mb:.0f}MB" if sampled_mb is not None else ""
+            util_info = f", gpu_util={util_avg:.1f}%" if util_avg is not None else ""
+            print(f"{'OK' if w_rc == 0 else f'FAIL(rc={w_rc})'} ({pure_dt:.2f}s{nvsmi_info}{util_info})", flush=True)
 
     debug_profile: dict[str, Any] = {}
     diag_stderr: str | None = None
     if spec.diag_mode == "deep" and rc == 0:
+        pass_idx += 1
+        if live_progress:
+            print(f"  [pass {pass_idx}/{total_passes}] deep_diag (profiler + TORCH_LOGS) ...", end=" ", flush=True)
         diag_cache = (
             cache_dir.parent / f"{cache_dir.name}_diag_cold"
             if cache_state == "cold"
@@ -548,12 +594,13 @@ def _execute_arm(
                 verbose=True,
                 fallback_report=True,
             )
-            d_rc, d_out, d_err, _, _, _, _ = _run_subprocess(
+            d_rc, d_out, d_err, d_dt, _, _, _ = _run_subprocess(
                 dcmd,
                 cwd=spec.cwd,
                 env=diag_env,
                 timeout_sec=spec.timeout_sec,
                 sample_gpu=False,
+                stream_output=False,
             )
             diag_stderr = f"DIAG_RC: {d_rc}\nTORCH_LOGS: {diag_env.get('TORCH_LOGS')}\n\n=== STDERR ===\n{d_err}\n\n=== STDOUT ===\n{d_out}\n"
             if d_rc == 0 and dtel_path.is_file():
@@ -562,6 +609,8 @@ def _execute_arm(
                     debug_profile = dict(dtel_data.get("debug_profile") or {})
                 except json.JSONDecodeError:
                     debug_profile = {}
+        if live_progress:
+            print(f"{'OK' if d_rc == 0 else f'FAIL(rc={d_rc})'} ({d_dt:.2f}s)", flush=True)
 
     train_raw = tel_data.get("train_step_times_ms")
     if train_raw is None:
@@ -638,99 +687,112 @@ def _run_arm_trials(spec: RealTargetSpec, **kwargs: Any) -> RealRunRecord:
     return runs[len(runs) // 2]
 
 
+def _build_arm_plan(
+    spec: RealTargetSpec,
+    *,
+    target_cache: Path,
+    resolver: ConfigResolver,
+    fp: HardwareFingerprint,
+) -> list[dict[str, Any]]:
+    wrap_cmd = spec.wrap_cmd or spec.cmd
+    plan: list[dict[str, Any]] = [
+        {
+            "arm_label": "baseline",
+            "target_cmd": spec.cmd,
+            "profile": None,
+            "telemetry_only": True,
+            "cache_state": "none",
+            "cache_dir": target_cache / "baseline",
+            "extra_ptopt_args": (),
+        }
+    ]
+    for prof in spec.profiles:
+        states = _resolve_cache_states(prof, spec.cache_modes, resolver, fp)
+        prof_cache = target_cache / prof
+        for state in states:
+            plan.append({
+                "arm_label": prof,
+                "target_cmd": wrap_cmd,
+                "profile": prof,
+                "telemetry_only": False,
+                "cache_state": state,
+                "cache_dir": prof_cache,
+                "extra_ptopt_args": spec.ptopt_args,
+            })
+    if spec.native_cmd:
+        plan.append({
+            "arm_label": "native_opt",
+            "target_cmd": spec.native_cmd,
+            "profile": None,
+            "telemetry_only": True,
+            "cache_state": "none",
+            "cache_dir": target_cache / "native_opt",
+            "extra_ptopt_args": (),
+        })
+        if spec.test_conflict:
+            conflict_prof = spec.conflict_profile
+            states = _resolve_cache_states(conflict_prof, spec.cache_modes, resolver, fp)
+            for state in states:
+                plan.append({
+                    "arm_label": f"conflict:{conflict_prof}",
+                    "target_cmd": spec.native_cmd,
+                    "profile": conflict_prof,
+                    "telemetry_only": False,
+                    "cache_state": state,
+                    "cache_dir": target_cache / f"conflict_{conflict_prof}",
+                    "extra_ptopt_args": spec.ptopt_args,
+                })
+    return plan
+
+
 def run_real_target(
     spec: RealTargetSpec,
     *,
     fingerprint: HardwareFingerprint | None = None,
     cache_root: Path | None = None,
     bundle_dir: Path | None = None,
+    live_progress: bool = False,
+    on_record: Callable[[RealRunRecord, list[RealRunRecord]], None] | None = None,
 ) -> list[RealRunRecord]:
     """Run all configured arms (A/B/C/D) for a single external repository target."""
     if not spec.cwd.is_dir():
         raise FileNotFoundError(f"Target cwd does not exist: {spec.cwd}")
     fp = fingerprint or collect_fingerprint()
     resolver = ConfigResolver()
-    wrap_cmd = spec.wrap_cmd or spec.cmd
     records: list[RealRunRecord] = []
-    run_counter = 0
-
-    def _next_artifact_dir(arm_label: str, cache_state: str) -> Path | None:
-        nonlocal run_counter
-        run_counter += 1
-        if bundle_dir is None:
-            return None
-        slug = f"{run_counter:02d}_{_sanitize_slug(spec.name)}__{_sanitize_slug(arm_label)}__{_sanitize_slug(cache_state)}"
-        return bundle_dir / "runs" / slug
 
     def _run_inside_cache(base_cache: Path) -> None:
         target_cache = base_cache / spec.name
-        records.append(
-            _run_arm_trials(
+        plan = _build_arm_plan(spec, target_cache=target_cache, resolver=resolver, fp=fp)
+        total = len(plan)
+        for idx, item in enumerate(plan, start=1):
+            arm_label = str(item["arm_label"])
+            cache_state = str(item["cache_state"])
+            run_art_dir: Path | None = None
+            if bundle_dir is not None:
+                slug = f"{idx:02d}_{_sanitize_slug(spec.name)}__{_sanitize_slug(arm_label)}__{_sanitize_slug(cache_state)}"
+                run_art_dir = bundle_dir / "runs" / slug
+            if live_progress:
+                print(
+                    f"\n>>> [{idx}/{total}] {spec.name} | arm={arm_label} | cache={cache_state}",
+                    flush=True,
+                )
+            rec = _run_arm_trials(
                 spec,
-                arm_label="baseline",
-                target_cmd=spec.cmd,
-                profile=None,
-                telemetry_only=True,
-                cache_state="none",
-                cache_dir=target_cache / "baseline",
-                extra_ptopt_args=(),
+                arm_label=arm_label,
+                target_cmd=item["target_cmd"],
+                profile=item["profile"],
+                telemetry_only=bool(item["telemetry_only"]),
+                cache_state=cache_state,
+                cache_dir=item["cache_dir"],
+                extra_ptopt_args=item["extra_ptopt_args"],
                 fp=fp,
-                run_artifact_dir=_next_artifact_dir("baseline", "none"),
+                run_artifact_dir=run_art_dir,
+                live_progress=live_progress,
             )
-        )
-
-        for prof in spec.profiles:
-            states = _resolve_cache_states(prof, spec.cache_modes, resolver, fp)
-            prof_cache = target_cache / prof
-            for state in states:
-                records.append(
-                    _run_arm_trials(
-                        spec,
-                        arm_label=prof,
-                        target_cmd=wrap_cmd,
-                        profile=prof,
-                        telemetry_only=False,
-                        cache_state=state,
-                        cache_dir=prof_cache,
-                        extra_ptopt_args=spec.ptopt_args,
-                        fp=fp,
-                        run_artifact_dir=_next_artifact_dir(prof, state),
-                    )
-                )
-
-        if spec.native_cmd:
-            records.append(
-                _run_arm_trials(
-                    spec,
-                    arm_label="native_opt",
-                    target_cmd=spec.native_cmd,
-                    profile=None,
-                    telemetry_only=True,
-                    cache_state="none",
-                    cache_dir=target_cache / "native_opt",
-                    extra_ptopt_args=(),
-                    fp=fp,
-                    run_artifact_dir=_next_artifact_dir("native_opt", "none"),
-                )
-            )
-            if spec.test_conflict:
-                conflict_prof = spec.conflict_profile
-                states = _resolve_cache_states(conflict_prof, spec.cache_modes, resolver, fp)
-                for state in states:
-                    records.append(
-                        _run_arm_trials(
-                            spec,
-                            arm_label=f"conflict:{conflict_prof}",
-                            target_cmd=spec.native_cmd,
-                            profile=conflict_prof,
-                            telemetry_only=False,
-                            cache_state=state,
-                            cache_dir=target_cache / f"conflict_{conflict_prof}",
-                            extra_ptopt_args=spec.ptopt_args,
-                            fp=fp,
-                            run_artifact_dir=_next_artifact_dir(f"conflict_{conflict_prof}", state),
-                        )
-                    )
+            records.append(rec)
+            if on_record is not None:
+                on_record(rec, list(records))
 
     if cache_root is not None:
         _run_inside_cache(cache_root)
@@ -962,25 +1024,87 @@ def _derive_optimization_hints(records: Sequence[RealRunRecord]) -> list[str]:
     return hints
 
 
-def generate_real_benchmark_report(
-    *,
+def format_live_record_card(
+    rec: RealRunRecord,
     records: Sequence[RealRunRecord],
     specs_by_name: Mapping[str, RealTargetSpec] | None = None,
-    fingerprint: HardwareFingerprint | None = None,
-    report_name: str = "real-bench",
-    report_dir: Path | None = None,
-    bundle_dir: Path | None = None,
-    now: datetime.datetime | None = None,
-) -> tuple[Path, str, list[RealComparisonRow]]:
-    """Render detailed optimization report into `report/HHMMSS_YYYYMMDD-<name>.txt` and optional bundle."""
-    ts = now or datetime.datetime.now().astimezone()
+) -> str:
+    """Format an immediate single-arm summary card printed as soon as that arm/profile completes."""
+    stats = rec.primary_step_stats()
+    metrics_str = ", ".join(f"{k}={v:.4g}" for k, v in rec.extracted_metrics.items()) or "-"
+    pb = rec.debug_profile.get("phase_breakdown") or {}
+    sh = pb.get("steady_shares_pct") or {}
+    phase_str = (
+        f"Data={sh.get('data_other', 0):.0f}% Fwd={sh.get('forward', 0):.0f}% "
+        f"Loss={sh.get('loss_clip', 0):.0f}% Bwd={sh.get('backward', 0):.0f}% Opt={sh.get('optim', 0):.0f}%"
+        if sh
+        else "-"
+    )
+    dyn = (rec.debug_profile.get("dynamo_compile") or {}).get("summary") or {}
+    dyn_str = (
+        f"graphs={dyn.get('unique_graphs', 0)}, breaks={dyn.get('graph_break_count', 0)}, "
+        f"recomp={dyn.get('recompiles_count', 0)}, ind_hit/miss={dyn.get('inductor_cache_hit', 0)}/{dyn.get('inductor_cache_miss', 0)}"
+        if dyn
+        else "-"
+    )
+    pure_str = f"{rec.pure_wall_sec:.2f}s" if rec.pure_wall_sec is not None else "-"
+    nvsmi_str = f"{rec.nvsmi_peak_mb:.1f}MB" if rec.nvsmi_peak_mb is not None else "-"
+    util_str = f"{rec.gpu_util_avg_pct:.1f}%" if rec.gpu_util_avg_pct is not None else "-"
+
+    lines = ["-" * 78]
+    if rec.arm == "baseline":
+        lines.extend([
+            f"[DONE] {rec.target} | BASELINE | rc={rec.exit_code}",
+            f"  Step ms    : med={stats.median:.2f}, p95={stats.p95:.2f} | Eval med={rec.eval_stats.median:.2f}ms",
+            f"  Wall/VRAM  : tel_e2e={rec.end_to_end_sec:.2f}s | pure_wall={pure_str} | alloc={rec.peak_allocated_mb:.1f}MB | nvsmi={nvsmi_str} | gpu_util={util_str}",
+            f"  Metrics    : {metrics_str} | Phase%: {phase_str}",
+        ])
+    else:
+        rows = build_real_comparison_rows(records, specs_by_name=specs_by_name)
+        matched = next(
+            (r for r in reversed(rows) if r.target == rec.target and r.arm == rec.arm and r.cache_state == rec.cache_state),
+            None,
+        )
+        if matched is not None:
+            wall_spd = f"{matched.pure_wall_speedup:.2f}x" if matched.pure_wall_speedup is not None else f"{matched.e2e_speedup:.2f}x(tel)"
+            lines.extend([
+                f"[DONE] {rec.target} | arm={rec.arm} | cache={rec.cache_state} | status={matched.status} ({matched.note})",
+                f"  Speedup    : step={matched.step_speedup:.2f}x ({matched.base_step_ms:.2f}->{matched.arm_step_ms:.2f}ms) | wall={wall_spd} | pure_wall={pure_str}",
+                f"  VRAM/GPU   : alloc={matched.base_vram_mb:.1f}->{matched.arm_vram_mb:.1f}MB ({matched.vram_delta_mb:+.1f}MB) | nvsmi={nvsmi_str} | gpu_util={util_str}",
+                f"  Parity/Aud : loss_rel={matched.max_rel_diff if matched.max_rel_diff is not None else 'N/A'} | metrics={metrics_str} | audit={matched.audit_summary}",
+                f"  Phase/Dyn  : {phase_str} | Dynamo: {dyn_str}",
+            ])
+        else:
+            lines.append(f"[DONE] {rec.target} | arm={rec.arm} | cache={rec.cache_state} | rc={rec.exit_code} | metrics={metrics_str}")
+    if rec.error:
+        lines.append(f"  Error      : {rec.error}")
+    if rec.artifact_dir:
+        lines.append(f"  Artifacts  : {rec.artifact_dir}")
+    lines.append("-" * 78)
+    return "\n".join(lines)
+
+
+def _render_real_report_text(
+    *,
+    records: Sequence[RealRunRecord],
+    specs_by_name: Mapping[str, RealTargetSpec] | None,
+    fingerprint: HardwareFingerprint | None,
+    bundle_dir: Path | None,
+    now: datetime.datetime,
+    is_partial: bool = False,
+) -> tuple[str, list[RealComparisonRow], bool]:
+    """Render report text, comparison rows, and `any_fail` flag without writing `report/`."""
     comparisons = build_real_comparison_rows(records, specs_by_name=specs_by_name)
     any_fail = any(r.exit_code != 0 for r in records) or any(c.status == "FAIL" for c in comparisons)
 
     builder = TextReportBuilder(
-        phase_title="REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT",
+        phase_title=(
+            "REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT (IN PROGRESS)"
+            if is_partial
+            else "REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT"
+        ),
         repo_root=REPO_ROOT,
-        now=ts,
+        now=now,
     )
     meta: dict[str, object] = {
         "Targets": len({r.target for r in records}),
@@ -1166,12 +1290,40 @@ def generate_real_benchmark_report(
     builder.add_lines_section("ACTIONABLE OPTIMIZATION HINTS", _derive_optimization_hints(records))
 
     builder.add_verification_footer(
-        status="PENDING_USER_REVIEW" if not any_fail else "FAILED_NEEDS_ATTENTION",
+        status=(
+            "IN_PROGRESS"
+            if is_partial
+            else ("PENDING_USER_REVIEW" if not any_fail else "FAILED_NEEDS_ATTENTION")
+        ),
         note="Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization",
     )
+    return builder.render(), comparisons, any_fail
 
-    out_path = builder.write(name=report_name, report_dir=report_dir)
-    report_text = out_path.read_text(encoding="utf-8")
+
+def generate_real_benchmark_report(
+    *,
+    records: Sequence[RealRunRecord],
+    specs_by_name: Mapping[str, RealTargetSpec] | None = None,
+    fingerprint: HardwareFingerprint | None = None,
+    report_name: str = "real-bench",
+    report_dir: Path | None = None,
+    bundle_dir: Path | None = None,
+    now: datetime.datetime | None = None,
+) -> tuple[Path, str, list[RealComparisonRow]]:
+    """Render detailed optimization report into `report/HHMMSS_YYYYMMDD-<name>.txt` and optional bundle."""
+    ts = now or datetime.datetime.now().astimezone()
+    report_text, comparisons, _ = _render_real_report_text(
+        records=records,
+        specs_by_name=specs_by_name,
+        fingerprint=fingerprint,
+        bundle_dir=bundle_dir,
+        now=ts,
+        is_partial=False,
+    )
+    target_dir = Path(report_dir) if report_dir is not None else (REPO_ROOT / "report")
+    target_dir.mkdir(parents=True, exist_ok=True)
+    out_path = target_dir / format_report_filename(report_name, now=ts)
+    out_path.write_text(report_text, encoding="utf-8")
     if bundle_dir is not None:
         bundle_dir.mkdir(parents=True, exist_ok=True)
         (bundle_dir / "summary.txt").write_text(report_text, encoding="utf-8")
@@ -1239,6 +1391,7 @@ def load_manifest_specs(manifest_path: Path) -> list[RealTargetSpec]:
                 metric_rel_tol=float(item.get("metric_rel_tol", 0.05)),
                 measure_pure_wall=bool(item.get("measure_pure_wall", True)),
                 diag_mode=str(item.get("diag_mode", "deep")),
+                stream_output=bool(item.get("stream_output", False)),
                 ptopt_args=tuple(str(a) for a in (item.get("ptopt_args") or ())),
                 env={str(k): str(v) for k, v in (item.get("env") or {}).items()},
                 timeout_sec=float(item.get("timeout_sec", 1800.0)),
@@ -1269,6 +1422,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--no-pure-wall", action="store_false", dest="measure_pure_wall", help="Skip extra unhooked pure wall-clock pass")
     parser.set_defaults(measure_pure_wall=True)
     parser.add_argument("--diag-mode", default="deep", choices=["deep", "off"], help="Capture deep phase breakdown, torch.profiler ops, TORCH_LOGS & Dynamo counters (default: deep)")
+    parser.add_argument("--stream", action="store_true", help="Stream wrapped command stdout/stderr live while capturing")
+    parser.add_argument("--quiet", action="store_true", help="Suppress live per-profile progress cards (still prints final report)")
     parser.add_argument("--ptopt-arg", action="append", default=[], help="Extra flag passed to ptopt (e.g. --ptopt-arg=--no-compile)")
     parser.add_argument("--env", action="append", default=[], help="Extra subprocess environment variable KEY=VALUE")
     parser.add_argument("--timeout", type=float, default=1800.0, help="Per-run timeout in seconds")
@@ -1304,6 +1459,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 metric_rel_tol=args.metric_rel_tol,
                 measure_pure_wall=bool(args.measure_pure_wall),
                 diag_mode=args.diag_mode,
+                stream_output=bool(args.stream),
                 ptopt_args=tuple(args.ptopt_arg),
                 env=parse_env_items(args.env),
                 timeout_sec=args.timeout,
@@ -1331,11 +1487,48 @@ def main(argv: Sequence[str] | None = None) -> int:
             encoding="utf-8",
         )
 
-    all_records: list[RealRunRecord] = []
-    for spec in specs:
-        all_records.extend(run_real_target(spec, fingerprint=fp, cache_root=args.cache_dir, bundle_dir=bundle_dir))
-
     specs_map = {s.name: s for s in specs}
+    all_records: list[RealRunRecord] = []
+    live_progress = not args.quiet
+
+    def _on_arm_done(rec: RealRunRecord, _target_recs: list[RealRunRecord]) -> None:
+        all_records.append(rec)
+        if live_progress:
+            print(format_live_record_card(rec, all_records, specs_by_name=specs_map), flush=True)
+        if bundle_dir is not None:
+            partial_txt, partial_cmp, _ = _render_real_report_text(
+                records=all_records,
+                specs_by_name=specs_map,
+                fingerprint=fp,
+                bundle_dir=bundle_dir,
+                now=now,
+                is_partial=True,
+            )
+            (bundle_dir / "summary.txt").write_text(partial_txt, encoding="utf-8")
+            export_real_json(
+                bundle_dir / "summary.json",
+                all_records,
+                partial_cmp,
+                fingerprint=fp,
+                hints=_derive_optimization_hints(all_records),
+            )
+            export_real_csv(bundle_dir / "comparisons.csv", partial_cmp)
+
+    interrupted = False
+    try:
+        for spec in specs:
+            run_real_target(
+                spec,
+                fingerprint=fp,
+                cache_root=args.cache_dir,
+                bundle_dir=bundle_dir,
+                live_progress=live_progress,
+                on_record=_on_arm_done,
+            )
+    except KeyboardInterrupt:
+        interrupted = True
+        print("\n[real_bench] Interrupted by user; saving partial results collected so far...", file=sys.stderr, flush=True)
+
     out_path, report_text, comparisons = generate_real_benchmark_report(
         records=all_records,
         specs_by_name=specs_map,
@@ -1354,10 +1547,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.csv_out is not None:
         export_real_csv(args.csv_out, comparisons)
 
-    print(report_text)
-    print(f"[SAVED] Text report written to: {out_path}")
+    print(report_text, flush=True)
+    print(f"[SAVED] Text report written to: {out_path}", flush=True)
     if bundle_dir is not None:
-        print(f"[SAVED] Full benchmark artifact bundle written to: {bundle_dir}")
+        print(f"[SAVED] Full benchmark artifact bundle written to: {bundle_dir}", flush=True)
+    if interrupted:
+        return 130
     any_fail = any(r.exit_code != 0 for r in all_records) or any(c.status == "FAIL" for c in comparisons)
     return 1 if any_fail else 0
 

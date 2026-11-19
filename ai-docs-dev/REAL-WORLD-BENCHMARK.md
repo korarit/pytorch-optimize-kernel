@@ -14,6 +14,7 @@
    - กัน `DataLoader` worker subprocesses ไม่ให้เขียนทับไฟล์ telemetry ของ process หลัก และแยกไฟล์ตาม `.rank{RANK}` อัตโนมัติเมื่อรันผ่าน `torchrun`
 3. **Generic External Benchmark Runner & Artifact Bundle** ([`pipline-for-test/real_bench.py`](../pipline-for-test/real_bench.py))
    - รันคำสั่งของ repo ภายนอกแบบ **4-Arm Comparison** ใน subprocess แยกอิสระ (รองรับ Cold/Warm Inductor cache, `--measure-pure-wall` *(เปิดเป็นค่าเริ่มต้น, ปิดด้วย `--no-pure-wall`)* + `nvidia-smi` timeline, `--diag-mode deep` *(เปิดเป็นค่าเริ่มต้น)*, `--metric-regex` ดึง `val_loss`/`Acc@1`/`tok/s` จาก stdout, `--parity-mode`, `--manifest`)
+   - **Live Per-Profile Output & Incremental Save**: แสดงสรุปผลเทียบ Baseline ทันทีที่จบ **แต่ละ profile/arm** (ไม่ต้องรอจบทั้งหมด), บันทึก `summary.txt`/`summary.json`/`comparisons.csv` อัปเดตทีละขั้น (กดหยุดกลางทางก็ยังมีผลที่จบแล้วครบ), และเพิ่ม `--stream` หากต้องการดู stdout/stderr ของโปรเจกต์ที่กำลังรันแบบ real-time
    - เก็บผลลัพธ์และ log เชิงลึกทั้งหมดลงในโฟลเดอร์ **`benchmark_results/HHMMSS_YYYYMMDD-<name>/`** (ปรับได้ด้วย `--results-dir`) พร้อมเขียนรายงานสรุปลง [`report/`](../report/)
 
 ---
