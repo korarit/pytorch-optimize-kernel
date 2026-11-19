@@ -223,6 +223,61 @@ def _estimate_token_rows(tensor: Any) -> int:
     return int(tensor.numel()) // max(1, int(tensor.shape[-1]))
 
 
+def _slice_fp8_calib_inputs(
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    torch_mod: Any,
+    *,
+    step_idx: int = 0,
+    min_rows: int = 512,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Slice large-batch eval inputs down to a compact `M >= 512` micro-batch for calibration."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is None:
+        return args, kwargs
+
+    lead: Any = None
+    for item in (*args, *kwargs.values()):
+        for tensor in iter_nested_tensors(item, tensor_cls):
+            if hasattr(tensor, "dim") and tensor.dim() >= 2 and int(tensor.shape[0]) >= 4:
+                lead = tensor
+                break
+        if lead is not None:
+            break
+    if lead is None:
+        return args, kwargs
+
+    bsz = int(lead.shape[0])
+    total_rows = max(1, _estimate_token_rows(lead))
+    per_item_rows = max(1, total_rows // max(1, bsz))
+    need = (min_rows + per_item_rows - 1) // per_item_rows
+    while need < bsz and (need * per_item_rows) % 16 != 0:
+        need += 1
+    # Prefer at least 2 samples when small per sample so multi-step EMA sees variety while saving VRAM
+    target_cap = max(need, 2) if (bsz >= 8 and per_item_rows * 2 <= 2048) else need
+    calib_bs = min(bsz, target_cap)
+    if calib_bs >= bsz or calib_bs <= 0:
+        return args, kwargs
+
+    start = (step_idx * calib_bs) % max(1, bsz - calib_bs + 1)
+    end = start + calib_bs
+
+    def _slice_obj(obj: Any) -> Any:
+        if isinstance(obj, tensor_cls):
+            if obj.dim() >= 2 and int(obj.shape[0]) == bsz:
+                return obj[start:end]
+            return obj
+        if isinstance(obj, tuple):
+            return tuple(_slice_obj(v) for v in obj)
+        if isinstance(obj, list):
+            return [_slice_obj(v) for v in obj]
+        if isinstance(obj, dict):
+            return {k: _slice_obj(v) for k, v in obj.items()}
+        return obj
+
+    return tuple(_slice_obj(a) for a in args), {k: _slice_obj(v) for k, v in kwargs.items()}
+
+
 def _quantize_fp8_weight_traceable(
     lin: Any,
     fp8_dtype: Any,
@@ -865,8 +920,14 @@ def install_inference_opt_hook(
                             )
                             n_calib = _resolve_fp8_calib_steps()
                             with s_ctx, g_ctx, a_ctx:
-                                for _ in range(n_calib):
-                                    _calib_out = call_impl(*args, **kwargs)
+                                for ci in range(n_calib):
+                                    c_args, c_kwargs = _slice_fp8_calib_inputs(
+                                        args, kwargs, torch_mod, step_idx=ci
+                                    )
+                                    try:
+                                        _calib_out = call_impl(*c_args, **c_kwargs)
+                                    except Exception:  # noqa: BLE001
+                                        _calib_out = call_impl(*args, **kwargs)
                                     del _calib_out
                             cuda_ns = getattr(torch_mod, "cuda", None)
                             if cuda_ns is not None and getattr(cuda_ns, "is_available", lambda: False)():

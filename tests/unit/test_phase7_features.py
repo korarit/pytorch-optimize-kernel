@@ -55,6 +55,7 @@ from ptopt.passes.auto_compile import (  # noqa: E402
 )
 from ptopt.passes.channels_last import convert_module_channels_last  # noqa: E402
 from ptopt.passes.inference_opt import (  # noqa: E402
+    _slice_fp8_calib_inputs,
     _update_fp8_static_scale,
     install_inference_opt_hook,
     uninstall_inference_opt_hook,
@@ -579,6 +580,28 @@ class TestPhase7Features(unittest.TestCase):
         p_none = _fingerprint_cache_path(None, os.environ)
         p_torch = _fingerprint_cache_path(torch, os.environ)
         self.assertEqual(p_none, p_torch)
+
+    def test_fp8_static_microbatch_calib_slicing(self) -> None:
+        # 1) 3D transformer activations (B=64, S=512, D=128) slice to distinct non-overlapping micro-batches
+        x3 = torch.arange(64 * 512 * 128, dtype=torch.float32).reshape(64, 512, 128)
+        mask2 = torch.ones((512, 512), dtype=torch.bool)
+        a0, kw0 = _slice_fp8_calib_inputs((x3,), {"attn_mask": mask2}, torch, step_idx=0)
+        a1, kw1 = _slice_fp8_calib_inputs((x3,), {"attn_mask": mask2}, torch, step_idx=1)
+        self.assertEqual(tuple(a0[0].shape), (2, 512, 128))
+        self.assertEqual(tuple(a1[0].shape), (2, 512, 128))
+        self.assertFalse(torch.equal(a0[0], a1[0]))
+        self.assertEqual(tuple(kw0["attn_mask"].shape), (512, 512))
+        self.assertEqual(tuple(kw1["attn_mask"].shape), (512, 512))
+
+        # 2) 2D integer token IDs (B=64, S=512) also compute per_item_rows=512 -> slice safely
+        toks = torch.randint(0, 1000, (64, 512))
+        t0, _ = _slice_fp8_calib_inputs((toks,), {}, torch, step_idx=0)
+        self.assertEqual(tuple(t0[0].shape), (2, 512))
+
+        # 3) 2D dense activations (M=2048, D=128) slice to M=512 (divisible by 16)
+        x2 = torch.randn(2048, 128)
+        f0, _ = _slice_fp8_calib_inputs((x2,), {}, torch, step_idx=0)
+        self.assertEqual(tuple(f0[0].shape), (512, 128))
 
 
 if __name__ == "__main__":

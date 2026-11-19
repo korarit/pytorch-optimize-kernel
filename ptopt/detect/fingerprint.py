@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import importlib.metadata
 import json
@@ -71,18 +72,24 @@ class HardwareFingerprint:
         )
 
 
-def _fast_pkg_version(pkg_name: str, torch_mod: Any = None) -> str:
-    if pkg_name == "torch" and torch_mod is not None and hasattr(torch_mod, "__version__"):
-        return str(torch_mod.__version__)
-    loaded = sys.modules.get(pkg_name)
-    if loaded is not None and hasattr(loaded, "__version__"):
-        return str(loaded.__version__)
+@functools.lru_cache(maxsize=8)
+def _cached_pkg_dist_version(pkg_name: str) -> str:
     try:
         return importlib.metadata.version(pkg_name)
     except importlib.metadata.PackageNotFoundError:
         return ""
 
 
+def _fast_pkg_version(pkg_name: str, torch_mod: Any = None) -> str:
+    if pkg_name == "torch" and torch_mod is not None and hasattr(torch_mod, "__version__"):
+        return str(torch_mod.__version__)
+    loaded = sys.modules.get(pkg_name)
+    if loaded is not None and hasattr(loaded, "__version__"):
+        return str(loaded.__version__)
+    return _cached_pkg_dist_version(pkg_name)
+
+
+@functools.lru_cache(maxsize=1)
 def _fast_nvidia_driver_version() -> str:
     """Read Linux NVIDIA kernel module version without spawning nvidia-smi."""
     proc_path = Path("/proc/driver/nvidia/version")

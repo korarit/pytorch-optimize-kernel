@@ -41,8 +41,9 @@ def _run_unit_file(rel_path: str) -> tuple[bool, float, str, str]:
     env = os.environ.copy()
     old_pp = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = f"{REPO_ROOT}{os.pathsep}{old_pp}" if old_pp else str(REPO_ROOT)
+    # Invoke by direct file path so external site-packages `tests/` (e.g. on Colab) cannot shadow repo `tests/`.
     proc = subprocess.run(
-        [sys.executable, "-m", "unittest", "-v", rel_path],
+        [sys.executable, str(REPO_ROOT / rel_path), "-v"],
         cwd=REPO_ROOT,
         env=env,
         capture_output=True,
@@ -54,25 +55,32 @@ def _run_unit_file(rel_path: str) -> tuple[bool, float, str, str]:
 
 
 def _bench_fingerprint_startup() -> list[list[object]]:
+    from unittest.mock import patch
+
     rows: list[list[object]] = []
     with tempfile.TemporaryDirectory() as tmp:
-        env_cold = dict(os.environ, PTOPT_FP_CACHE_DIR=tmp, PTOPT_NO_FP_CACHE="1")
-        t0 = time.perf_counter()
-        fp_cold = collect_fingerprint(env=env_cold)
-        dt_cold_ms = (time.perf_counter() - t0) * 1000.0
+        with patch.dict(os.environ, {"PTOPT_FP_CACHE_DIR": tmp, "PTOPT_NO_FP_CACHE": "1"}):
+            t0 = time.perf_counter()
+            fp_cold = collect_fingerprint()
+            dt_cold_ms = (time.perf_counter() - t0) * 1000.0
 
-        env_warm = dict(os.environ, PTOPT_FP_CACHE_DIR=tmp)
-        env_warm.pop("PTOPT_NO_FP_CACHE", None)
-        t1 = time.perf_counter()
-        _ = collect_fingerprint(env=env_warm)
-        dt_write_ms = (time.perf_counter() - t1) * 1000.0
+        clean_env = {"PTOPT_FP_CACHE_DIR": tmp}
+        prev_no_cache = os.environ.pop("PTOPT_NO_FP_CACHE", None)
+        try:
+            with patch.dict(os.environ, clean_env):
+                t1 = time.perf_counter()
+                _ = collect_fingerprint()
+                dt_write_ms = (time.perf_counter() - t1) * 1000.0
 
-        t2 = time.perf_counter()
-        fp_warm = collect_fingerprint(env=env_warm)
-        dt_warm_ms = (time.perf_counter() - t2) * 1000.0
+                t2 = time.perf_counter()
+                fp_warm = collect_fingerprint()
+                dt_warm_ms = (time.perf_counter() - t2) * 1000.0
 
-        p_cli = _fingerprint_cache_path(None, env_warm)
-        p_rt = _fingerprint_cache_path(torch, env_warm)
+                p_cli = _fingerprint_cache_path(None, os.environ)
+                p_rt = _fingerprint_cache_path(torch, os.environ)
+        finally:
+            if prev_no_cache is not None:
+                os.environ["PTOPT_NO_FP_CACHE"] = prev_no_cache
         rows.append([
             f"Cold ({fp_cold.gpu.backend})",
             f"{dt_cold_ms:.2f}",
@@ -152,15 +160,21 @@ def main() -> int:
     ns_ok, ns_msg, ns_ms = _check_user_src_namespace()
     fp_rows = _bench_fingerprint_startup()
 
+    unit_combined = (unit_err + "\n" + unit_out).strip()
+    ran_summary = next(
+        (ln.strip() for ln in reversed(unit_combined.splitlines()) if ln.strip().startswith("Ran ")),
+        f"elapsed {unit_sec:.2f}s",
+    )
+
     fix_rows: list[list[object]] = [
-        ["7.1", "fp8_compile_static telemetry & calib_steps", "Unit/Hook", "PASS" if unit_ok else "FAIL", "Outer TelemetryCollector + suppress() + N-step calib"],
+        ["7.1", "fp8_compile_static telemetry & calib_steps", "Unit/Hook", "PASS" if unit_ok else "FAIL", "Outer TelemetryCollector + suppress() + micro-batch calib"],
         ["7.2", "Package namespace isolation (src -> ptopt)", "Subprocess", "PASS" if ns_ok else "FAIL", f"{ns_msg} ({ns_ms:.1f}ms)"],
         ["7.3a", "Hybrid LCE wide-FFN head classification guard", "Unit", "PASS" if unit_ok else "FAIL", "Only terminal head patched; 8x FFN unpatched"],
         ["7.3b", "LazyLinearLogits inside compiled forward+CE", "Compile", "PASS" if unit_ok else "FAIL", "empty_strided + no_grad _make_subclass + meta passthrough"],
         ["7.3c", "auto_compile OOM rescue + act_ckpt peak reset", "Unit", "PASS" if unit_ok else "FAIL", "OOM deferred to order-20 rescue; partial resets peak"],
         ["7.4a", "checkpoint_compat fused step & 5D Conv3d sync", "Unit", "PASS" if unit_ok else "FAIL", "injected_fused CPU step + mixed Conv2d/Conv3d channels_last"],
         ["7.4b", "auto_amp NAdam/RAdam + eval skip isolation + queue", "Unit", "PASS" if unit_ok else "FAIL", "Queue drains unpolled slots; eval skips isolated"],
-        ["7.4c", "ModuleCallDispatcher TLS + RoPE 3D + CLI allow_list", "Unit", "PASS" if unit_ok else "FAIL", f"Ran 10 checks in {unit_sec:.2f}s"],
+        ["7.4c", "ModuleCallDispatcher TLS + RoPE 3D + CLI allow_list", "Unit", "PASS" if unit_ok else "FAIL", f"{ran_summary} ({unit_sec:.2f}s)"],
     ]
     builder.add_table("PHASE 7 AUDIT & FUNCTIONAL MATRIX", ["ID", "Fix Target", "Scope", "Status", "Verification Notes"], fix_rows)
     builder.add_table("COLD VS WARM FINGERPRINT CACHE", ["Stage", "Time(ms)", "Speedup", "Details", "Status"], fp_rows)
@@ -376,7 +390,7 @@ def main() -> int:
                 trace_lines.extend(format_step_trace_block("cpu_smoke_lm", lbl, summ, tel, max_steps=6))
 
             alloc_rows.append(["cpu_smoke_lm", "ptopt_safe", "0.0", "0.0", "0.0", "0.0", "0.0%", "[WAIT FOR USER - GPU]"])
-            diagnosis_lines.append("CPU local run: 10/10 Phase 7 functional unit checks verified; CUDA L4 ablations queued [WAIT FOR USER].")
+            diagnosis_lines.append(f"CPU local run: {ran_summary}; CUDA L4 ablations queued [WAIT FOR USER].")
 
     builder.add_table(
         "ABLATION MATRIX + P95 / P99 / E2E LATENCY SUMMARY",
