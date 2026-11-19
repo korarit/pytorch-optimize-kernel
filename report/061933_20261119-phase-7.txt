@@ -1,0 +1,101 @@
+
+
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | Phase 7: Hardening, Calibration & Namespace Isolation
+==============================================================================
+Timestamp          : 2026-11-19 06:19:33 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ c9e89a6
+Hardware Backend   : cuda
+GPU                : NVIDIA L4
+PyTorch / Runtime Key: 2.14.1+cu130 (CacheKeyInfo(gpu_arch='sm_89', torch_version='2.14.1+cu130', triton_version='3.8.0', cache_key='sm_89-pt2.14.1_cu130-tr3.8.0-d20a898e7140'))
+Package Namespace  : ptopt/ (isolated from user src/)
+Debug Telemetry    : PTOPT_DEBUG_PROFILE=1, PTOPT_TORCH_PROFILE=1
+
+[PHASE 7 AUDIT & FUNCTIONAL MATRIX]
+------------------------------------------------------------------------------
+ID   | Fix Target                                          | Scope      | Status | Verification Notes                                         
+-----+-----------------------------------------------------+------------+--------+------------------------------------------------------------
+7.1  | fp8_compile_static telemetry & calib_steps          | Unit/Hook  | PASS   | Outer TelemetryCollector + suppress() + micro-batch calib  
+7.2  | Package namespace isolation (src -> ptopt)          | Subprocess | PASS   | Isolated ptopt vs user src/ OK (2341.5ms)                  
+7.3a | Hybrid LCE wide-FFN head classification guard       | Unit       | PASS   | Only terminal head patched; 8x FFN unpatched               
+7.3b | LazyLinearLogits inside compiled forward+CE         | Compile    | PASS   | empty_strided + no_grad _make_subclass + meta passthrough  
+7.3c | auto_compile OOM rescue + act_ckpt peak reset       | Unit       | PASS   | OOM deferred to order-20 rescue; partial resets peak       
+7.4a | checkpoint_compat fused step & 5D Conv3d sync       | Unit       | PASS   | injected_fused CPU step + mixed Conv2d/Conv3d channels_last
+7.4b | auto_amp NAdam/RAdam + eval skip isolation + queue  | Unit       | PASS   | Queue drains unpolled slots; eval skips isolated           
+7.4c | ModuleCallDispatcher TLS + RoPE 3D + CLI allow_list | Unit       | PASS   | Ran 11 tests in 7.076s (10.07s)                            
+
+[COLD VS WARM FINGERPRINT CACHE]
+------------------------------------------------------------------------------
+Stage           | Time(ms) | Speedup | Details                 | Status
+----------------+----------+---------+-------------------------+-------
+Cold (cuda)     | 40.29    | -       | Live probe (no cache)   | PASS  
+Cache Seed      | 38.24    | -       | Write + fresh /dev/shm  | PASS  
+Warm Hit (cuda) | 0.32     | 125.63x | CLI/RT cache match=True | PASS  
+
+[ABLATION MATRIX + P95 / P99 / E2E LATENCY SUMMARY]
+------------------------------------------------------------------------------
+Case             | Mode                | Step0(ms) | SteadyP50 | P95(ms) | P99(ms) | Speedup | E2E    | PeakVRAM  | TelSteps | Status
+-----------------+---------------------+-----------+-----------+---------+---------+---------+--------+-----------+----------+-------
+infer_bs64_large | eager_bf16          | 719.6     | 652.42    | 655.11  | 655.27  | 1.00x   | 11.78s | 1452.5 MB | 0        | PASS  
+infer_bs64_large | fp8_compile_dynamic | 13173.1   | 100.82    | 101.62  | 101.62  | 6.47x   | 22.92s | 1061.7 MB | 10       | PASS  
+infer_bs64_large | fp8_compile_static  | 12500.1   | 87.94     | 89.99   | 90.08   | 7.42x   | 22.05s | 1061.8 MB | 10       | PASS  
+vocab32k         | baseline            | 383.0     | 43.42     | 43.70   | 43.76   | 1.00x   | 4.98s  | 1315.4 MB | 0        | PASS  
+vocab32k         | hybrid_compile_lce  | 15755.9   | 20.93     | 24.70   | 26.18   | 2.07x   | 21.78s | 900.0 MB  | 10       | PASS  
+
+[PHASE BREAKDOWN (DEBUG PROFILE)]
+------------------------------------------------------------------------------
+Case             | Mode                | Step0(ms) | Steady(ms) | Data/Other    | Forward        | Loss/Clip   | Backward     | Optim       
+-----------------+---------------------+-----------+------------+---------------+----------------+-------------+--------------+-------------
+infer_bs64_large | fp8_compile_dynamic | 16083.52  | 136.48     | 35.86 (26.3%) | 100.62 (73.7%) | 0.00 (0.0%) | 0.00 (0.0%)  | 0.00 (0.0%) 
+infer_bs64_large | fp8_compile_static  | 15400.59  | 123.95     | 35.99 (29.0%) | 87.96 (71.0%)  | 0.00 (0.0%) | 0.00 (0.0%)  | 0.00 (0.0%) 
+vocab32k         | hybrid_compile_lce  | 15755.91  | 20.10      | 0.56 (2.8%)   | 4.44 (22.1%)   | 1.74 (8.6%) | 6.85 (34.1%) | 6.52 (32.4%)
+
+[CUDA ALLOCATOR & MEMORY HEADROOM]
+------------------------------------------------------------------------------
+Case             | Mode                | Alloc(MB) | Reserved(MB) | Overhead(MB) | Headroom(MB) | Util(%) | Retries
+-----------------+---------------------+-----------+--------------+--------------+--------------+---------+--------
+infer_bs64_large | fp8_compile_dynamic | 1061.7    | 1130.0       | 68.3         | 21433.1      | 5.0%    | 0      
+infer_bs64_large | fp8_compile_static  | 1061.8    | 1130.0       | 68.2         | 21433.1      | 5.0%    | 0      
+vocab32k         | hybrid_compile_lce  | 900.0     | 954.0        | 54.0         | 21609.1      | 4.2%    | 0      
+
+[TOP PYTORCH PROFILER OPS (STEADY WINDOW)]
+------------------------------------------------------------------------------
+[infer_bs64_large | fp8_compile_dynamic] Profiler window=[4, 9] self_cuda=1220.483ms self_cpu=619.122ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=125   self=231.913ms (19.0%) total=231.913ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=95    self=161.200ms (13.2%) total=161.200ms
+  aten::copy_                                      calls=12    self=113.000ms ( 9.3%) total=113.000ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self=112.969ms ( 9.3%) total=112.969ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=30    self= 70.713ms ( 5.8%) total= 70.713ms
+  triton_per_fused__to_copy_abs_add_amax_native_la calls=50    self= 66.052ms ( 5.4%) total= 66.052ms
+[infer_bs64_large | fp8_compile_static] Profiler window=[4, 9] self_cuda=1096.34ms self_cpu=557.205ms (top_cuda_ops):
+  aten::_scaled_mm                                 calls=125   self=236.846ms (21.6%) total=236.846ms
+  sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz calls=95    self=164.787ms (15.0%) total=164.787ms
+  aten::copy_                                      calls=12    self=113.096ms (10.3%) total=113.096ms
+  Memcpy HtoD (Pageable -> Device)                 calls=4     self=113.064ms (10.3%) total=113.064ms
+  triton_per_fused__scaled_mm__to_copy_add_clamp_m calls=50    self= 77.057ms ( 7.0%) total= 77.057ms
+  triton_per_fused__scaled_mm__to_copy_add_clamp_m calls=50    self= 77.057ms ( 7.0%) total= 77.057ms
+[vocab32k | hybrid_compile_lce] Profiler window=[4, 9] self_cuda=168.277ms self_cpu=102.9ms (top_cuda_ops):
+  Optimizer.step#AdamW.step                        calls=5     self= 30.810ms (18.3%) total= 30.810ms
+  aten::_fused_adamw_                              calls=5     self= 30.414ms (18.1%) total= 30.414ms
+  void at::native::(anonymous namespace)::multi_te calls=5     self= 30.414ms (18.1%) total= 30.414ms
+  aten::mm                                         calls=320   self= 19.711ms (11.7%) total= 19.711ms
+  ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag calls=30    self=  6.226ms ( 3.7%) total=  6.226ms
+  aten::copy_                                      calls=57    self=  5.544ms ( 3.3%) total=  5.544ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[infer_bs64_large | eager_bf16] step0=719.64ms | steady_med=652.01ms | s0=719.64ms, s1=635.99ms, s2=647.69ms, s3=646.82ms, s4=654.74ms, s5=650.47ms, s6=655.31ms, s7=652.84ms, s8=654.56ms, s9=652.01ms
+[infer_bs64_large | fp8_compile_dynamic] step0=13173.15ms | steady_med=100.74ms | s0=13173.15ms, s1=99.99ms, s2=100.74ms, s3=100.74ms, s4=101.62ms, s5=100.90ms, s6=100.39ms, s7=101.62ms, s8=101.11ms, s9=98.45ms
+[infer_bs64_large | fp8_compile_static] step0=12500.09ms | steady_med=87.13ms | s0=12500.09ms, s1=86.48ms, s2=88.75ms, s3=86.46ms, s4=90.11ms, s5=87.05ms, s6=89.64ms, s7=87.13ms, s8=89.78ms, s9=86.25ms
+[vocab32k | baseline] step0=382.97ms | steady_med=43.41ms | s0=382.97ms, s1=40.55ms, s2=41.42ms, s3=43.43ms, s4=43.41ms, s5=43.51ms, s6=43.13ms, s7=43.24ms, s8=43.78ms, s9=43.56ms
+[vocab32k | hybrid_compile_lce] step0=15755.91ms | steady_med=20.78ms | s0=15755.91ms, s1=18.27ms, s2=16.73ms, s3=17.05ms, s4=26.62ms, s5=21.14ms, s6=21.09ms, s7=20.78ms, s8=21.14ms, s9=18.08ms
+
+[AUTOMATED DIAGNOSIS & VERIFICATION SUMMARY]
+------------------------------------------------------------------------------
+[PASS] fp8_compile_static recorded exact 10 steps; s4=90.11ms (Step-0 compile no longer pushed into steady window).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Colab GPU Phase 7 verification ready for user review)
+==============================================================================

@@ -1,7 +1,7 @@
 # Phase 7: Hardening, Calibration Integrity & Namespace Isolation
 
-**Status**: `IN_PROGRESS` (Implementation + CPU Verification -> `[WAIT FOR USER]` on Colab GPU)  
-**Baseline Commit**: `b7ec00b` (`main`)
+**Status**: `COMPLETED` (Local Fast Gate `14/14 PASS` + Colab L4 Phase 7 `8/8 PASS` [`061933_20261119-phase-7.txt`] & Full Gate `15/15 PASS` [`064444_20261119-phase-4.txt`])  
+**Baseline Commit**: `b7ec00b` (`main`) → Verified at `c9e89a6`
 
 ---
 
@@ -90,5 +90,6 @@ Phase 7 resolves every structural, correctness, compatibility, and performance-r
    - `python3 -m unittest discover -s tests/unit` & targeted compile tests (`tests/migrate/test_phase3_5_compile.py`, `tests/unit/test_phase7_features.py`).
    - `python3 scripts/verify_phase7.py` -> generates CPU-verified sections + clean 7-part report format in `report/HHMMSS_YYYYMMDD-phase-7.txt` with explicit `[WAIT FOR USER]` GPU ablation placeholders.
    - `python3 scripts/run_gate.py --mode fast` -> 100% PASS.
-2. **Colab GPU Verification (`[WAIT FOR USER]`)**:
-   - User runs `python3 scripts/verify_phase7.py` and `python3 scripts/run_gate.py --mode full` on Colab L4 GPU and inspects `report/HHMMSS_YYYYMMDD-phase-7.txt`.
+2. **Colab GPU Verification (`COMPLETED`)**:
+   - `python3 scripts/verify_phase7.py` -> [`report/061933_20261119-phase-7.txt`](../report/061933_20261119-phase-7.txt) (`8/8 PASS`, `fp8_compile_static 7.42x`, `P99 90.08ms`, VRAM `1061.8 MB`, `Warm Hit 0.32ms`)
+   - `python3 scripts/run_gate.py --mode full` -> [`report/064444_20261119-phase-4.txt`](../report/064444_20261119-phase-4.txt) (`15/15 Stages PASS`, `150 Unit Tests OK`, `12/12 Migrate Suites PASS`, `24/24 Smoke Cells PASS`)

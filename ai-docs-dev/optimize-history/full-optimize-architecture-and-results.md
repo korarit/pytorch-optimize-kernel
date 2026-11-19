@@ -1,12 +1,13 @@
 # Full Optimize Architecture & Results (`ptopt`): สถาปัตยกรรม การใช้ท่อฮาร์ดแวร์ และผลวัดจริงทุกเฟส
 
-เอกสารนี้สรุปภาพรวม **Full Optimization Stack** ของ `kernel-pytouch-optimize` (`ptopt`) ตั้งแต่ Bootstrap Layer, Config Resolver, 9+ Runtime Passes, Custom Triton Kernels ไปจนถึง Hardening (Phase 1 → Phase 4.1) โดยอ้างอิงจากโค้ดจริงใน [`src/`](../../src/) และผลวัดจริงบน **NVIDIA L4 (`sm_89`)** และ **Local CPU**
+เอกสารนี้สรุปภาพรวม **Full Optimization Stack** ของ `kernel-pytouch-optimize` (`ptopt`) ตั้งแต่ Bootstrap Layer, Config Resolver, 9+ Runtime Passes, Custom Triton Kernels ไปจนถึง Hardening (Phase 1 → Phase 7) โดยอ้างอิงจากโค้ดจริงใน [`ptopt/`](../../ptopt/) และผลวัดจริงบน **NVIDIA L4 (`sm_89`)** และ **Local CPU**
 
 > **ดูรายละเอียดการไล่จับคอขวดทีละรอบเพิ่มเติม:**
 > - [Phase 3.1 – 3.5 Root Cause & Gains](./phase-3.1-to-3.5-root-cause-and-gains.md)
 > - [Phase 3.6 – 3.7 Inference, Kernels & Tuning](./phase-3.6-to-3.7-inference-kernels-and-tuning.md)
 > - [Phase 5.1 – 5.5 Kernel, Compile & Pipeline Refinements](./phase-5-kernel-compile-and-pipeline-refinements.md)
 > - [Phase 6.1 – 6.3 Dispatch, Hybrid LCE & LLM Polish](./phase-6-dispatch-hybrid-and-llm-polish.md)
+> - [Phase 7 Calibration Integrity, Namespace Isolation & Hardening](./phase-7-hardening-calibration-and-namespace.md)
 
 ---
 
@@ -109,8 +110,9 @@ flowchart LR
 - **Micro-Kernels (`large`)**:
   - `RMSNorm (8192x1025)`: `4.374 ms (14.3 GB/s)` → Triton **`0.592 ms (105.8 GB/s, 7.39x vs Eager)`**
   - `CrossEntropy (8192x8192)`: `11.937 ms (20.9 GB/s)` → Triton **`3.362 ms (74.4 GB/s, 3.55x vs Eager)`**
-- **Phase 4.1 3-Axis Migrate Verification** ([022049_20261118-phase-4.1.txt](../../report/022049_20261118-phase-4.1.txt)):
-  - ผ่าน `4/4` suites บน Local CPU (`Unit: Config Migrator & Cache` 8 tests, `Axis 1: 5 Code Patterns`, `Axis 2: 25 Cross-Load Checkpoint Pairs`, `Axis 3: Config & Stale Cache Isolation`) — รอ user รันยืนยันบน Colab GPU
+- **Phase 4.1 3-Axis Migrate Verification** ([022049_20261118-phase-4.1.txt](../../report/022049_20261118-phase-4.1.txt)) → **Phase 7 Hardening & Colab Full Gate** ([061933_20261119-phase-7.txt](../../report/061933_20261119-phase-7.txt), [064444_20261119-phase-4.txt](../../report/064444_20261119-phase-4.txt)):
+  - **Phase 7 Colab L4 Verification**: `fp8_compile_static` **`7.42x`** (`652.42 → 87.94 ms`, **`P99 = 90.08 ms`**, VRAM **`1,061.8 MB`** via micro-batch calibration slicing), `vocab32k` (`hybrid_compile_lce`) **`2.07x` (`-415.4 MB`)**, Warm fingerprint cache **`0.32 ms` (`125.63x`)**
+  - **Full Regression Gate (`sm_89`)**: **`15/15 Stages PASS`** (`150 Unit Tests OK`, `12/12 Migrate Suites PASS`, `24/24 Smoke Cells PASS` in `538.51s`), namespace package ย้ายเป็น [`ptopt/`](../../ptopt/) ปลอด collision กับ user `src/`
 
 ---
 
