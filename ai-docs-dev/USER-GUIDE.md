@@ -13,7 +13,7 @@ Run any existing PyTorch training or inference script without editing source cod
 ptopt -- python train.py --epochs 10
 
 # Or via module invocation without installing console script
-python3 -m src.cli.main --profile balanced -- python train.py
+python3 -m ptopt.cli.main --profile balanced -- python train.py
 ```
 
 ### Diagnostic & Inspection Flags
@@ -87,7 +87,7 @@ python3 -m src.cli.main --profile balanced -- python train.py
 
 ### 4.1 Adding a New GPU Rule
 
-1. Open [`src/config/rules_builtin.py`](../src/config/rules_builtin.py).
+1. Open [`ptopt/config/rules_builtin.py`](../ptopt/config/rules_builtin.py).
 2. Add a `ConfigRule` into `get_builtin_rules()` under the appropriate layer (`gpu_arch`, `vram_tier`, or `user_profile`):
    ```python
    ConfigRule(
@@ -98,22 +98,22 @@ python3 -m src.cli.main --profile balanced -- python train.py
        updates={"runtime.tf32": True, "attention.flash_sdp": True},
    )
    ```
-3. Add a mock preset in `_MOCK_PRESETS` inside [`src/cli/explain.py`](../src/cli/explain.py) if needed, and add unit coverage in `tests/unit/test_config_resolver.py`.
+3. Add a mock preset in `_MOCK_PRESETS` inside [`ptopt/cli/explain.py`](../ptopt/cli/explain.py) if needed, and add unit coverage in `tests/unit/test_config_resolver.py`.
 
 ### 4.2 Adding a New Optimization Pass
 
-1. Create `src/passes/my_pass.py` exposing `apply_my_pass(cfg: OptimizeConfig, manager: HookManager) -> str`:
+1. Create `ptopt/passes/my_pass.py` exposing `apply_my_pass(cfg: OptimizeConfig, manager: HookManager) -> str`:
    - **Never import `torch` at module top level** (keep `sitecustomize` lazy-import safe). Fetch `sys.modules.get("torch")` or pass `torch_mod`.
    - Return `"SKIPPED: <reason>"` when disabled by config or unsupported on hardware; `HookManager` automatically records `[SKIPPED]` vs `[APPLIED]` vs `[FALLBACK]`.
    - Yield to explicit user code (`torch.is_autocast_enabled()`, pre-existing `torch.compile`, non-picklable datasets).
-2. Register the pass cleanly in `register_builtin_passes(manager)` inside [`src/passes/__init__.py`](../src/passes/__init__.py).
+2. Register the pass cleanly in `register_builtin_passes(manager)` inside [`ptopt/passes/__init__.py`](../ptopt/passes/__init__.py).
 3. Add unit tests under `tests/unit/` and subprocess end-to-end parity tests under `tests/migrate/`.
 
 ### 4.3 Adding a Custom Triton Kernel
 
-1. Place your Triton kernel and PyTorch eager/autograd wrapper under `src/kernels/my_kernel.py`:
+1. Place your Triton kernel and PyTorch eager/autograd wrapper under `ptopt/kernels/my_kernel.py`:
    - Guard with `TRITON_AVAILABLE` and fall back gracefully to pure PyTorch (`fallback_on_error=True`).
    - Avoid `.item()` CPU-GPU synchronizations inside the kernel hot path.
-2. Wire dispatch through [`src/kernels/registry.py`](../src/kernels/registry.py):
+2. Wire dispatch through [`ptopt/kernels/registry.py`](../ptopt/kernels/registry.py):
    - Use **Compile-Aware Gate**: skip custom autograd ops when `torch.compile` (`Inductor`) is already active so Inductor can fuse surrounding operations without graph breaks (unless your Triton kernel strictly beats Inductor, like `CrossEntropy`).
 3. Verify numerical parity (`MaxRelDiff` / `MaxAbsDiff`), speed vs Eager & `torch.compile`, and checkpoint compatibility in `tests/unit/test_kernels_parity.py` and `tests/migrate/test_phase3_7_kernels.py`.

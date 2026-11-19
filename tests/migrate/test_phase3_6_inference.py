@@ -43,7 +43,7 @@ class TestPhase36InferenceMigration(unittest.TestCase):
             wrap_safe = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "safe",
                 "--no-compile",
@@ -58,7 +58,7 @@ class TestPhase36InferenceMigration(unittest.TestCase):
             wrap_bal = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--no-compile",
@@ -77,7 +77,7 @@ class TestPhase36InferenceMigration(unittest.TestCase):
         wrap = _run_summary([
             sys.executable,
             "-m",
-            "src.cli.main",
+            "ptopt.cli.main",
             "--profile",
             "balanced",
             "--no-compile",

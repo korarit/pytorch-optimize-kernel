@@ -19,9 +19,9 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
         sys.path.insert(0, _p)
 
 from bench import WORKLOAD_SPECS, _extract_workload_summary
-from src.common.text_report import TextReportBuilder
-from src.config import detect_runtime_cache_key
-from src.detect import collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import detect_runtime_cache_key
+from ptopt.detect import collect_fingerprint
 from telemetry import RunRecord, check_parity, compute_speedup, compute_vram_delta, merge_summary_and_telemetry
 
 # Migrate files that explicitly force `PTOPT_COMPILE_CPU=1`; excluded from `--mode fast` CPU gate.
@@ -72,7 +72,7 @@ def _run_diagnostics_checks() -> list[GateStepResult]:
         ("--doctor", "[Recommended Profile]", "CLI: ptopt --doctor"),
         ("--explain", "[FINAL RESOLVED CONFIG]", "CLI: ptopt --explain"),
     ):
-        rc, out, dt = _run_subprocess([sys.executable, "-m", "src.cli.main", flag])
+        rc, out, dt = _run_subprocess([sys.executable, "-m", "ptopt.cli.main", flag])
         passed = rc == 0 and marker in out
         results.append(
             GateStepResult(
@@ -175,7 +175,7 @@ def _run_smoke_benchmark(
                     ovr.extend(["--override", f"compile.cache_dir={cache_dir}"])
                 if profile == "aggressive" and is_cuda:
                     ovr.extend(["--override", "compile.mode=default"])
-                cmd = [sys.executable, "-m", "src.cli.main", "--profile", profile, *ovr, "--", sys.executable, str(script_path), *wl_args]
+                cmd = [sys.executable, "-m", "ptopt.cli.main", "--profile", profile, *ovr, "--", sys.executable, str(script_path), *wl_args]
             t0 = time.perf_counter()
             proc = subprocess.run(cmd, cwd=REPO_ROOT, env=env, capture_output=True, text=True, check=False)
             wall = time.perf_counter() - t0

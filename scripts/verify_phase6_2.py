@@ -22,10 +22,10 @@ from phase5_report_helper import (  # noqa: E402
     format_torch_profiler_block,
     run_workload_variant,
 )
-from src.common.text_report import TextReportBuilder  # noqa: E402
-from src.config import detect_runtime_cache_key  # noqa: E402
-from src.detect import collect_fingerprint  # noqa: E402
-from src.kernels.fused_linear_cross_entropy import fused_linear_cross_entropy  # noqa: E402
+from ptopt.common.text_report import TextReportBuilder  # noqa: E402
+from ptopt.config import detect_runtime_cache_key  # noqa: E402
+from ptopt.detect import collect_fingerprint  # noqa: E402
+from ptopt.kernels.fused_linear_cross_entropy import fused_linear_cross_entropy  # noqa: E402
 from telemetry import check_parity, compute_speedup, compute_vram_delta  # noqa: E402
 
 

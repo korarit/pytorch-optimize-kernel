@@ -1,0 +1,77 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | Phase 7: Hardening, Calibration & Namespace Isolation
+==============================================================================
+Timestamp          : 2026-11-18 22:36:08 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize/kernel-pytorch-optimize
+Git Branch/Commit  : main @ b7ec00b
+Hardware Backend   : cpu
+GPU                : CPU-Only (Colab GPU pending)
+PyTorch / Runtime Key: 2.15.0+cpu (CacheKeyInfo(gpu_arch='cpu', torch_version='2.15.0+cpu', triton_version='none', cache_key='cpu-pt2.15.0_cpu-trnone-aafeeb5092dc'))
+Package Namespace  : ptopt/ (isolated from user src/)
+Debug Telemetry    : PTOPT_DEBUG_PROFILE=1, PTOPT_TORCH_PROFILE=1
+
+[PHASE 7 AUDIT & FUNCTIONAL MATRIX]
+------------------------------------------------------------------------------
+ID   | Fix Target                                          | Scope      | Status | Verification Notes                                         
+-----+-----------------------------------------------------+------------+--------+------------------------------------------------------------
+7.1  | fp8_compile_static telemetry & calib_steps          | Unit/Hook  | PASS   | Outer TelemetryCollector + suppress() + N-step calib       
+7.2  | Package namespace isolation (src -> ptopt)          | Subprocess | PASS   | Isolated ptopt vs user src/ OK (1116.7ms)                  
+7.3a | Hybrid LCE wide-FFN head classification guard       | Unit       | PASS   | Only terminal head patched; 8x FFN unpatched               
+7.3b | LazyLinearLogits inside compiled forward+CE         | Compile    | PASS   | empty_strided + no_grad _make_subclass + meta passthrough  
+7.3c | auto_compile OOM rescue + act_ckpt peak reset       | Unit       | PASS   | OOM deferred to order-20 rescue; partial resets peak       
+7.4a | checkpoint_compat fused step & 5D Conv3d sync       | Unit       | PASS   | injected_fused CPU step + mixed Conv2d/Conv3d channels_last
+7.4b | auto_amp NAdam/RAdam + eval skip isolation + queue  | Unit       | PASS   | Queue drains unpolled slots; eval skips isolated           
+7.4c | ModuleCallDispatcher TLS + RoPE 3D + CLI allow_list | Unit       | PASS   | Ran 10 checks in 3.79s                                     
+
+[COLD VS WARM FINGERPRINT CACHE]
+------------------------------------------------------------------------------
+Stage          | Time(ms) | Speedup | Details                 | Status
+---------------+----------+---------+-------------------------+-------
+Cold (cpu)     | 25.37    | -       | Live probe (no cache)   | PASS  
+Cache Seed     | 22.48    | -       | Write + fresh /dev/shm  | PASS  
+Warm Hit (cpu) | 22.57    | 1.12x   | CLI/RT cache match=True | PASS  
+
+[ABLATION MATRIX + P95 / P99 / E2E LATENCY SUMMARY]
+------------------------------------------------------------------------------
+Case             | Mode                            | Step0(ms) | SteadyP50 | P95(ms) | P99(ms) | Speedup | E2E   | PeakVRAM | TelSteps | Status               
+-----------------+---------------------------------+-----------+-----------+---------+---------+---------+-------+----------+----------+----------------------
+infer_bs64_large | eager_bf16 / fp8_compile_static | -         | -         | -       | -       | -       | -     | -        | -        | [WAIT FOR USER - GPU]
+vocab32k         | baseline / hybrid_compile_lce   | -         | -         | -       | -       | -       | -     | -        | -        | [WAIT FOR USER - GPU]
+cpu_smoke_lm     | baseline                        | 5.85      | 2.93      | 3.45    | 3.45    | 1.00x   | 2.00s | CPU      | 0        | PASS                 
+cpu_smoke_lm     | ptopt_safe                      | 730.27    | 3.75      | 4.08    | 4.09    | 0.78x   | 2.26s | CPU      | 6        | PASS                 
+
+[PHASE BREAKDOWN (DEBUG PROFILE)]
+------------------------------------------------------------------------------
+Case         | Mode       | Step0(ms) | Steady(ms) | Data/Other  | Forward      | Loss/Clip   | Backward     | Optim       
+-------------+------------+-----------+------------+-------------+--------------+-------------+--------------+-------------
+cpu_smoke_lm | ptopt_safe | 730.27    | 3.82       | 0.12 (3.3%) | 1.07 (28.0%) | 0.12 (3.0%) | 1.63 (42.6%) | 0.88 (23.1%)
+
+[CUDA ALLOCATOR & MEMORY HEADROOM]
+------------------------------------------------------------------------------
+Case         | Mode       | Alloc(MB) | Reserved(MB) | Overhead(MB) | Headroom(MB) | Util(%) | Retries              
+-------------+------------+-----------+--------------+--------------+--------------+---------+----------------------
+cpu_smoke_lm | ptopt_safe | 0.0       | 0.0          | 0.0          | 0.0          | 0.0%    | [WAIT FOR USER - GPU]
+
+[TOP PYTORCH PROFILER OPS (STEADY WINDOW)]
+------------------------------------------------------------------------------
+[cpu_smoke_lm | ptopt_safe] Profiler window=[2, 5] self_cuda=0.0ms self_cpu=8.792ms (top_cpu_ops):
+  aten::mm                                         calls=99    self=  1.303ms (14.8%) total=  1.318ms
+  aten::mul                                        calls=276   self=  1.034ms (11.8%) total=  1.304ms
+  Optimizer.step#AdamW.step                        calls=3     self=  0.503ms ( 5.7%) total=  2.921ms
+  aten::div_                                       calls=69    self=  0.255ms ( 2.9%) total=  0.391ms
+  aten::sqrt                                       calls=54    self=  0.241ms ( 2.7%) total=  0.241ms
+  aten::_to_copy                                   calls=291   self=  0.218ms ( 2.5%) total=  0.446ms
+
+[WARMUP VS STEADY STEP TRACE]
+------------------------------------------------------------------------------
+[cpu_smoke_lm | baseline] step0=5.85ms | steady_med=2.93ms | s0=5.85ms, s1=3.46ms, s2=2.83ms, s3=2.91ms, s4=2.93ms, s5=3.41ms
+[cpu_smoke_lm | ptopt_safe] step0=730.27ms | steady_med=3.75ms | s0=730.27ms, s1=3.45ms, s2=4.06ms, s3=3.75ms, s4=3.75ms, s5=4.09ms
+
+[AUTOMATED DIAGNOSIS & VERIFICATION SUMMARY]
+------------------------------------------------------------------------------
+CPU local run: 10/10 Phase 7 functional unit checks verified; CUDA L4 ablations queued [WAIT FOR USER].
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW ([WAIT FOR USER] Run `python3 scripts/verify_phase7.py` and `python3 scripts/run_gate.py --mode full` on Google Colab L4 GPU)
+==============================================================================

@@ -21,8 +21,8 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
         sys.path.insert(0, _p)
 
 from report import build_comparison_rows, export_csv_report, export_json_report, generate_benchmark_text_report
-from src.config import ConfigResolver
-from src.detect import collect_fingerprint
+from ptopt.config import ConfigResolver
+from ptopt.detect import collect_fingerprint
 from telemetry import RunRecord, merge_summary_and_telemetry
 
 WORKLOADS_DIR = BENCH_DIR / "workloads"
@@ -76,7 +76,7 @@ def _run_single_subprocess(
             cmd = [
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 mode,
                 "--",

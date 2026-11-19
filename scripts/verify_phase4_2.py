@@ -13,8 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.common.text_report import TextReportBuilder
-from src.detect import collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.detect import collect_fingerprint
 
 
 def _run_cmd(cmd: list[str]) -> tuple[int, str, str, float]:
@@ -42,14 +42,14 @@ def main() -> int:
         traces.append(f"--- FAILURE: test_doctor_and_fallback.py ---\n{(out_u + err_u)[-2000:]}")
 
     # 2. Live `ptopt --doctor` + targeted mock profiles
-    rc_d, out_d, err_d, dt_d = _run_cmd([sys.executable, "-m", "src.cli.main", "--doctor"])
+    rc_d, out_d, err_d, dt_d = _run_cmd([sys.executable, "-m", "ptopt.cli.main", "--doctor"])
     ok_d = rc_d == 0 and "[Diagnostic Checks]" in out_d and "[Recommended Profile]" in out_d
     all_passed &= ok_d
     rows.append(["CLI: ptopt --doctor (live)", device_label, f"{dt_d:.2f}s", "PASS" if ok_d else "FAIL", "Checks + recommendation printed"])
     if not ok_d:
         traces.append(f"--- FAILURE: ptopt --doctor ---\n{out_d}\n{err_d}")
 
-    rc_t4, out_t4, _err_t4, dt_t4 = _run_cmd([sys.executable, "-m", "src.cli.main", "--target-arch", "low_shm_t4", "--doctor"])
+    rc_t4, out_t4, _err_t4, dt_t4 = _run_cmd([sys.executable, "-m", "ptopt.cli.main", "--target-arch", "low_shm_t4", "--doctor"])
     ok_t4 = rc_t4 == 0 and "[WARN   ] /dev/shm Shared Memory" in out_t4 and "Profile : balanced" in out_t4
     all_passed &= ok_t4
     rows.append(["CLI: --target-arch low_shm_t4", "Colab T4 512MB /dev/shm simulation", f"{dt_t4:.2f}s", "PASS" if ok_t4 else "FAIL", "Recommended balanced + WARN low /dev/shm"])
@@ -60,7 +60,7 @@ def main() -> int:
         rc_f, out_f, err_f, dt_f = _run_cmd([
             sys.executable,
             "-m",
-            "src.cli.main",
+            "ptopt.cli.main",
             "--profile",
             "safe",
             "--fallback-report",

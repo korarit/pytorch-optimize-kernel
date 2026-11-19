@@ -45,7 +45,7 @@ class TestPhase37KernelsMigration(unittest.TestCase):
             wrap_eager_k = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "aggressive",
                 "--no-compile",
@@ -82,7 +82,7 @@ class TestPhase37KernelsMigration(unittest.TestCase):
             wrap_full = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "aggressive",
                 "--no-dataloader-tune",

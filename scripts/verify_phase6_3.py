@@ -24,10 +24,10 @@ from phase5_report_helper import (  # noqa: E402
     format_torch_profiler_block,
     run_workload_variant,
 )
-from src.common.text_report import TextReportBuilder  # noqa: E402
-from src.config import detect_runtime_cache_key  # noqa: E402
-from src.detect import collect_fingerprint  # noqa: E402
-from src.kernels import (  # noqa: E402
+from ptopt.common.text_report import TextReportBuilder  # noqa: E402
+from ptopt.config import detect_runtime_cache_key  # noqa: E402
+from ptopt.detect import collect_fingerprint  # noqa: E402
+from ptopt.kernels import (  # noqa: E402
     ref_cross_entropy,
     ref_rmsnorm,
     ref_rope,
@@ -172,7 +172,7 @@ def _bench_fingerprint_startup() -> list[list[object]]:
     """Measure cold Python subprocess `collect_fingerprint()` latency with vs without disk cache."""
     rows: list[list[object]] = []
     with tempfile.TemporaryDirectory() as cache_dir:
-        cmd = [sys.executable, "-c", "from src.detect.fingerprint import collect_fingerprint; fp = collect_fingerprint(); print(fp.effective_backend, fp.host.shm_total_mb)"]
+        cmd = [sys.executable, "-c", "from ptopt.detect.fingerprint import collect_fingerprint; fp = collect_fingerprint(); print(fp.effective_backend, fp.host.shm_total_mb)"]
         base_env = dict(os.environ)
         base_env["PTOPT_FP_CACHE_DIR"] = cache_dir
 

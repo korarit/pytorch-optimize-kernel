@@ -49,7 +49,7 @@ class TestPhase35CompileMigration(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "balanced",
                     "--no-dataloader-tune",
@@ -97,7 +97,7 @@ class TestPhase35CompileMigration(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "balanced",
                     "--no-dataloader-tune",
@@ -129,7 +129,7 @@ class TestPhase35CompileMigration(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "balanced",
                     "--no-dataloader-tune",

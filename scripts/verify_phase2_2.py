@@ -14,8 +14,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.common.text_report import TextReportBuilder
-from src.detect import collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.detect import collect_fingerprint
 
 WORKLOADS_DIR = REPO_ROOT / "pipline-for-test" / "workloads"
 

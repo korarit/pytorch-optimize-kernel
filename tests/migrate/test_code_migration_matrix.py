@@ -202,7 +202,7 @@ def _run_style(script_path: Path, style: str, profile: str | None) -> dict[str, 
     if profile is None:
         cmd = script_cmd
     else:
-        cmd = [sys.executable, "-m", "src.cli.main", "--profile", profile, "--", *script_cmd]
+        cmd = [sys.executable, "-m", "ptopt.cli.main", "--profile", profile, "--", *script_cmd]
     proc = subprocess.run(cmd, cwd=REPO_ROOT, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise AssertionError(

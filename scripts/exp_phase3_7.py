@@ -23,9 +23,9 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
         sys.path.insert(0, _p)
 
 from bench import WORKLOADS_DIR, WORKLOAD_SPECS, _extract_workload_summary
-from src.common.text_report import TextReportBuilder
-from src.detect import collect_fingerprint
-from src.kernels import (
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.detect import collect_fingerprint
+from ptopt.kernels import (
     HAS_TRITON,
     ref_cross_entropy,
     ref_layernorm,
@@ -184,7 +184,7 @@ def _run_e2e_variant(
             cmd = [
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 profile,
                 *(["--override", "compile.enabled=true"] if compile_enabled else ["--no-compile"]),

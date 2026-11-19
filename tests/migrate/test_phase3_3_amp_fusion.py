@@ -46,7 +46,7 @@ class TestPhase33Migration(unittest.TestCase):
             wrap = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--no-compile",
@@ -67,7 +67,7 @@ class TestPhase33Migration(unittest.TestCase):
             wrap_train = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--no-compile",

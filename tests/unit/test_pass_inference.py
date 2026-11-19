@@ -16,9 +16,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.passes.inference_opt import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.passes.inference_opt import (
     apply_inference_opt_pass,
     check_fp8_eligibility,
     install_inference_opt_hook,
@@ -167,7 +167,7 @@ class TestInferenceOptPass(unittest.TestCase):
 
         model = nn.Linear(8, 4)
         model.eval()
-        with patch("src.passes.inference_opt._has_cuda_context", return_value=True), patch.object(
+        with patch("ptopt.passes.inference_opt._has_cuda_context", return_value=True), patch.object(
             torch, "compile", side_effect=_spy_compile
         ):
             rt = install_inference_opt_hook(cfg, mgr, torch)
@@ -215,7 +215,7 @@ class TestInferenceOptPass(unittest.TestCase):
                 mgr.reset()
 
     def test_fp8_prequant_cache_preserves_model_parameters_and_state_dict(self) -> None:
-        from src.passes.inference_opt import apply_fp8_linear_eval_hooks
+        from ptopt.passes.inference_opt import apply_fp8_linear_eval_hooks
 
         if not hasattr(torch, "float8_e4m3fn"):
             self.skipTest("float8_e4m3fn unavailable in this PyTorch build")
@@ -243,7 +243,7 @@ class TestInferenceOptPass(unittest.TestCase):
             torch.testing.assert_close(after_sd[name], orig_sd[name])
 
     def test_fp8_compilable_traceable_path_zero_graph_breaks(self) -> None:
-        from src.passes.inference_opt import (
+        from ptopt.passes.inference_opt import (
             _quantize_fp8_traceable,
             apply_fp8_linear_eval_hooks,
             prewarm_fp8_weight_caches,
@@ -308,7 +308,7 @@ class TestInferenceOptPass(unittest.TestCase):
             rel_err = (out.float() - ref.float()).abs().max() / ref.float().abs().max().clamp(min=1e-6)
             self.assertLess(float(rel_err.item()), 0.05)
         else:
-            with patch("src.passes.inference_opt._is_cuda_tensor", new=lambda _t: True), patch.object(
+            with patch("ptopt.passes.inference_opt._is_cuda_tensor", new=lambda _t: True), patch.object(
                 torch, "_scaled_mm", new=_fake_scaled_mm, create=True
             ):
                 n_patched = apply_fp8_linear_eval_hooks(mod, torch, min_work=512 * 512)
@@ -328,7 +328,7 @@ class TestInferenceOptPass(unittest.TestCase):
                 self.assertLess(rel_err, 0.05)
 
     def test_fp8_min_work_gate_and_opt_in_weight_drop(self) -> None:
-        from src.passes.inference_opt import apply_fp8_linear_eval_hooks, prewarm_fp8_weight_caches
+        from ptopt.passes.inference_opt import apply_fp8_linear_eval_hooks, prewarm_fp8_weight_caches
 
         if not hasattr(torch, "float8_e4m3fn"):
             self.skipTest("float8_e4m3fn unavailable in this PyTorch build")

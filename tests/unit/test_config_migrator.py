@@ -16,7 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import (
+from ptopt.config import (
     CACHE_META_FILENAME,
     SCHEMA_VERSION,
     ConfigValidationError,
@@ -27,8 +27,8 @@ from src.config import (
     migrate_config_dict,
     validate_or_scope_cache_dir,
 )
-from src.passes.auto_compile import _configure_cache_and_dynamo
-from src.passes.memory_allocator import apply_prelaunch_env
+from ptopt.passes.auto_compile import _configure_cache_and_dynamo
+from ptopt.passes.memory_allocator import apply_prelaunch_env
 
 
 class TestConfigMigrator(unittest.TestCase):
@@ -178,14 +178,14 @@ class TestRuntimeCacheKeyValidation(unittest.TestCase):
             cfg.compile.cache_dir = str(base)
 
             env: dict[str, str] = {"TORCHINDUCTOR_CACHE_DIR": str(base)}
-            with patch("src.passes.memory_allocator.detect_runtime_cache_key", return_value=k_new):
+            with patch("ptopt.passes.memory_allocator.detect_runtime_cache_key", return_value=k_new):
                 notes = apply_prelaunch_env(cfg, env)
             self.assertEqual(env["TORCHINDUCTOR_CACHE_DIR"], str((base / k_new.cache_key).resolve()))
             self.assertEqual(env["PTOPT_CACHE_KEY"], k_new.cache_key)
             self.assertTrue(any("cache_rotated=" in n for n in notes))
 
             with (
-                patch("src.passes.auto_compile.detect_runtime_cache_key", return_value=k_new),
+                patch("ptopt.passes.auto_compile.detect_runtime_cache_key", return_value=k_new),
                 patch.dict(os.environ, {"TORCHINDUCTOR_CACHE_DIR": str(base)}, clear=False),
             ):
                 resolved = _configure_cache_and_dynamo(cfg, torch_mod=None, strict=False)
@@ -195,7 +195,7 @@ class TestRuntimeCacheKeyValidation(unittest.TestCase):
     def test_lazy_torch_import_invariant_for_migrator(self) -> None:
         code = (
             "import sys; "
-            "from src.config import migrate_config_dict, detect_runtime_cache_key; "
+            "from ptopt.config import migrate_config_dict, detect_runtime_cache_key; "
             "res = migrate_config_dict({'tf32': True}, emit_warnings=False); "
             "key = detect_runtime_cache_key(); "
             "assert 'torch' not in sys.modules, 'torch eagerly imported'; "

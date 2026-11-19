@@ -20,9 +20,9 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
         sys.path.insert(0, _p)
 
 from report import build_comparison_rows, export_csv_report, export_json_report, generate_benchmark_text_report
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.hooks.telemetry_hook import TelemetryCollector
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.hooks.telemetry_hook import TelemetryCollector
 from telemetry import (
     RunRecord,
     StepStats,

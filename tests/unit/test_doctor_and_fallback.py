@@ -18,16 +18,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.doctor import format_doctor_text, run_doctor
-from src.cli.explain import build_mock_fingerprint
-from src.cli.main import main as ptopt_main
-from src.config import OptimizeConfig
-from src.hooks.fallback_reporter import (
+from ptopt.cli.doctor import format_doctor_text, run_doctor
+from ptopt.cli.explain import build_mock_fingerprint
+from ptopt.cli.main import main as ptopt_main
+from ptopt.config import OptimizeConfig
+from ptopt.hooks.fallback_reporter import (
     build_run_text_report,
     classify_events,
     format_fallback_report,
 )
-from src.hooks.manager import FallbackEvent, HookManager
+from ptopt.hooks.manager import FallbackEvent, HookManager
 
 
 class TestDoctorDiagnostics(unittest.TestCase):
@@ -159,7 +159,7 @@ class TestFallbackReporter(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "safe",
                     "--fallback-report",
@@ -188,9 +188,9 @@ class TestFallbackReporter(unittest.TestCase):
     def test_doctor_and_reporter_preserve_lazy_torch_invariant(self) -> None:
         code = (
             "import sys; "
-            "from src.cli.explain import build_mock_fingerprint; "
-            "from src.cli.doctor import run_doctor, format_doctor_text; "
-            "from src.hooks.fallback_reporter import format_fallback_report; "
+            "from ptopt.cli.explain import build_mock_fingerprint; "
+            "from ptopt.cli.doctor import run_doctor, format_doctor_text; "
+            "from ptopt.hooks.fallback_reporter import format_fallback_report; "
             "rep = run_doctor(fp=build_mock_fingerprint('t4')); "
             "_ = format_doctor_text(rep); "
             "_ = format_fallback_report([]); "

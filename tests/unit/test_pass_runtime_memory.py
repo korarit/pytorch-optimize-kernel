@@ -16,17 +16,17 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
-from src.passes.channels_last import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
+from ptopt.passes.channels_last import (
     apply_channels_last_pass,
     convert_module_channels_last,
     install_channels_last_hook,
     uninstall_channels_last_hook,
 )
-from src.passes.memory_allocator import apply_prelaunch_env
-from src.passes.runtime_flags import apply_runtime_flags_pass
+from ptopt.passes.memory_allocator import apply_prelaunch_env
+from ptopt.passes.runtime_flags import apply_runtime_flags_pass
 
 
 def _make_mock_cuda_torch(*, major: int, minor: int, cuda_avail: bool = True) -> tuple[SimpleNamespace, dict[str, object]]:
@@ -242,13 +242,13 @@ class TestChannelsLastPass(unittest.TestCase):
             self.assertIn("Auto channels_last hook installed", msg)
             try:
                 # 64x64 is below 128x128 spatial threshold -> stays contiguous NCHW
-                with patch("src.passes.channels_last._has_large_4d_input", return_value=False):
+                with patch("ptopt.passes.channels_last._has_large_4d_input", return_value=False):
                     cnn_small(torch.randn(1, 3, 64, 64))
                 self.assertTrue(cnn_small.weight.is_contiguous())
                 self.assertTrue(any(ev.status == "SKIPPED" and "below auto threshold" in ev.reason for ev in mgr.events))
 
                 # >=128x128 CUDA input -> converts automatically to channels_last
-                with patch("src.passes.channels_last._has_large_4d_input", return_value=True):
+                with patch("ptopt.passes.channels_last._has_large_4d_input", return_value=True):
                     cnn_large(torch.randn(1, 3, 128, 128))
                 self.assertTrue(cnn_large.weight.is_contiguous(memory_format=torch.channels_last))
                 self.assertTrue(any(ev.status == "APPLIED" and "Converted Conv2d" in ev.reason for ev in mgr.events))

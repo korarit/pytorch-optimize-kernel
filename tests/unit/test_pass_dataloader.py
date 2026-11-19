@@ -13,9 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.passes.dataloader_tune import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.passes.dataloader_tune import (
     decide_dataloader_params,
     install_dataloader_hook,
     is_picklable_fast,

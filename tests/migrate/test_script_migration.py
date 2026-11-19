@@ -62,7 +62,7 @@ class TestUnmodifiedScriptMigration(unittest.TestCase):
             wrap_summary = _run_and_parse([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "safe",
                 "--",

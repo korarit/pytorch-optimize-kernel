@@ -33,9 +33,11 @@ def _run_workload(script_name: str, extra_args: list[str]) -> dict[str, object]:
 class TestWorkloadsPureAndDeterministic(unittest.TestCase):
     """Verify workloads stay Pure PyTorch, run deterministically, and support checkpoints."""
 
-    def test_workloads_do_not_import_src_wrapper(self) -> None:
+    def test_workloads_do_not_import_wrapper(self) -> None:
         for path in WORKLOADS_DIR.glob("*.py"):
             content = path.read_text(encoding="utf-8")
+            self.assertNotIn("from ptopt", content, f"{path.name} must remain pure PyTorch")
+            self.assertNotIn("import ptopt", content, f"{path.name} must remain pure PyTorch")
             self.assertNotIn("from src", content, f"{path.name} must remain pure PyTorch")
             self.assertNotIn("import src", content, f"{path.name} must remain pure PyTorch")
 

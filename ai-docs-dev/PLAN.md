@@ -42,6 +42,17 @@
 - [Phase 4.2](./phase-4/4.2-diagnostics-and-docs.md) — `--doctor`, `--fallback-report` & Developer Docs
 - [Phase 4.3](./phase-4/4.3-regression-gate.md) — Automated Regression Gate & Final Colab Sign-off Report
 
+### Phase 5: Group 1 Kernel & Compile Refinements ([Overview](./phase-5-group1-kernel-and-compile-refinements.md))
+
+### Phase 6: Runtime Fusion & LLM Scale ([Overview](./phase-6-runtime-fusion-and-llm-scale.md))
+
+### Phase 7: Hardening, Calibration Integrity & Namespace Isolation ([Overview](./phase-7-hardening-calibration-and-namespace.md))
+- **7.1** Telemetry & FP8 Static Calibration Integrity (`inference_opt.py`, `manager.py`, `telemetry_hook.py`)
+- **7.2** Package Namespace Isolation (`src/` -> `ptopt/`)
+- **7.3** Hybrid LCE Head Guard, `LazyLinearLogits` Dynamo Boundary, Compile/OOM & Activation Checkpointing
+- **7.4** Core Hardening (`checkpoint_compat`, `channels_last`, `auto_amp`, `module_dispatch`, `rope`, `fingerprint`, `cli`, docs)
+- **7.5** Mandatory 7-Part Deep Debug Verification Report (`scripts/verify_phase7.py`)
+
 ---
 
 ## โครงสร้างโฟลเดอร์เป้าหมาย (Target Repository Layout)
@@ -52,8 +63,11 @@ kernel-pytouch-optimize/
 │   ├── phase-1/
 │   ├── phase-2/
 │   ├── phase-3/
-│   └── phase-4/
-├── src/                         # Wrapper Core, Detector, Config Engine, Passes, Kernels
+│   ├── phase-4/
+│   ├── phase-5/
+│   ├── phase-6/
+│   └── phase-7-hardening-calibration-and-namespace.md
+├── ptopt/                       # Wrapper Core, Detector, Config Engine, Passes, Kernels
 ├── pipline-for-test/            # Benchmark Harness, Workloads, Telemetry, Text Report Generator
 ├── report/                      # เก็บ Text Reports ทั้งหมด (ชื่อไฟล์ HHMMSS_YYYYMMDD-name.txt)
 ├── scripts/                     # Utility scripts สำหรับรันตรวจและสร้าง Text Report บน Google Colab

@@ -17,9 +17,9 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
 
 from bench import run_benchmark_suite
 from report import build_comparison_rows
-from src.common.text_report import TextReportBuilder
-from src.config import ConfigResolver
-from src.detect import collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import ConfigResolver
+from ptopt.detect import collect_fingerprint
 
 
 def _run_suite(target_dir: Path) -> tuple[str, int, str]:

@@ -13,9 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.common.text_report import TextReportBuilder
-from src.config import ConfigResolver
-from src.detect import GPUDeviceInfo, GPUProbeResult, HardwareFingerprint, HostInfo, collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import ConfigResolver
+from ptopt.detect import GPUDeviceInfo, GPUProbeResult, HardwareFingerprint, HostInfo, collect_fingerprint
 
 
 def _mock_target(name: str, *, backend: str, sm_major: int = 0, sm_minor: int = 0, vram_mb: float = 0.0, shm_mb: float | None = 16384.0) -> HardwareFingerprint:

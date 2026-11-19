@@ -1,4 +1,4 @@
-"""Pure PyTorch helpers shared by benchmark workloads (zero dependency on `src/`)."""
+"""Pure PyTorch helpers shared by benchmark workloads (zero dependency on `ptopt/`)."""
 
 from __future__ import annotations
 

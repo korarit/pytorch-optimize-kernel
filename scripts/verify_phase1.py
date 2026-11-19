@@ -13,10 +13,10 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.explain import build_mock_fingerprint, format_explain_text
-from src.common.text_report import TextReportBuilder
-from src.config import ConfigResolver
-from src.detect import collect_fingerprint
+from ptopt.cli.explain import build_mock_fingerprint, format_explain_text
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import ConfigResolver
+from ptopt.detect import collect_fingerprint
 
 
 def _run_all_unit_tests(repo_root: Path) -> tuple[str, int, str]:

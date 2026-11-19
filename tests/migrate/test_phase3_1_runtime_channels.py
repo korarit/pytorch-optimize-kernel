@@ -43,7 +43,7 @@ class TestPhase31Migration(unittest.TestCase):
             args = ["--steps", str(_STEPS), "--batch-size", bs, "--seed", "55", "--device", _TARGET_DEVICE]
             base = _run_summary([sys.executable, script, *args])
             wrap = _run_summary(
-                [sys.executable, "-m", "src.cli.main", "--profile", "safe", "--", sys.executable, script, *args],
+                [sys.executable, "-m", "ptopt.cli.main", "--profile", "safe", "--", sys.executable, script, *args],
                 env=env_cl,
             )
             parity = check_parity(base["losses"], wrap["losses"], profile="safe")
@@ -60,7 +60,7 @@ class TestPhase31Migration(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "safe",
                     "--",

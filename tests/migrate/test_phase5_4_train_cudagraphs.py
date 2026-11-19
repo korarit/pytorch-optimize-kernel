@@ -45,7 +45,7 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
         wrap = _run_summary([
             sys.executable,
             "-m",
-            "src.cli.main",
+            "ptopt.cli.main",
             "--profile",
             "balanced",
             "--override",
@@ -72,7 +72,7 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
         wrap = _run_summary([
             sys.executable,
             "-m",
-            "src.cli.main",
+            "ptopt.cli.main",
             "--profile",
             "balanced",
             "--override",
@@ -122,7 +122,7 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
             wrap_p1 = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--override",
@@ -150,7 +150,7 @@ class TestPhase54TrainCudaGraphsMigration(unittest.TestCase):
             wrap_p2 = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--override",

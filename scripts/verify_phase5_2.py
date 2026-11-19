@@ -28,10 +28,10 @@ from phase5_report_helper import (
     format_torch_profiler_block,
     run_workload_variant,
 )
-from src.common.text_report import TextReportBuilder
-from src.config import detect_runtime_cache_key
-from src.detect import collect_fingerprint
-from src.kernels import ref_linear_cross_entropy, triton_fused_linear_cross_entropy as fused_linear_cross_entropy
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import detect_runtime_cache_key
+from ptopt.detect import collect_fingerprint
+from ptopt.kernels import ref_linear_cross_entropy, triton_fused_linear_cross_entropy as fused_linear_cross_entropy
 from telemetry import check_parity, compute_speedup, compute_vram_delta
 
 

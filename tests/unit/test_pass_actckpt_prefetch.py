@@ -17,14 +17,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.passes.activation_checkpoint import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.passes.activation_checkpoint import (
     discover_checkpoint_blocks,
     install_activation_checkpoint_hook,
     uninstall_activation_checkpoint_hook,
 )
-from src.passes.dataloader_tune import _AsyncCudaPrefetchIter, install_dataloader_hook, uninstall_dataloader_hook
+from ptopt.passes.dataloader_tune import _AsyncCudaPrefetchIter, install_dataloader_hook, uninstall_dataloader_hook
 
 
 class _CustomNonTensorTag:
@@ -228,7 +228,7 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "import sys; import src.passes.activation_checkpoint; assert 'torch' not in sys.modules",
+                "import sys; import ptopt.passes.activation_checkpoint; assert 'torch' not in sys.modules",
             ],
             cwd=REPO_ROOT,
             capture_output=True,
@@ -314,7 +314,7 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                 mgr_cpu.reset()
 
     def test_recompute_dispatch_guard_blocks_amp_reentry_during_backward(self) -> None:
-        from src.hooks.module_dispatch import register_module_call_handler, unregister_module_call_handler
+        from ptopt.hooks.module_dispatch import register_module_call_handler, unregister_module_call_handler
 
         cfg = OptimizeConfig(profile="balanced")
         cfg.runtime.activation_checkpointing = "always"
@@ -380,7 +380,7 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
 
         install_activation_checkpoint_hook(cfg, mgr, torch)
         try:
-            with patch("src.kernels.registry.enable_custom_kernels_on_module", return_value=2) as mocked_triton:
+            with patch("ptopt.kernels.registry.enable_custom_kernels_on_module", return_value=2) as mocked_triton:
                 x = torch.randn(2, 256, requires_grad=True)
                 model(x).sum().backward()
                 mocked_triton.assert_called_once()
@@ -453,7 +453,7 @@ class TestActivationCheckpointAndPrefetch(unittest.TestCase):
                 mgr_strict.reset()
 
     def test_checkpoint_early_stop_control_flow_not_swallowed_by_kernel_wrappers(self) -> None:
-        from src.kernels.registry import _is_checkpoint_control_flow
+        from ptopt.kernels.registry import _is_checkpoint_control_flow
 
         stop_cls = getattr(torch.utils.checkpoint, "_StopRecomputationError", None)
         if stop_cls is not None:

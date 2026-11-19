@@ -20,8 +20,8 @@ for _p in (str(REPO_ROOT), str(BENCH_DIR)):
         sys.path.insert(0, _p)
 
 from bench import WORKLOADS_DIR, WORKLOAD_SPECS, _extract_workload_summary
-from src.common.text_report import TextReportBuilder
-from src.detect import collect_fingerprint
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.detect import collect_fingerprint
 from telemetry import RunRecord, check_parity, compute_speedup, compute_vram_delta, merge_summary_and_telemetry
 
 
@@ -73,7 +73,7 @@ def _run_variant(
             cmd = [
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "balanced",
                 "--no-compile",

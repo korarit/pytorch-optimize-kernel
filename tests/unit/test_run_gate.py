@@ -15,7 +15,7 @@ if str(REPO_ROOT) not in sys.path:
 from unittest.mock import patch
 
 from scripts.run_gate import GateStepResult, _run_smoke_benchmark, build_gate_report, discover_migrate_files
-from src.cli.explain import build_mock_fingerprint
+from ptopt.cli.explain import build_mock_fingerprint
 
 
 class TestRegressionGate(unittest.TestCase):

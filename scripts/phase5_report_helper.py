@@ -75,7 +75,7 @@ def run_workload_variant(
             cmd = [
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 profile,
                 *ovr_flags,

@@ -14,9 +14,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.main import main as ptopt_main
-from src.common.text_report import TextReportBuilder
-from src.detect import collect_fingerprint
+from ptopt.cli.main import main as ptopt_main
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.detect import collect_fingerprint
 
 
 def _run_tests(repo_root: Path) -> tuple[str, int, str]:
@@ -35,7 +35,7 @@ def _probe_ptopt_live() -> dict[str, object]:
     """Run a live inline PyTorch snippet through `ptopt` to verify zero-code hook injection."""
     snippet = (
         "import json, os, torch; "
-        "from src.hooks import get_hook_manager; "
+        "from ptopt.hooks import get_hook_manager; "
         "m = get_hook_manager(); "
         "print(json.dumps({"
         "'ptopt_active': os.environ.get('PTOPT_ACTIVE'), "
@@ -47,7 +47,7 @@ def _probe_ptopt_live() -> dict[str, object]:
     )
     # Run via subprocess invoking `python -m src.cli.main` so stdout is cleanly captured.
     res = subprocess.run(
-        [sys.executable, "-m", "src.cli.main", "--profile", "safe", "--", sys.executable, "-c", snippet],
+        [sys.executable, "-m", "ptopt.cli.main", "--profile", "safe", "--", sys.executable, "-c", snippet],
         cwd=REPO_ROOT,
         capture_output=True,
         text=True,

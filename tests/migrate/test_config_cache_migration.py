@@ -17,15 +17,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.main import build_child_env
-from src.config import (
+from ptopt.cli.main import build_child_env
+from ptopt.config import (
     CACHE_META_FILENAME,
     SCHEMA_VERSION,
     build_runtime_cache_key,
     detect_runtime_cache_key,
     validate_or_scope_cache_dir,
 )
-from src.hooks.manager import HookManager
+from ptopt.hooks.manager import HookManager
 
 _TARGET_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -77,7 +77,7 @@ class TestConfigAndCacheMigrationMatrix(unittest.TestCase):
             script = textwrap.dedent(
                 f"""
                 import json, torch
-                from src.hooks.manager import get_hook_manager
+                from ptopt.hooks.manager import get_hook_manager
                 x = torch.randn(4, 16, device={_TARGET_DEVICE!r})
                 m = torch.nn.Linear(16, 4).to({_TARGET_DEVICE!r})
                 y = m(x).sum().item()
@@ -139,7 +139,7 @@ class TestConfigAndCacheMigrationMatrix(unittest.TestCase):
                 [
                     sys.executable,
                     "-m",
-                    "src.cli.main",
+                    "ptopt.cli.main",
                     "--profile",
                     "balanced",
                     "--override",

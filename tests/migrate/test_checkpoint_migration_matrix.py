@@ -150,7 +150,7 @@ def _run_ckpt_worker(script: Path, mode: str, action: str, ckpts: list[Path]) ->
     if mode == "baseline":
         cmd = worker_cmd
     else:
-        cmd = [sys.executable, "-m", "src.cli.main", "--profile", mode, "--", *worker_cmd]
+        cmd = [sys.executable, "-m", "ptopt.cli.main", "--profile", mode, "--", *worker_cmd]
 
     env = dict(os.environ)
     # Exercise 4D channels_last state_dict contiguous normalization on CPU as well as GPU.

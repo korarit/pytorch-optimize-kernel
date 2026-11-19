@@ -15,9 +15,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.kernels import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.kernels import (
     HAS_TRITON,
     KernelSpec,
     apply_custom_kernels_pass,
@@ -250,7 +250,7 @@ class TestKernelsForwardBackwardParity(unittest.TestCase):
                 torch.testing.assert_close(u.grad.float(), u_ref.grad.float(), atol=atol * 2, rtol=rtol * 2)
 
     def test_rope_forward_backward_parity_and_strided_views(self) -> None:
-        from src.kernels.rope_or_swiglu import _to_row_strided_2d, ref_rope, triton_rope
+        from ptopt.kernels.rope_or_swiglu import _to_row_strided_2d, ref_rope, triton_rope
 
         torch.manual_seed(37)
         for dtype in self.dtypes:

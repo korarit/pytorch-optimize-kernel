@@ -17,15 +17,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.explain import build_mock_fingerprint
-from src.config import ConfigResolver, OptimizeConfig
-from src.hooks import HookManager
-from src.passes.auto_amp import (
+from ptopt.cli.explain import build_mock_fingerprint
+from ptopt.config import ConfigResolver, OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.passes.auto_amp import (
     apply_auto_amp_pass,
     install_auto_amp_hook,
     uninstall_auto_amp_hook,
 )
-from src.passes.optimizer_fusion import (
+from ptopt.passes.optimizer_fusion import (
     check_fused_eligibility,
     install_optimizer_fusion_hook,
     uninstall_optimizer_fusion_hook,
@@ -89,7 +89,7 @@ class TestOptimizerFusionPass(unittest.TestCase):
             mgr.reset()
 
     def test_optimizer_load_state_dict_restores_injected_fused_flag(self) -> None:
-        from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
+        from ptopt.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
 
         p = nn.Parameter(torch.randn(4, 4))
         opt = torch.optim.AdamW([p], lr=1e-3)
@@ -111,8 +111,8 @@ class TestOptimizerFusionPass(unittest.TestCase):
             uninstall_checkpoint_compat_hooks(torch)
 
     def test_channels_last_conversion_syncs_loaded_4d_optimizer_state(self) -> None:
-        from src.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
-        from src.passes.channels_last import convert_module_channels_last
+        from ptopt.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
+        from ptopt.passes.channels_last import convert_module_channels_last
 
         install_checkpoint_compat_hooks(torch)
         try:
@@ -197,7 +197,7 @@ class TestAutoAmpPass(unittest.TestCase):
 
         model = nn.Linear(4, 2)
         try:
-            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+            with patch("ptopt.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
                 torch.amp, "autocast", side_effect=_fake_autocast
             ):
                 out = model(torch.randn(2, 4))
@@ -243,7 +243,7 @@ class TestAutoAmpPass(unittest.TestCase):
 
         model = nn.Linear(4, 2)
         try:
-            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+            with patch("ptopt.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
                 torch.amp, "autocast", side_effect=_fake_autocast
             ):
                 out = model(torch.randn(2, 4))
@@ -311,7 +311,7 @@ class TestAutoAmpPass(unittest.TestCase):
                 self.assertTrue(torch.isfinite(loss_bce))
 
                 # Inside an existing autocast region, wrapper must leave dtype untouched
-                with patch("src.passes.auto_amp._is_autocast_active", return_value=True):
+                with patch("ptopt.passes.auto_amp._is_autocast_active", return_value=True):
                     F.cross_entropy(logits_fp16, target_cls)  # type: ignore[arg-type]
 
                 self.assertEqual(seen_ce_dtypes, [torch.float32, torch.float16])
@@ -341,7 +341,7 @@ class TestAutoAmpPass(unittest.TestCase):
         deep_ln_mlp = nn.Sequential(*[m for _ in range(6) for m in (nn.Linear(8, 8), nn.LayerNorm(8))])
         conv_with_ln = nn.Sequential(nn.Conv2d(3, 4, 3, padding=1), *[nn.Identity() for _ in range(6)])
         try:
-            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+            with patch("ptopt.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
                 torch.amp, "autocast", side_effect=_fake_autocast
             ):
                 out_mlp = deep_ln_mlp(torch.randn(2, 8))
@@ -374,7 +374,7 @@ class TestAutoAmpPass(unittest.TestCase):
         tiny_mlp = nn.Sequential(nn.Linear(64, 128), nn.ReLU(), nn.Linear(128, 8))
         tiny_mlp._ptopt_compile_ineligible = True  # type: ignore[attr-defined]
         try:
-            with patch("src.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
+            with patch("ptopt.passes.auto_amp._has_cuda_context", return_value=True), patch.object(
                 torch.amp, "autocast", side_effect=_fake_autocast
             ):
                 out = tiny_mlp(torch.randn(8, 64))

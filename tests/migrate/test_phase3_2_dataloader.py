@@ -45,7 +45,7 @@ class TestPhase32DataLoaderMigration(unittest.TestCase):
             wrap = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "safe",
                 "--override",

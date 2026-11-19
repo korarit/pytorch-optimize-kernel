@@ -14,13 +14,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.explain import (
+from ptopt.cli.explain import (
     build_config_snapshot_dict,
     build_mock_fingerprint,
     format_explain_text,
     run_explain_cli,
 )
-from src.config import ConfigResolver, ConfigValidationError, OptimizeConfig
+from ptopt.config import ConfigResolver, ConfigValidationError, OptimizeConfig
 
 
 class TestExplainCLI(unittest.TestCase):

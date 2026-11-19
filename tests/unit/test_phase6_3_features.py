@@ -17,29 +17,29 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig  # noqa: E402
-from src.detect.fingerprint import collect_fingerprint  # noqa: E402
-from src.hooks.checkpoint_compat import (  # noqa: E402
+from ptopt.config import OptimizeConfig  # noqa: E402
+from ptopt.detect.fingerprint import collect_fingerprint  # noqa: E402
+from ptopt.hooks.checkpoint_compat import (  # noqa: E402
     install_checkpoint_compat_hooks,
     uninstall_checkpoint_compat_hooks,
 )
-from src.hooks.manager import HookManager  # noqa: E402
-from src.kernels.registry import (  # noqa: E402
+from ptopt.hooks.manager import HookManager  # noqa: E402
+from ptopt.kernels.registry import (  # noqa: E402
     _is_verified_rope_inputs,
     _match_swiglu_mlp,
 )
-from src.passes.channels_last import (  # noqa: E402
+from ptopt.passes.channels_last import (  # noqa: E402
     has_conv3d,
     install_channels_last_hook,
     uninstall_channels_last_hook,
 )
-from src.passes.inference_opt import (  # noqa: E402
+from ptopt.passes.inference_opt import (  # noqa: E402
     _estimate_token_rows,
     _quantize_fp8_static_traceable,
     _update_fp8_static_scale,
     apply_fp8_linear_eval_hooks,
 )
-from src.passes.optimizer_fusion import (  # noqa: E402
+from ptopt.passes.optimizer_fusion import (  # noqa: E402
     install_optimizer_fusion_hook,
     uninstall_optimizer_fusion_hook,
 )
@@ -111,7 +111,7 @@ class TestPhase63Features(unittest.TestCase):
         k = SimpleNamespace(is_cuda=True, dim=lambda: 4, shape=(2, 4, 8, 8))
         half_cos = torch.cat([torch.arange(4.0), torch.arange(4.0)], dim=-1).view(1, 1, 1, 8)
         inter_cos = torch.tensor([0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0]).view(1, 1, 1, 8)
-        with patch.object(torch.Tensor, "is_cuda", True) if False else patch("src.kernels.registry.getattr", create=True):
+        with patch.object(torch.Tensor, "is_cuda", True) if False else patch("ptopt.kernels.registry.getattr", create=True):
             pass
 
         class _MockCudaTensor:
@@ -157,7 +157,7 @@ class TestPhase63Features(unittest.TestCase):
 
         # Verify nn.MultiheadAttention in_proj_weight triggers FP8 MHA patching
         mha = nn.MultiheadAttention(embed_dim=512, num_heads=8, batch_first=True).eval()
-        with patch("src.passes.inference_opt._is_cuda_tensor", return_value=True):
+        with patch("ptopt.passes.inference_opt._is_cuda_tensor", return_value=True):
             patched = apply_fp8_linear_eval_hooks(mha, torch, min_work=512 * 512)
         self.assertEqual(patched, 1)
         self.assertTrue(getattr(mha, "_ptopt_fp8_mha_patched", False))
@@ -256,7 +256,7 @@ class TestPhase63Features(unittest.TestCase):
                 channels_last="channels_last",
                 contiguous_format="contiguous",
             )
-            import src.hooks.checkpoint_compat as cc
+            import ptopt.hooks.checkpoint_compat as cc
 
             prev_flag = cc._COMPAT_INSTALLED
             cc._COMPAT_INSTALLED = False
@@ -281,7 +281,7 @@ class TestPhase63Features(unittest.TestCase):
             def _fake_probe_host(**_kw: object) -> object:
                 nonlocal probe_host_calls
                 probe_host_calls += 1
-                from src.detect.host_probe import HostInfo
+                from ptopt.detect.host_probe import HostInfo
 
                 return HostInfo(
                     hostname="node1",
@@ -297,15 +297,15 @@ class TestPhase63Features(unittest.TestCase):
                 )
 
             def _fake_probe_gpu(**_kw: object) -> object:
-                from src.detect.gpu_probe import GPUProbeResult
+                from ptopt.detect.gpu_probe import GPUProbeResult
 
                 return GPUProbeResult(backend="cpu", device_count=0, selected_index=0, cuda_visible_devices=None)
 
             env_patch = {"PTOPT_FP_CACHE_DIR": tmp, "PTOPT_NO_FP_CACHE": "0", "CUDA_VISIBLE_DEVICES": "0"}
             with patch.dict(os.environ, env_patch, clear=False), patch(
-                "src.detect.fingerprint.probe_host", side_effect=_fake_probe_host
-            ), patch("src.detect.fingerprint.probe_gpu", side_effect=_fake_probe_gpu), patch(
-                "src.detect.fingerprint._probe_live_shm", side_effect=lambda: next(shm_vals)
+                "ptopt.detect.fingerprint.probe_host", side_effect=_fake_probe_host
+            ), patch("ptopt.detect.fingerprint.probe_gpu", side_effect=_fake_probe_gpu), patch(
+                "ptopt.detect.fingerprint._probe_live_shm", side_effect=lambda: next(shm_vals)
             ):
                 fp1 = collect_fingerprint()
                 self.assertEqual(probe_host_calls, 1)

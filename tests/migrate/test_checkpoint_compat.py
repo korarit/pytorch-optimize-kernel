@@ -17,7 +17,7 @@ WORKLOADS_DIR = REPO_ROOT / "pipline-for-test" / "workloads"
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.hooks.checkpoint_compat import (
+from ptopt.hooks.checkpoint_compat import (
     install_checkpoint_compat_hooks,
     strip_orig_mod_prefix,
     uninstall_checkpoint_compat_hooks,
@@ -65,7 +65,7 @@ class TestCheckpointCrossCompatibility(unittest.TestCase):
             resumed_wrap = _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "safe",
                 "--",
@@ -86,7 +86,7 @@ class TestCheckpointCrossCompatibility(unittest.TestCase):
             _run_summary([
                 sys.executable,
                 "-m",
-                "src.cli.main",
+                "ptopt.cli.main",
                 "--profile",
                 "safe",
                 "--",

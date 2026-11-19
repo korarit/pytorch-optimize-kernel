@@ -15,9 +15,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.cli.main import build_child_env, main as ptopt_main, parse_ptopt_argv
-from src.config import OptimizeConfig
-from src.hooks import HookManager, chain_load_sitecustomize
+from ptopt.cli.main import build_child_env, main as ptopt_main, parse_ptopt_argv
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager, chain_load_sitecustomize
 
 
 class TestCLIArgParsing(unittest.TestCase):
@@ -141,7 +141,7 @@ class TestSubprocessAndColabPlumbing(unittest.TestCase):
             )
             probe_code = (
                 "import os, json\n"
-                "from src.hooks import get_hook_manager\n"
+                "from ptopt.hooks import get_hook_manager\n"
                 "m = get_hook_manager()\n"
                 "print(json.dumps({"
                 "'bootstrapped': m.bootstrapped, "
@@ -165,7 +165,7 @@ class TestSubprocessAndColabPlumbing(unittest.TestCase):
             )
             sys.path.append(str(fake_site_dir))
             try:
-                loaded = chain_load_sitecustomize(REPO_ROOT / "src" / "hooks" / "bootstrap" / "sitecustomize.py")
+                loaded = chain_load_sitecustomize(REPO_ROOT / "ptopt" / "hooks" / "bootstrap" / "sitecustomize.py")
                 self.assertTrue(any(p.parent == fake_site_dir.resolve() for p in loaded))
                 self.assertEqual(os.environ.get("DIRECT_CHAIN_TEST"), "ok")
             finally:
@@ -179,7 +179,7 @@ class TestSubprocessAndColabPlumbing(unittest.TestCase):
             script_path.write_text(
                 "\n".join([
                     "import json, multiprocessing, os, subprocess, sys",
-                    "from src.hooks import get_hook_manager",
+                    "from ptopt.hooks import get_hook_manager",
                     "def _worker(q):",
                     "    mgr = get_hook_manager()",
                     "    q.put({'active': os.environ.get('PTOPT_ACTIVE'), 'bootstrapped': mgr.bootstrapped})",

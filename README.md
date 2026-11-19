@@ -1,6 +1,6 @@
 # kernel-pytouch-optimize (`ptopt`)
 
-> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster training** / **4.78x faster inference** and slashes peak **VRAM by up to 47%–65%** (or up to **-5.55 GB** with auto activation checkpointing) without modifying user model code, altering stored `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `src/`.
+> **Zero-Code, Hardware-Aware PyTorch Optimization Wrapper** — Accelerates unmodified PyTorch **training** and **inference** scripts up to **4.41x faster training** / **4.78x faster inference** and slashes peak **VRAM by up to 47%–65%** (or up to **-5.55 GB** with auto activation checkpointing) without modifying user model code, altering stored `nn.Parameter` values, using ultra-low-bit FP4/INT4 compression, or requiring external pip dependencies in `ptopt/`.
 >
 > **Precision Transparency Notice (`supersafe` / `safe` / `balanced` / `aggressive`):**
 > - `--profile supersafe` (Strict Exact FP32): Keeps `TF32=False`, `AMP=False` (`fp32` end-to-end), and `compile=False` while enabling fused optimizers and `inference_mode()` (`0.0` numerical drift across all workloads).
@@ -25,33 +25,33 @@ By default, **Pure PyTorch** prioritizes conservative cross-hardware defaults an
 
 ```mermaid
 flowchart TD
-    UserCmd["User Command: ptopt --profile balanced -- python3 train.py"] --> CLI["CLI Launcher (src/cli/main.py)"]
-    CLI --> Detect["Hardware Probe (src/detect: GPU SM, VRAM, CPU, /dev/shm)"]
-    Detect --> Resolver["Config Resolver (src/config: supersafe / safe / balanced / aggressive + overrides)"]
-    Resolver --> PreEnv["Pre-Launch Env (src/passes/memory_allocator.py: ALLOC_CONF, OMP, Cache Dirs)"]
+    UserCmd["User Command: ptopt --profile balanced -- python3 train.py"] --> CLI["CLI Launcher (ptopt/cli/main.py)"]
+    CLI --> Detect["Hardware Probe (ptopt/detect: GPU SM, VRAM, CPU, /dev/shm)"]
+    Detect --> Resolver["Config Resolver (ptopt/config: supersafe / safe / balanced / aggressive + overrides)"]
+    Resolver --> PreEnv["Pre-Launch Env (ptopt/passes/memory_allocator.py: ALLOC_CONF, OMP, Cache Dirs)"]
     PreEnv --> Spawn["Subprocess with PYTHONPATH Bootstrap"]
 
-    Spawn --> Site["sitecustomize Hook (src/hooks/bootstrap/sitecustomize.py)"]
+    Spawn --> Site["sitecustomize Hook (ptopt/hooks/bootstrap/sitecustomize.py)"]
     Site --> LazyHook["Lazy sys.meta_path Hook on first 'import torch'"]
-    LazyHook --> HookMgr["HookManager + Checkpoint Compat (src/hooks/manager.py, checkpoint_compat.py)"]
+    LazyHook --> HookMgr["HookManager + ModuleCallDispatcher + Checkpoint Compat (ptopt/hooks/)"]
 
     HookMgr --> RuntimePasses["Runtime & Memory Passes (runtime.flags TF32/SDPA, memory_allocator)"]
     RuntimePasses --> DataPass["Data & Optim Passes (dataloader.auto_tune + async CUDA stream prefetch, optimizer.fusion)"]
     DataPass --> ModuleWrappers["In-Place nn.Module Execution Stack"]
 
-    subgraph ModuleStack ["Transparent Forward Wrapping Stack"]
+    subgraph ModuleStack ["Unified ModuleCallDispatcher Execution Order (Outer to Inner)"]
         direction TB
-        InferOpt["1. inference.opt (inference_mode, CUDA Graphs, Compiled FP8 + optional weight drop)"]
-        AmpWrap["2. amp.auto (BF16 / FP16 + GradScaler + Functional Loss FP32 Guard)"]
-        LayoutWrap["3. runtime.channels_last (Conv2d spatial >= 128x128)"]
-        CompileWrap["4. compile.auto (In-place compile, tiny/dynamic guard, static Training CUDA Graphs)"]
-        ActCkpt["5. runtime.activation_checkpointing (auto >82% VRAM / always)"]
-        KernelWrap["6. kernels.auto (Triton RMSNorm / CrossEntropy / Fused Linear+CE + Compile-Aware Gate)"]
-        InferOpt --> AmpWrap --> LayoutWrap --> CompileWrap --> ActCkpt --> KernelWrap
+        KernelWrap["10. kernels.auto (Triton RMSNorm / LayerNorm / CrossEntropy / RoPE / SwiGLU / Hybrid FusedLCE)"]
+        ActCkpt["20. runtime.activation_checkpointing (auto >82% VRAM / strided 0.5 / SAC / OOM rescue)"]
+        InferOpt["30. inference.opt (inference_mode, CUDA Graphs, Static+Compiled FP8 + optional weight drop)"]
+        AmpWrap["40. amp.auto (BF16 / FP16 + GradScaler + Async Zero-Sync Watchdog)"]
+        LayoutWrap["50. runtime.channels_last (Conv2d/Conv3d channels_last + Optimizer Sync)"]
+        CompileWrap["60. compile.auto (In-place compile, tiny/dynamic guard, Single-Pass Training CUDA Graphs)"]
+        KernelWrap --> ActCkpt --> InferOpt --> AmpWrap --> LayoutWrap --> CompileWrap
     end
 
     ModuleWrappers --> ModuleStack
-    KernelWrap --> UserScript["Unmodified User PyTorch Script (Exact state_dict & Parameters)"]
+    CompileWrap --> UserScript["Unmodified User PyTorch Script (Exact state_dict & Parameters)"]
 ```
 
 ---
@@ -65,7 +65,7 @@ flowchart TD
 | **3. Training & Inference CUDA Graphs** | Launch-bound static training/eval loops pay Python & CUDA kernel launch latency every step even after `torch.compile`. | Uses `reduce-overhead` CUDA Graphs for static inference (`aggressive`) and `compile.train_cuda_graphs` (`sm >= 80`, `VRAM >= 16 GB`, static training without stochastic Dropout mismatch). | Static training jumps over `compile=default`: `deep_mlp` **`2.12x`** (`1.83x vs compile`), `cnn_vision_small` **`2.01x`**, `transformer_lm_small` **`2.58x`** ([Phase 5.4](report/065346_20261118-phase-5.4.txt)); `bs=1` infer hits **`3.18x` (`0.49 ms`)**. |
 | **4. Memory Layout (`Conv2d`) & Optimizers** | Uses `NCHW` (forcing cuDNN `nchwToNhwc` transposes) and multi-tensor optimizer loops (`_foreach_*`) taking up to 66% of step time in deep models. | Auto-converts weights/4D inputs to `channels_last` for Conv2d `>= 128x128` (restoring `NCHW` on `state_dict()`), and injects `fused=True` (`foreach=True` fallback) into `Adam`/`AdamW`/`SGD`. | Eliminates transpose kernels -> `cnn_vision:medium` **`3.30x`**, `cnn_vision_224` **`3.37x`** (`-1.69 GB` VRAM); fused optimizers collapse multi-tensor loops into single `fused` kernels. |
 | **5. DataLoader & Async CUDA Stream Prefetch** | Defaults to `num_workers=0`, `pin_memory=False`, and synchronous blocking host-to-device copies on the compute stream. | Probes `/dev/shm` & dataset picklability before enabling `num_workers` + `pin_memory` + `persistent_workers` + `non_blocking=True`; opt-in `dataloader.cuda_prefetch` stages batches ahead on a dedicated CUDA stream. | Cuts `cnn_vision_224` `Data/Other` (`4.11 → 3.35 ms`) and E2E time from **`30.35s → 16.74s`** (`3.37x` steady step, [Phase 5.5](report/074734_20261118-phase-5.5.txt)). |
-| **6. Custom Triton Kernels & Fused Linear+CE** | Naive `nn.Linear + CrossEntropyLoss` materializes massive `[B*S, V]` FP32 logits in HBM (OOM risk on large vocab); custom ops inside `torch.compile` trigger graph breaks. | Ships Triton `RMSNorm`, `LayerNorm`, `CrossEntropy`, `SwiGLU`, a **Compile-Aware Gate** (zero graph breaks), and chunked **Fused Linear+CrossEntropy** (`src/kernels/fused_linear_cross_entropy.py`). | Micro `Linear+CE` (`4096x1024, V=65536`) saves **`81.4%` VRAM (`-2,736 MB`)**; E2E `vocab32k` hits **`3.34x`** with **`-2,287 MB` (`-65.3%`)** VRAM & E2E `9.24s` vs `24.13s` ([Phase 5.2](report/053832_20261118-phase-5.2.txt)). |
+| **6. Custom Triton Kernels & Hybrid Fused Linear+CE** | Naive `nn.Linear + CrossEntropyLoss` materializes massive `[B*S, V]` FP32 logits in HBM (OOM risk on large vocab); custom ops inside `torch.compile` trigger graph breaks. | Ships Triton `RMSNorm`, `LayerNorm`, `CrossEntropy`, `SwiGLU`, `RoPE` (`_to_row_strided_2d` zero-copy), **Hybrid `torch.compile` Backbone + `FusedLinearCrossEntropy` Head** (`ptopt/kernels/fused_linear_cross_entropy.py`), and `ModuleCallDispatcher` compile-aware gating. | Micro `Linear+CE` (`4096x1024, V=65536`) saves **`81.4%` VRAM (`-2,736 MB`)**; E2E `vocab32k` hybrid hits **`3.40x`** with **`-2,302 MB` (`57.4%` less than compile)** & `lm_act_med` **`3.50x`** (`strided_50pct`) ([Phase 6.2](report/134046_20261118-phase-6.2.txt)). |
 | **7. Auto Activation Checkpointing** | High-activation models (`no_ckpt`) hit VRAM limits or OOM unless users manually wrap Transformer/ResNet blocks with `torch.utils.checkpoint`. | `runtime.activation_checkpointing="auto"` (default in `balanced`/`aggressive`) monitors VRAM pressure (`>82%` threshold) or `"always"` mode to checkpoint eligible blocks cleanly. | Cuts high-activation VRAM by an extra **`45.6%`** (`lm_act_med`: `1,171.8 MB`) and **`53.5%`** (`lm_act_large`: `1,684.1 MB`, **`-5,547.2 MB` vs baseline**) at `1.35x–1.36x` ([Phase 5.5](report/074734_20261118-phase-5.5.txt)). |
 | **8. Inference FP8 (`sm >= 89`) & Weight Drop** | Naive eager FP8 spends >50% GPU time quantizing and drifts on small batches; duplicate BF16 weights stay resident in VRAM during eval. | Supports compiled FP8 (`torch.compile` + `_scaled_mm` gated by `m_rows * n_cols >= work_gate`) plus opt-in `PTOPT_FP8_DROP_BF16_EVAL=1` to release BF16 copies after FP8 quantization. | `infer_bs64_large` reaches **`4.78x` (`77.41 ms`, `826.8 samp/s`)**; `drop_w` drops peak VRAM down to **`411.4 MB` (`-355.5 MB`, `4.74x`)** ([Phase 5.3](report/061553_20261118-phase-5.3.txt)). |
 
@@ -136,7 +136,7 @@ All metrics below are directly observed from the Colab reports in [`report/`](re
 ```bash
 pip install --no-deps -e .
 ```
-*(You can also invoke directly via `python3 -m src.cli.main ...` without installing.)*
+*(You can also invoke directly via `python3 -m ptopt.cli.main ...` without installing.)*
 
 ### 2. Wrap Any Existing PyTorch Script (Zero Code Changes)
 ```bash
@@ -186,23 +186,27 @@ python3 scripts/run_gate.py --mode full
 
 ### Opt-In Environment Flags
 - `PTOPT_INFERENCE_FP8=1`: Enables FP8 `_scaled_mm` inference (including `torch.compile` fusion) on `sm >= 89` (L4/H100).
+- `PTOPT_FP8_STATIC_SCALE=1`: Enables pre-compile static FP8 activation scaling calibrated over `PTOPT_FP8_CALIB_STEPS` (default `2`) passes, eliminating dynamic `amax()` HBM reductions.
 - `PTOPT_FP8_DROP_BF16_EVAL=1`: Drops duplicate BF16 linear weights during FP8 `.eval()` to cut peak inference VRAM (`411.4 MB` on `infer_bs64_large`).
 - `PTOPT_INFERENCE_QUANT=int8`: Enables CPU INT8 dynamic quantization during `.eval()`.
-- `PTOPT_TRAIN_CUDA_GRAPHS=1`: Enables static Training CUDA Graphs (`compile.train_cuda_graphs`); combine with `PTOPT_TRAIN_CG_ALLOW_DROPOUT=1` if deterministic replay is acceptable with Dropout.
-- `PTOPT_ACTIVATION_CKPT=auto|always|off`: Controls auto activation checkpointing (defaults to `auto` in `balanced`/`aggressive`, triggering above `PTOPT_ACT_CKPT_VRAM_THRESHOLD`, default `0.82`).
-- `PTOPT_CUDA_PREFETCH=1`: Enables async CUDA stream DataLoader prefetch (`dataloader.cuda_prefetch`).
+- `PTOPT_TRAIN_CUDA_GRAPHS=1`: Enables single-pass static Training CUDA Graphs (`compile.train_cuda_graphs`); combine with `PTOPT_TRAIN_CG_ALLOW_DROPOUT=1` if deterministic replay is acceptable with Dropout.
+- `PTOPT_HYBRID_LCE=1`: Enables Hybrid `torch.compile` Backbone + `FusedLinearCrossEntropy` terminal head (`0`/`1`; enabled by default in `balanced`/`aggressive`).
+- `PTOPT_ACTIVATION_CKPT=auto|always|off`: Controls auto activation checkpointing (defaults to `auto` in `balanced`/`aggressive`, triggering above `PTOPT_ACT_CKPT_VRAM_THRESHOLD`, default `0.82`), with partial strided ratio (`PTOPT_ACT_CKPT_RATIO`, default `0.5`), Selective Activation Checkpointing (`PTOPT_ACT_CKPT_SAC=1`), and Step-0 OOM rescue.
+- `PTOPT_OPTIM_CAPTURABLE=1`: Allows CUDA graph capturable optimizers when needed (checkpoint `step` tensors are normalized automatically on `state_dict()`).
+- `PTOPT_CUDA_PREFETCH=1`: Enables cached async CUDA stream DataLoader prefetch (`dataloader.cuda_prefetch`).
 - `PTOPT_FORCE_ALL_KERNELS=1`: Forces all custom Triton kernels even when `torch.compile` is enabled.
-- `PTOPT_CHANNELS_LAST=1`: Forces `channels_last` conversion even for small spatial CNN inputs.
+- `PTOPT_CHANNELS_LAST=1`: Forces `channels_last` / `channels_last_3d` conversion even for small spatial CNN inputs.
+- `PTOPT_NO_FP_CACHE=1`: Bypasses cached hardware fingerprint disk read (`PTOPT_FP_CACHE_DIR` controls cache directory).
 
 ---
 
 ## Repository Structure
 
-- [`src/detect/`](src/detect/): Hardware fingerprinting (GPU SM, VRAM, CPU ISA/cores, `/dev/shm`, PyTorch/Triton/CUDA).
-- [`src/config/`](src/config/): Schema v1 dataclasses (`schema.py`), built-in hardware/profile rules (`rules_builtin.py`), `--override` & env resolver (`resolver.py`), v0 auto-migrator (`migrator.py`), and `(gpu_arch, torch_version, triton_version)` cache isolation.
-- [`src/cli/`](src/cli/): CLI launcher (`main.py`), `--explain`/`--target-arch` (`explain.py`), and `--doctor` environment diagnostics (`doctor.py`).
-- [`src/hooks/`](src/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, checkpoint prefix/layout/optimizer compatibility (`checkpoint_compat.py`), `fallback_reporter.py`, and Deep Debug Profiler telemetry.
-- [`src/passes/`](src/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune` w/ CUDA stream prefetch, `optimizer_fusion`, `auto_amp`, `channels_last`, `auto_compile` w/ tiny/dynamic gates & `train_cuda_graphs`, `inference_opt` w/ compiled FP8, `activation_checkpoint`).
-- [`src/kernels/`](src/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `fused_linear_cross_entropy`, `swiglu`) with `KernelSpec`, compile-aware routing, & `FallbackRegistry`.
+- [`ptopt/detect/`](ptopt/detect/): Hardware fingerprinting (GPU SM, VRAM, CPU ISA/cores, `/dev/shm`, PyTorch/Triton/CUDA) with disk fingerprint cache.
+- [`ptopt/config/`](ptopt/config/): Schema v1 dataclasses (`schema.py`), built-in hardware/profile rules (`rules_builtin.py`), `--override` & env resolver (`resolver.py`), v0 auto-migrator (`migrator.py`), and `(gpu_arch, torch_version, triton_version)` cache isolation.
+- [`ptopt/cli/`](ptopt/cli/): CLI launcher (`main.py`), shared override parser (`overrides.py`), `--explain`/`--target-arch` (`explain.py`), and `--doctor` environment diagnostics (`doctor.py`).
+- [`ptopt/hooks/`](ptopt/hooks/): `sitecustomize` pre-torch bootstrap, `HookManager`, unified `ModuleCallDispatcher` (`module_dispatch.py`), checkpoint prefix/layout/optimizer compatibility (`checkpoint_compat.py`), `fallback_reporter.py`, and Deep Debug Profiler telemetry.
+- [`ptopt/passes/`](ptopt/passes/): Optimization passes (`runtime_flags`, `memory_allocator`, `dataloader_tune` w/ CUDA stream prefetch, `optimizer_fusion`, `auto_amp` w/ async watchdog, `channels_last` 2D/3D, `auto_compile` w/ tiny/dynamic gates & `train_cuda_graphs`, `inference_opt` w/ compiled + static FP8, `activation_checkpoint` w/ SAC & strided checkpointing).
+- [`ptopt/kernels/`](ptopt/kernels/): Custom Triton kernels (`rmsnorm`, `layernorm`, `cross_entropy`, `fused_linear_cross_entropy`, `rope_or_swiglu`) with `KernelSpec`, Hybrid LCE dispatch, compile-aware routing, & `FallbackRegistry`.
 - [`ai-docs-dev/`](ai-docs-dev/): [User & Developer Guide](ai-docs-dev/USER-GUIDE.md) and root-cause / optimization architecture docs ([Phase 3.1–3.5](ai-docs-dev/optimize-history/phase-3.1-to-3.5-root-cause-and-gains.md), [Phase 3.6–3.7](ai-docs-dev/optimize-history/phase-3.6-to-3.7-inference-kernels-and-tuning.md), [Full Optimize Architecture](ai-docs-dev/optimize-history/full-optimize-architecture-and-results.md)).
-- [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`), Phase 5 verification scripts (`verify_phase5*.py`), unit/3-axis migrate matrices, and CI workflow.
+- [`scripts/`](scripts/), [`tests/`](tests/), & [`.github/workflows/`](.github/workflows/ci.yml): Regression gate (`run_gate.py`), Phase 5/6/7 verification scripts (`verify_phase5*.py`, `verify_phase6*.py`, `verify_phase7.py`), unit/3-axis migrate matrices, and CI workflow.

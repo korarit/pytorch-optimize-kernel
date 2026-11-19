@@ -16,16 +16,16 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.kernels import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.kernels import (
     LazyLinearLogits,
     install_custom_kernels_hooks,
     ref_linear_cross_entropy,
     triton_fused_linear_cross_entropy as fused_linear_cross_entropy,
     uninstall_custom_kernels_hooks,
 )
-from src.kernels.fused_linear_cross_entropy import compute_optimal_chunk_size, create_lazy_linear_logits
+from ptopt.kernels.fused_linear_cross_entropy import compute_optimal_chunk_size, create_lazy_linear_logits
 
 
 class TestFusedLinearCrossEntropyParity(unittest.TestCase):
@@ -243,7 +243,7 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
 
     def test_hybrid_compile_lce_balanced_patches_terminal_head_only(self) -> None:
         from types import SimpleNamespace
-        from src.kernels.registry import _patch_module_submodules
+        from ptopt.kernels.registry import _patch_module_submodules
 
         cfg = OptimizeConfig(profile="balanced")
         cfg.compile.enabled = True
@@ -307,7 +307,7 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
             mgr.reset()
 
     def test_chunk_ce_fwd_bwd_kernel_launch_signatures(self) -> None:
-        from src.kernels import fused_linear_cross_entropy as flce
+        from ptopt.kernels import fused_linear_cross_entropy as flce
 
         captured_fwd: list[tuple[tuple[object, ...], dict[str, object]]] = []
         captured_bwd: list[tuple[tuple[object, ...], dict[str, object]]] = []

@@ -16,20 +16,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.config import OptimizeConfig
-from src.hooks import HookManager
-from src.hooks.checkpoint_compat import (
+from ptopt.config import OptimizeConfig
+from ptopt.hooks import HookManager
+from ptopt.hooks.checkpoint_compat import (
     add_orig_mod_prefix,
     install_checkpoint_compat_hooks,
     strip_orig_mod_prefix,
     uninstall_checkpoint_compat_hooks,
 )
-from src.passes.auto_compile import (
+from ptopt.passes.auto_compile import (
     apply_auto_compile_pass,
     install_auto_compile_hook,
     uninstall_auto_compile_hook,
 )
-from src.passes.memory_allocator import apply_prelaunch_env
+from ptopt.passes.memory_allocator import apply_prelaunch_env
 
 
 class TestAutoCompilePass(unittest.TestCase):
@@ -414,7 +414,7 @@ class TestAutoCompilePass(unittest.TestCase):
                 mgr.reset()
 
     def test_nested_dict_and_cyclic_container_shape_signature(self) -> None:
-        from src.hooks.module_dispatch import build_shape_signature
+        from ptopt.hooks.module_dispatch import build_shape_signature
 
         cyclic: dict[str, object] = {"x": torch.randn(2, 4)}
         cyclic["self"] = cyclic
@@ -450,7 +450,7 @@ class TestAutoCompilePass(unittest.TestCase):
                 mgr.reset()
 
     def test_unified_dispatcher_and_train_eval_compiled_handle_isolation(self) -> None:
-        from src.passes.inference_opt import install_inference_opt_hook, uninstall_inference_opt_hook
+        from ptopt.passes.inference_opt import install_inference_opt_hook, uninstall_inference_opt_hook
 
         orig_call = nn.Module.__call__
         cfg = OptimizeConfig(profile="aggressive")
@@ -469,7 +469,7 @@ class TestAutoCompilePass(unittest.TestCase):
 
         model = nn.Linear(512, 512)
         with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch(
-            "src.passes.inference_opt._has_cuda_context", return_value=True
+            "ptopt.passes.inference_opt._has_cuda_context", return_value=True
         ), patch.object(torch, "compile", side_effect=_spy_compile):
             install_inference_opt_hook(cfg, mgr, torch)
             install_auto_compile_hook(cfg, mgr, torch)

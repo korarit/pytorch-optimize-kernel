@@ -28,10 +28,10 @@ from phase5_report_helper import (
     format_torch_profiler_block,
     run_workload_variant,
 )
-from src.common.text_report import TextReportBuilder
-from src.config import detect_runtime_cache_key
-from src.detect import collect_fingerprint
-from src.passes.inference_opt import apply_fp8_linear_eval_hooks, prewarm_fp8_weight_caches
+from ptopt.common.text_report import TextReportBuilder
+from ptopt.config import detect_runtime_cache_key
+from ptopt.detect import collect_fingerprint
+from ptopt.passes.inference_opt import apply_fp8_linear_eval_hooks, prewarm_fp8_weight_caches
 from telemetry import check_parity, compute_speedup, compute_vram_delta
 
 
@@ -80,7 +80,7 @@ def _bench_fp8_scaling_micro(is_cuda: bool, sm_int: int) -> list[list[object]]:
                 out = out + bias.float()
             return out.to(out_dtype)
 
-        with torch.inference_mode(), patch("src.passes.inference_opt._is_cuda_tensor", new=lambda _t: True), patch.object(
+        with torch.inference_mode(), patch("ptopt.passes.inference_opt._is_cuda_tensor", new=lambda _t: True), patch.object(
             torch, "_scaled_mm", new=_fake_scaled_mm, create=True
         ):
             apply_fp8_linear_eval_hooks(mod, torch, min_work=512 * 512)
