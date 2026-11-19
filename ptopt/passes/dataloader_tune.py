@@ -396,6 +396,35 @@ def _effective_prefetch_max_depth(cfg: OptimizeConfig) -> int | None:
     return 3 if getattr(cfg.runtime, "bandwidth_boost", False) else 1
 
 
+def _detect_dataloader_remainder(
+    dataset: Any,
+    batch_size: Any,
+    drop_last: bool,
+    batch_sampler: Any,
+) -> tuple[bool, int | None, int | None]:
+    """Return `(has_remainder, dataset_len, batch_size)` for map-style DataLoaders."""
+    eff_bs = batch_size
+    eff_drop_last = drop_last
+    ds_or_sampler = dataset
+    if batch_sampler is not None:
+        eff_drop_last = bool(getattr(batch_sampler, "drop_last", eff_drop_last))
+        bs_attr = getattr(batch_sampler, "batch_size", None)
+        if bs_attr is not None:
+            eff_bs = bs_attr
+        sampler_attr = getattr(batch_sampler, "sampler", None)
+        if sampler_attr is not None:
+            ds_or_sampler = sampler_attr
+    if eff_drop_last or not isinstance(eff_bs, int) or eff_bs <= 1:
+        return False, None, eff_bs if isinstance(eff_bs, int) else None
+    try:
+        total_len = len(ds_or_sampler) if ds_or_sampler is not None else len(dataset)
+    except (TypeError, NotImplementedError, AttributeError):
+        return False, None, eff_bs
+    if total_len > eff_bs and (total_len % eff_bs) != 0:
+        return True, total_len, eff_bs
+    return False, total_len, eff_bs
+
+
 def install_dataloader_hook(
     cfg: OptimizeConfig,
     manager: "HookManager",
@@ -431,6 +460,18 @@ def install_dataloader_hook(
             ds_obj = b_args.get("dataset")
             is_cuda_ds = has_cuda_tensors(ds_obj, torch_mod)
             dl_self._ptopt_cuda_ds = is_cuda_ds
+            has_rem, ds_len, eff_bs = _detect_dataloader_remainder(
+                ds_obj,
+                b_args.get("batch_size"),
+                bool(b_args.get("drop_last", False)),
+                b_args.get("batch_sampler"),
+            )
+            if has_rem:
+                try:
+                    torch_mod._ptopt_dataloader_has_remainder = True
+                    torch_mod._ptopt_dataloader_remainder_info = (ds_len, eff_bs)
+                except Exception:  # noqa: BLE001
+                    pass
 
             if cfg.dataloader.auto_tune:
                 tuned, notes = decide_dataloader_params(
@@ -631,6 +672,9 @@ def uninstall_dataloader_hook(torch_mod: Any) -> None:
         if hasattr(tensor_cls, "_ptopt_orig_cuda"):
             tensor_cls.cuda = tensor_cls._ptopt_orig_cuda  # type: ignore[method-assign]
             delattr(tensor_cls, "_ptopt_orig_cuda")
+    for attr in ("_ptopt_dataloader_has_remainder", "_ptopt_dataloader_remainder_info"):
+        if hasattr(torch_mod, attr):
+            delattr(torch_mod, attr)
     _DATALOADER_HOOK_INSTALLED = False
 
 

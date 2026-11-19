@@ -164,10 +164,15 @@ class ModuleCallDispatcher:
             return
         dispatcher = self
         orig_call = self._orig_call
+        is_compiling_fn = getattr(getattr(self.torch, "compiler", None), "is_compiling", None)
 
         @functools.wraps(orig_call)
         def _unified_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if dispatcher._depth > 0 or dispatcher._recompute_depth > 0:
+            if (
+                (callable(is_compiling_fn) and is_compiling_fn())
+                or dispatcher._depth > 0
+                or dispatcher._recompute_depth > 0
+            ):
                 return orig_call(mod_self, *args, **kwargs)
             dispatcher._depth += 1
             try:

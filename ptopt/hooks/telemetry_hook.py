@@ -259,6 +259,7 @@ class TelemetryCollector:
         self._installed = True
         self._torch = torch_mod
         collector = self
+        is_compiling_fn = getattr(getattr(torch_mod, "compiler", None), "is_compiling", None)
 
         # 1. Capture scalar loss on backward() (+ optional backward phase timing)
         self._orig_backward = torch_mod.Tensor.backward
@@ -266,7 +267,7 @@ class TelemetryCollector:
 
         @functools.wraps(orig_backward)
         def _wrapped_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if collector._suppress_depth > 0:
+            if (callable(is_compiling_fn) and is_compiling_fn()) or collector._suppress_depth > 0:
                 return orig_backward(tensor_self, *args, **kwargs)
             try:
                 if tensor_self.numel() == 1:
@@ -365,7 +366,7 @@ class TelemetryCollector:
 
         @functools.wraps(orig_mod_call)
         def _wrapped_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if collector._suppress_depth > 0:
+            if (callable(is_compiling_fn) and is_compiling_fn()) or collector._suppress_depth > 0:
                 return orig_mod_call(mod_self, *args, **kwargs)
             collector._module_depth += 1
             is_top = collector._module_depth == 1

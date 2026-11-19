@@ -458,6 +458,35 @@ def _attempt_compile_module(
         return False
 
 
+def _disable_cudnn_benchmark_for_dynamic_conv(
+    mod_self: Any,
+    torch_mod: Any,
+    manager: "HookManager",
+    reason: str,
+) -> None:
+    """Disable `cudnn.benchmark` when dynamic shapes hit Conv2d/Conv3d modules."""
+    from ptopt.passes.channels_last import has_conv2d, has_conv3d  # noqa: PLC0415
+
+    cudnn_backend = getattr(getattr(torch_mod, "backends", None), "cudnn", None)
+    if (
+        cudnn_backend is not None
+        and getattr(cudnn_backend, "benchmark", False)
+        and (has_conv2d(mod_self, torch_mod) or has_conv3d(mod_self, torch_mod))
+    ):
+        cudnn_backend.benchmark = False
+        manager.record_event("runtime.cudnn_benchmark", "FALLBACK", reason)
+
+
+def _has_explicit_dynamic_override(cfg: OptimizeConfig) -> bool:
+    """Return True if user CLI/env explicitly set `compile.dynamic`."""
+    for entry in getattr(cfg, "rule_trace", None) or ():
+        if isinstance(entry, dict) and entry.get("name") in ("cli_overrides", "env_overrides"):
+            changes = entry.get("changes")
+            if isinstance(changes, dict) and "compile.dynamic" in changes:
+                return True
+    return False
+
+
 def install_auto_compile_hook(
     cfg: OptimizeConfig,
     manager: "HookManager",
@@ -473,6 +502,8 @@ def install_auto_compile_hook(
     rt = AutoCompileRuntime(cfg, manager, torch_mod)
     allow_cpu = os.environ.get("PTOPT_COMPILE_CPU") == "1"
     auto_dynamic_on_change = os.environ.get("PTOPT_COMPILE_DYNAMIC_ON_CHANGE", "1") == "1"
+    preempt_dynamic = os.environ.get("PTOPT_COMPILE_PREEMPT_DYNAMIC", "1") == "1"
+    explicit_dynamic_override = _has_explicit_dynamic_override(cfg)
 
     def _clear_active_compile_for_mode(mod_self: Any, is_train: bool) -> None:
         mod_self._compiled_call_impl = None
@@ -559,7 +590,53 @@ def install_auto_compile_hook(
                     mod_self._ptopt_cg_stable_steps = 1
                     mod_self._ptopt_train_cg_active = False
 
-                    if is_train and rt.train_cuda_graphs and rt.dynamic is not True:
+                    dl_has_rem = (
+                        is_train
+                        and rt.dynamic is not True
+                        and not explicit_dynamic_override
+                        and auto_dynamic_on_change
+                        and preempt_dynamic
+                        and bool(getattr(torch_mod, "_ptopt_dataloader_has_remainder", False))
+                    )
+                    if dl_has_rem:
+                        _disable_cudnn_benchmark_for_dynamic_conv(
+                            mod_self,
+                            torch_mod,
+                            manager,
+                            f"Disabled cudnn_benchmark due to DataLoader remainder shapes on {type(mod_self).__name__}",
+                        )
+                        worth_dyn, dyn_reason = _is_worth_dynamic_compile(mod_self, args, kwargs, torch_mod, rt)
+                        if rt.train_cuda_graphs:
+                            mod_self._ptopt_train_cg_checked = True
+                            manager.record_event(
+                                "compile.train_cuda_graphs",
+                                "SKIPPED",
+                                f"DataLoader remainder batch detected on {type(mod_self).__name__}; using dynamic=True",
+                            )
+                        if not worth_dyn:
+                            mod_self._ptopt_compile_ineligible = True
+                            _clear_active_compile_for_mode(mod_self, is_train)
+                            manager.record_event(
+                                "compile.auto",
+                                "SKIPPED",
+                                f"Small dynamic-shape module {type(mod_self).__name__} stayed eager for profitability ({dyn_reason})",
+                            )
+                        else:
+                            rem_info = getattr(torch_mod, "_ptopt_dataloader_remainder_info", None)
+                            rem_note = (
+                                f"dataset={rem_info[0]}, batch_size={rem_info[1]}"
+                                if isinstance(rem_info, tuple) and len(rem_info) == 2
+                                else "uneven remainder batch"
+                            )
+                            _attempt_compile_module(
+                                mod_self,
+                                rt,
+                                torch_mod,
+                                dynamic_override=True,
+                                mode_override="default",
+                                reason_tag=f"Compiled(dynamic,dl_remainder:{rem_note})",
+                            )
+                    elif is_train and rt.train_cuda_graphs and rt.dynamic is not True:
                         ok_cg, reason_cg = _is_eligible_for_train_cuda_graphs(mod_self, args, kwargs, torch_mod, rt)
                         if ok_cg:
                             # Single-pass warmup: run Step 0 eager to verify 2-step static shape before compiling once
@@ -662,20 +739,12 @@ def install_auto_compile_hook(
                         )
                     cur_dyn = getattr(mod_self, "_ptopt_compile_dynamic", rt.dynamic)
                     if len(seen) == 2 and cur_dyn is not True and auto_dynamic_on_change:
-                        from ptopt.passes.channels_last import has_conv2d, has_conv3d  # noqa: PLC0415
-
-                        cudnn_backend = getattr(getattr(torch_mod, "backends", None), "cudnn", None)
-                        if (
-                            cudnn_backend is not None
-                            and getattr(cudnn_backend, "benchmark", False)
-                            and (has_conv2d(mod_self, torch_mod) or has_conv3d(mod_self, torch_mod))
-                        ):
-                            cudnn_backend.benchmark = False
-                            manager.record_event(
-                                "runtime.cudnn_benchmark",
-                                "FALLBACK",
-                                f"Disabled cudnn_benchmark due to dynamic Conv shapes on {type(mod_self).__name__}",
-                            )
+                        _disable_cudnn_benchmark_for_dynamic_conv(
+                            mod_self,
+                            torch_mod,
+                            manager,
+                            f"Disabled cudnn_benchmark due to dynamic Conv shapes on {type(mod_self).__name__}",
+                        )
                         worth_dyn, dyn_reason = _is_worth_dynamic_compile(mod_self, args, kwargs, torch_mod, rt)
                         if not worth_dyn:
                             _clear_active_compile_for_mode(mod_self, is_train)

@@ -501,6 +501,77 @@ class TestAutoCompilePass(unittest.TestCase):
         self.assertIs(nn.Module.__call__, orig_call)
         self.assertIsNone(getattr(torch, "_ptopt_module_dispatcher", None))
 
+    def test_dataloader_remainder_preempts_dynamic_default_compile_and_respects_override(self) -> None:
+        from torch.utils.data import DataLoader, TensorDataset
+        from ptopt.passes.dataloader_tune import install_dataloader_hook, uninstall_dataloader_hook
+
+        ds = TensorDataset(torch.randn(20, 512))  # 20 % 8 == 4 != 0
+
+        # 1. Default aggressive profile: DataLoader remainder preempts max-autotune/CUDA-graphs -> single dynamic=True, mode="default"
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.compile.enabled = True
+        cfg.compile.mode = "max-autotune"
+        cfg.compile.dynamic = False
+        cfg.compile.train_cuda_graphs = True
+        mgr = HookManager()
+        compile_calls: list[tuple[object, object]] = []
+
+        model = nn.Linear(512, 512)
+        with patch.dict(
+            os.environ,
+            {"PTOPT_COMPILE_CPU": "1", "PTOPT_CUDA_SM_OVERRIDE": "89"},
+        ), patch.object(
+            torch,
+            "compile",
+            side_effect=lambda fn, **kw: (compile_calls.append((kw.get("mode"), kw.get("dynamic"))) or fn),
+        ):
+            install_dataloader_hook(cfg, mgr, torch, shm_probe_fn=lambda: 16384.0)
+            install_auto_compile_hook(cfg, mgr, torch)
+            try:
+                dl = DataLoader(ds, batch_size=8, drop_last=False, num_workers=0)
+                self.assertTrue(getattr(torch, "_ptopt_dataloader_has_remainder", False))
+                for (xb,) in dl:
+                    _ = model(xb)
+                self.assertEqual(compile_calls, [("default", True)])
+                self.assertTrue(
+                    any(
+                        ev.pass_name == "compile.auto"
+                        and ev.status == "APPLIED"
+                        and "dl_remainder" in ev.reason
+                        for ev in mgr.events
+                    )
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                uninstall_dataloader_hook(torch)
+                mgr.reset()
+
+        # 2. Explicit cli_overrides compile.dynamic=false disables pre-emption
+        cfg_exp = OptimizeConfig(profile="balanced")
+        cfg_exp.compile.enabled = True
+        cfg_exp.compile.mode = "default"
+        cfg_exp.compile.dynamic = False
+        cfg_exp.rule_trace = [{"name": "cli_overrides", "changes": {"compile.dynamic": False}}]
+        mgr_exp = HookManager()
+        exp_calls: list[tuple[object, object]] = []
+        model_exp = nn.Linear(512, 512)
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
+            torch,
+            "compile",
+            side_effect=lambda fn, **kw: (exp_calls.append((kw.get("mode"), kw.get("dynamic"))) or fn),
+        ):
+            install_dataloader_hook(cfg_exp, mgr_exp, torch, shm_probe_fn=lambda: 16384.0)
+            install_auto_compile_hook(cfg_exp, mgr_exp, torch)
+            try:
+                dl = DataLoader(ds, batch_size=8, drop_last=False, num_workers=0)
+                for (xb,) in dl:
+                    _ = model_exp(xb)
+                self.assertEqual(exp_calls, [("default", False), ("default", True)])
+            finally:
+                uninstall_auto_compile_hook(torch)
+                uninstall_dataloader_hook(torch)
+                mgr_exp.reset()
+
 
 if __name__ == "__main__":
     unittest.main()
