@@ -121,8 +121,11 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
 
 ---
 
-#### 4.2 `karpathy/nanoGPT` — LLM Pretraining + Autoregressive `sample.py` + Existing `autocast`/`compile`
-ทดสอบ **Hybrid Fused Linear+CE** (`vocab_size=50304` / char vocab), **Arm D Conflict** (nanoGPT มี `autocast` + `GradScaler` + `--compile` ในตัว), interleaved `val_loss` eval, `ckpt.pt` cross-load, และ dynamic KV/sequence length ใน `sample.py`
+#### 4.2 `karpathy/nanoGPT` — LLM Pretraining (ทดสอบกับ Vocab จำนวนมาก `vocab_size=50304`) + Autoregressive `sample.py` + Existing `autocast`/`compile`
+ทดสอบ **Hybrid Fused Linear+CE** กับ **vocab จำนวนมาก (`vocab_size=50304` บน GPT-2 BPE)**, **Arm D Conflict** (nanoGPT มี `autocast` + `GradScaler` + `--compile` ในตัว), interleaved `val_loss` eval, `ckpt.pt` cross-load, และ dynamic KV/sequence length ใน `sample.py`
+
+> **หมายเหตุจากผล L4 Benchmark (`192626_20261119`):**
+> - เดิมใช้ `shakespeare_char` (`vocab_size=65`) ซึ่งเล็กกว่าเกณฑ์ Hybrid `FusedLinearCrossEntropy` (`>= 4096/8192`) และเปิด `bf16` + `FlashAttention` + `fused AdamW` อยู่แล้ว จึงเปลี่ยนมาใช้ชุด **`data/shakespeare/prepare.py` (GPT-2 BPE, `vocab_size=50304`)** ร่วมกับ `--dropout=0.0` และ `--max_iters=500` เพื่อวัดผล **Large-Vocab `FusedLCE` + `torch.compile`** ได้เต็มรูปแบบ
 
 ```bash
 cd /content/external_repos
@@ -130,17 +133,17 @@ git clone --depth 1 https://github.com/karpathy/nanoGPT.git
 cd /content/external_repos/nanoGPT
 pip install -q tiktoken datasets transformers tqdm
 
-# เตรียม dataset (ไม่นับเวลาช่วง prepare เข้า benchmark)
-python3 data/shakespeare_char/prepare.py
+# เตรียม dataset แบบ GPT-2 BPE (vocab_size=50257 -> pad เป็น 50304, ไม่นับเวลาช่วง prepare เข้า benchmark)
+python3 data/shakespeare/prepare.py
 ```
 
-**A) ทดสอบ Training ครบทั้ง 4 Arms (Arm A=`--compile=False`, Arm B=`ptopt`, Arm C=`--compile=True`, Arm D=`ptopt` ซ้อน `--compile=True`):**
+**A) ทดสอบ Training ครบทั้ง 4 Arms กับ Vocab จำนวนมาก (`vocab_size=50304`, `12L/12H/768D`, Arm A=`--compile=False`, Arm B=`ptopt`, Arm C=`--compile=True`, Arm D=`ptopt` ซ้อน `--compile=True`):**
 ```bash
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
-  --name nanogpt-shakespeare \
+  --name nanogpt-gpt2-bpe \
   --cwd /content/external_repos/nanoGPT \
-  --cmd "python3 train.py config/train_shakespeare_char.py --compile=False --max_iters=150 --eval_interval=50 --eval_iters=10 --always_save_checkpoint=True" \
-  --native-cmd "python3 train.py config/train_shakespeare_char.py --compile=True --max_iters=150 --eval_interval=50 --eval_iters=10 --always_save_checkpoint=True" \
+  --cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=False --max_iters=500 --eval_interval=250 --eval_iters=10 --always_save_checkpoint=True" \
+  --native-cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=True --max_iters=500 --eval_interval=250 --eval_iters=10 --always_save_checkpoint=True" \
   --test-conflict \
   --profiles safe,balanced,aggressive \
   --cache-modes auto \
@@ -149,7 +152,7 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --measure-pure-wall
 ```
 
-**B) ทดสอบ Autoregressive Inference (`sample.py`) และ Checkpoint Cross-Load (เทรนด้วย `ptopt` -> sample ด้วย Pure PyTorch):**
+**B) ทดสอบ Autoregressive Inference (`sample.py`) และ Checkpoint Cross-Load (รันต่อจาก A ที่เซฟ `out-shakespeare-char/ckpt.pt` ไว้):**
 ```bash
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name nanogpt-sample \
