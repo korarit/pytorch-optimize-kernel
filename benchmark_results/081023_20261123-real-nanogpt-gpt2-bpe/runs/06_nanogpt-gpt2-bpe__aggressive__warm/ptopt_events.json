@@ -1,0 +1,134 @@
+[
+  {
+    "pass_name": "runtime.memory_allocator",
+    "status": "APPLIED",
+    "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.flags",
+    "status": "APPLIED",
+    "reason": "tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "DataLoader auto-tune hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.fusion",
+    "status": "APPLIED",
+    "reason": "Optimizer fusion hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmp_nl8a8h8/nanogpt-gpt2-bpe/aggressive)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "APPLIED",
+    "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "APPLIED",
+    "reason": "Auto-AMP installed (dtype=bf16, grad_scaler=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.opt",
+    "status": "APPLIED",
+    "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.activation_checkpointing",
+    "status": "APPLIED",
+    "reason": "Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.rmsnorm",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.layernorm",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.swiglu",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.rope",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.fused_linear_cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True; hybrid compile+FusedLCE head enabled",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.auto",
+    "status": "APPLIED",
+    "reason": "Custom kernels active: cross_entropy, fused_linear_cross_entropy",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.patch",
+    "status": "APPLIED",
+    "reason": "Patched 1 submodules in GPT with custom Triton kernels",
+    "error": null
+  },
+  {
+    "pass_name": "inference.cuda_graphs",
+    "status": "APPLIED",
+    "reason": "Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "SKIPPED",
+    "reason": "Pre-existing user AMP detected (torch.amp.autocast); yielding to user code",
+    "error": null
+  },
+  {
+    "pass_name": "compile.train_cuda_graphs",
+    "status": "SKIPPED",
+    "reason": "Training CUDA Graphs skipped on GPT: params=123783936 > 15000000 (large compute-bound module)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.inductor_bw_tune",
+    "status": "SKIPPED",
+    "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)",
+    "error": null
+  }
+]

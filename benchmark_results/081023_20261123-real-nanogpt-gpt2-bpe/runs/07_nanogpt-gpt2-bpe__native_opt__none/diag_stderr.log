@@ -1,0 +1,135 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/external_repos/nanoGPT/train.py:196: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  scaler = torch.cuda.amp.GradScaler(enabled=(dtype == 'float16'))
+USDT:2026-11-23 08:52:19 23395:23395 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-23 08:52:19 23395:23395 SyncActivityProfilerHandler.cpp:46] profiler_stop
+V1123 08:52:20.793000 23395 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function _wrapped_mod_call in /content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py:367
+V1123 08:52:20.793000 23395 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1123 08:52:20.793000 23395 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: dataset = shakespeare
+Overriding: n_layer = 12
+Overriding: n_head = 12
+Overriding: n_embd = 768
+Overriding: batch_size = 16
+Overriding: block_size = 256
+Overriding: dropout = 0.0
+Overriding: compile = True
+Overriding: max_iters = 500
+Overriding: eval_interval = 250
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = True
+tokens per iteration will be: 4,096
+Initializing a new model from scratch
+defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)
+number of parameters: 123.59M
+num decayed parameter tensors: 50, with 123,764,736 parameters
+num non-decayed parameter tensors: 25, with 19,200 parameters
+using fused AdamW: True
+compiling the model... (takes a ~minute)
+step 0: train loss 10.8776, val loss 10.8392
+iter 0: loss 10.8813, time 5883.25ms, mfu -100.00%
+iter 10: loss 8.6743, time 116.08ms, mfu 8.71%
+iter 20: loss 7.2228, time 118.34ms, mfu 8.69%
+iter 30: loss 6.1823, time 119.09ms, mfu 8.67%
+iter 40: loss 5.9293, time 118.98ms, mfu 8.65%
+iter 50: loss 5.8663, time 120.11ms, mfu 8.63%
+iter 60: loss 5.5771, time 119.50ms, mfu 8.61%
+iter 70: loss 5.5503, time 118.27ms, mfu 8.60%
+iter 80: loss 5.5850, time 118.38ms, mfu 8.60%
+iter 90: loss 5.2121, time 119.86ms, mfu 8.58%
+iter 100: loss 5.2296, time 122.26ms, mfu 8.55%
+iter 110: loss 5.1616, time 122.32ms, mfu 8.52%
+iter 120: loss 4.8986, time 117.14ms, mfu 8.53%
+iter 130: loss 4.9017, time 118.22ms, mfu 8.53%
+iter 140: loss 4.8478, time 122.56ms, mfu 8.50%
+iter 150: loss 5.1062, time 120.93ms, mfu 8.49%
+iter 160: loss 4.7614, time 120.55ms, mfu 8.48%
+iter 170: loss 4.5212, time 120.20ms, mfu 8.47%
+iter 180: loss 4.4482, time 119.90ms, mfu 8.47%
+iter 190: loss 4.4115, time 120.52ms, mfu 8.46%
+iter 200: loss 4.3907, time 122.32ms, mfu 8.44%
+iter 210: loss 4.4959, time 120.40ms, mfu 8.44%
+iter 220: loss 4.6203, time 118.78ms, mfu 8.44%
+iter 230: loss 4.4003, time 121.00ms, mfu 8.43%
+iter 240: loss 4.1207, time 118.82ms, mfu 8.44%
+step 250: train loss 4.3045, val loss 5.1021
+saving checkpoint to out-shakespeare-char
+iter 250: loss 4.2484, time 3319.37ms, mfu 7.63%
+iter 260: loss 4.0646, time 116.92ms, mfu 7.73%
+iter 270: loss 4.1372, time 119.15ms, mfu 7.80%
+iter 280: loss 3.9310, time 120.27ms, mfu 7.86%
+iter 290: loss 4.1408, time 120.54ms, mfu 7.92%
+iter 300: loss 4.1629, time 121.33ms, mfu 7.96%
+iter 310: loss 3.8501, time 119.43ms, mfu 8.01%
+iter 320: loss 4.2322, time 120.75ms, mfu 8.04%
+iter 330: loss 4.0046, time 118.75ms, mfu 8.09%
+iter 340: loss 4.1397, time 119.46ms, mfu 8.13%
+iter 350: loss 3.9339, time 119.74ms, mfu 8.16%
+iter 360: loss 3.9714, time 120.67ms, mfu 8.18%
+iter 370: loss 3.8717, time 120.46ms, mfu 8.20%
+iter 380: loss 3.8074, time 118.78ms, mfu 8.23%
+iter 390: loss 3.9342, time 121.10ms, mfu 8.24%
+iter 400: loss 3.8223, time 120.06ms, mfu 8.26%
+iter 410: loss 3.4494, time 120.46ms, mfu 8.27%
+iter 420: loss 3.7710, time 119.87ms, mfu 8.29%
+iter 430: loss 3.6881, time 118.94ms, mfu 8.31%
+iter 440: loss 3.5399, time 121.49ms, mfu 8.31%
+iter 450: loss 3.9010, time 120.87ms, mfu 8.32%
+iter 460: loss 3.5847, time 123.22ms, mfu 8.30%
+iter 470: loss 3.6181, time 121.77ms, mfu 8.30%
+iter 480: loss 3.7241, time 119.08ms, mfu 8.32%
+iter 490: loss 3.6349, time 120.67ms, mfu 8.33%
+step 500: train loss 3.5921, val loss 4.8109
+saving checkpoint to out-shakespeare-char
+iter 500: loss 3.6849, time 3418.20ms, mfu 7.52%
+
