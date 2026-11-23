@@ -357,6 +357,118 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
         self.assertEqual(len(bwd_args), 10)
         self.assertIn("IS_SCALAR_GRAD", bwd_kw)
 
+    def test_adaptive_chunk_budget_scales_with_cuda_headroom_and_respects_tight_vram(self) -> None:
+        from ptopt.kernels import fused_linear_cross_entropy as flce
+
+        cuda_dev = torch.device("cuda", 0)
+        with patch(
+            "ptopt.passes.memory_allocator.probe_cuda_vram_headroom",
+            return_value={"total_mb": 22500.0, "allocated_mb": 3300.0, "reserved_mb": 4000.0, "free_mb": 18500.0, "used_ratio": 0.1778},
+        ):
+            budget_hi, max_rows_hi = flce._select_adaptive_chunk_budget(cuda_dev)
+            self.assertEqual(budget_hi, 448 * 1024 * 1024)
+            self.assertEqual(max_rows_hi, 4096)
+            self.assertEqual(
+                compute_optimal_chunk_size(4096, 50304, torch.bfloat16, target_bytes=budget_hi, max_chunk=max_rows_hi),
+                4096,
+            )
+
+        with patch(
+            "ptopt.passes.memory_allocator.probe_cuda_vram_headroom",
+            return_value={"total_mb": 8192.0, "allocated_mb": 6900.0, "reserved_mb": 7200.0, "free_mb": 992.0, "used_ratio": 0.8789},
+        ):
+            budget_lo, max_rows_lo = flce._select_adaptive_chunk_budget(cuda_dev)
+            self.assertEqual(budget_lo, 64 * 1024 * 1024)
+            self.assertEqual(max_rows_lo, 2048)
+            self.assertEqual(
+                compute_optimal_chunk_size(4096, 50304, torch.bfloat16, target_bytes=budget_lo, max_chunk=max_rows_lo),
+                640,
+            )
+
+        with patch.dict(os.environ, {"PTOPT_FUSED_LCE_CHUNK_MB": "256"}):
+            budget_env, max_rows_env = flce._select_adaptive_chunk_budget(torch.device("cpu"))
+            self.assertEqual(budget_env, 256 * 1024 * 1024)
+            self.assertEqual(max_rows_env, 4096)
+
+    def test_hybrid_compile_lce_eval_zero_breaks_and_ce_dispatch_under_dynamo(self) -> None:
+        from ptopt.kernels import fused_linear_cross_entropy as flce
+
+        class _HybridLM(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.proj = nn.Linear(16, 16)
+                self.head = nn.Linear(16, 128, bias=False)
+
+            def forward(self, x: torch.Tensor, y: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor | None]:
+                hid = torch.relu(self.proj(x))
+                logits = self.head(hid)
+                if y is not None:
+                    return logits, F.cross_entropy(logits.view(-1, 128), y.view(-1))
+                return logits, None
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        reg = install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+        assert reg is not None
+        try:
+            # _custom_cross_entropy must not spoof torch.nn.functional.__module__, otherwise Dynamo
+            # dispatches LazyLinearLogits.__torch_function__ -> .materialize() instead of fusing.
+            self.assertEqual(F.cross_entropy.__module__, "ptopt.kernels.registry")
+
+            m = _HybridLM()
+            orig_head = m.head.forward
+
+            @torch.compiler.disable
+            def _dis_head(x: torch.Tensor) -> torch.Tensor:
+                return create_lazy_linear_logits(x, m.head.weight, m.head.bias)
+
+            def _cond_head(x: torch.Tensor) -> torch.Tensor:
+                if m.training and torch.is_grad_enabled() and x.dim() >= 2 and x.numel() > 0:
+                    return _dis_head(x)
+                return orig_head(x)
+
+            m.head.forward = _cond_head  # type: ignore[method-assign]
+
+            x = torch.randn(2, 4, 16)
+            y = torch.randint(0, 128, (2, 4))
+
+            torch._dynamo.reset()
+            prev_suppress = torch._dynamo.config.suppress_errors
+            torch._dynamo.config.suppress_errors = False
+            try:
+                m.eval()
+                with torch.no_grad():
+                    exp_eval = torch._dynamo.explain(m)(x, y)
+                self.assertEqual(exp_eval.graph_break_count, 0)
+
+                torch._dynamo.reset()
+                m.train()
+                # Direct compile run verifies LazyLinearLogits.view -> _custom_cross_entropy runs fused LCE cleanly
+                materialize_calls = 0
+                orig_mat = LazyLinearLogits.materialize
+
+                def _spy_mat(self_l: LazyLinearLogits) -> torch.Tensor:
+                    nonlocal materialize_calls
+                    materialize_calls += 1
+                    return orig_mat(self_l)
+
+                compiled = torch.compile(m, backend="eager")
+                with patch.object(LazyLinearLogits, "materialize", new=_spy_mat):
+                    logits_out, loss_out = compiled(x, y)
+                    assert loss_out is not None
+                    loss_out.backward()
+                self.assertIsInstance(logits_out, LazyLinearLogits)
+                self.assertEqual(materialize_calls, 0)
+                self.assertIsNotNone(m.head.weight.grad)
+                self.assertIsNotNone(m.proj.weight.grad)
+            finally:
+                torch._dynamo.config.suppress_errors = prev_suppress
+                torch._dynamo.reset()
+        finally:
+            uninstall_custom_kernels_hooks(torch)
+            mgr.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

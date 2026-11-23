@@ -142,8 +142,8 @@ python3 data/shakespeare/prepare.py
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name nanogpt-gpt2-bpe \
   --cwd /content/external_repos/nanoGPT \
-  --cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=False --max_iters=500 --eval_interval=250 --eval_iters=10 --always_save_checkpoint=True" \
-  --native-cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=True --max_iters=500 --eval_interval=250 --eval_iters=10 --always_save_checkpoint=True" \
+  --cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=False --max_iters=500 --eval_interval=500 --eval_iters=10 --always_save_checkpoint=False" \
+  --native-cmd "python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=True --max_iters=500 --eval_interval=500 --eval_iters=10 --always_save_checkpoint=False" \
   --test-conflict \
   --profiles safe,balanced,aggressive \
   --cache-modes auto \
@@ -151,6 +151,7 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --parity-mode auto \
   --measure-pure-wall
 ```
+> หมายเหตุ: GPT-2 124M + AdamW มีขนาด `ckpt.pt` ~1.5 GB การเปิด `--always_save_checkpoint=True --eval_interval=250` ทำให้เขียน disk ซ้ำ 2 รอบต่อ pass และติด disk writeback stall บน Colab; จึงใช้ `--eval_interval=500 --always_save_checkpoint=False` เพื่อวัด `val_loss` และเซฟ `ckpt.pt` ปลายทางไว้ให้ step B (`nanogpt-sample`) ต่อได้ (หากต้องการวัดความเร็วล้วนโดยไม่เขียน `ckpt.pt` ปลายทางให้เปลี่ยนเป็น `--eval_interval=501`)
 
 **B) ทดสอบ Autoregressive Inference (`sample.py`) และ Checkpoint Cross-Load (รันต่อจาก A ที่เซฟ `out-shakespeare-char/ckpt.pt` ไว้):**
 ```bash

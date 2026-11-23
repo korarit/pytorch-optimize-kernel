@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 import torch
@@ -14,17 +15,124 @@ _cross_entropy_fwd_kernel = getattr(_ce_mod, "_cross_entropy_fwd_kernel", None)
 _cross_entropy_bwd_kernel = getattr(_ce_mod, "_cross_entropy_bwd_kernel", None)
 
 _TARGET_CHUNK_BYTES = 64 * 1024 * 1024
+_MAX_ADAPTIVE_CHUNK_BYTES = 448 * 1024 * 1024
+_MAX_ADAPTIVE_CHUNK_ROWS = 4096
+
+_SAFE_METADATA_DESCRIPTOR_NAMES = frozenset(
+    {
+        "shape",
+        "ndim",
+        "dtype",
+        "layout",
+        "requires_grad",
+        "retains_grad",
+        "grad",
+        "grad_dtype",
+        "grad_fn",
+        "_grad",
+        "_grad_fn",
+        "_base",
+        "_cdata",
+        "_version",
+        "_backward_hooks",
+        "_post_accumulate_grad_hooks",
+        "_python_dispatch",
+        "_has_symbolic_sizes_strides",
+        "_has_grad_dtype_override",
+        "is_leaf",
+        "is_nested",
+        "is_sparse",
+        "is_sparse_csr",
+        "is_quantized",
+        "is_mkldnn",
+        "is_cpu",
+        "is_ipu",
+        "is_maia",
+        "is_meta",
+        "is_mps",
+        "is_mtia",
+        "is_vulkan",
+        "is_xla",
+        "is_xpu",
+        "is_inference",
+        "output_nr",
+        "itemsize",
+        "nbytes",
+        "name",
+        "volatile",
+    }
+)
+_SAFE_METADATA_METHOD_NAMES = frozenset(
+    {
+        "_is_view",
+        "is_floating_point",
+        "is_complex",
+        "data_ptr",
+        "get_device",
+        "element_size",
+        "nbytes",
+        "is_inference",
+        "dim_order",
+    }
+)
 
 
-def compute_optimal_chunk_size(num_rows: int, vocab_size: int, dtype: torch.dtype, explicit_chunk: int | None = None) -> int:
-    """Choose row chunk size keeping temporary `[chunk, vocab_size]` logits within ~64 MB."""
+def _select_adaptive_chunk_budget(device: torch.device) -> tuple[int, int]:
+    """Scale chunk logit byte budget with live CUDA VRAM headroom to curb launch overhead."""
+    env_mb = os.environ.get("PTOPT_FUSED_LCE_CHUNK_MB", "").strip()
+    if env_mb:
+        try:
+            mb_val = float(env_mb)
+            if mb_val > 0.0:
+                return int(mb_val * 1024.0 * 1024.0), _MAX_ADAPTIVE_CHUNK_ROWS
+        except ValueError:
+            pass
+
+    if device.type != "cuda":
+        return _TARGET_CHUNK_BYTES, 2048
+
+    from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
+
+    headroom = probe_cuda_vram_headroom(torch)
+    if not headroom:
+        return _TARGET_CHUNK_BYTES, 2048
+
+    free_mb = float(headroom.get("free_mb", 0.0))
+    used_ratio = float(headroom.get("used_ratio", 1.0))
+    if used_ratio >= 0.80 or free_mb < 1536.0:
+        return _TARGET_CHUNK_BYTES, 2048
+
+    # Spend up to ~5% of live free VRAM on one chunk logits buffer (capped at 448 MiB) so
+    # high-headroom GPUs cut chunk loop launches dramatically while saving >1.5 GB vs native CE.
+    budget_bytes = int(
+        max(
+            float(_TARGET_CHUNK_BYTES),
+            min(float(_MAX_ADAPTIVE_CHUNK_BYTES), free_mb * 1024.0 * 1024.0 * 0.05),
+        )
+    )
+    max_rows = _MAX_ADAPTIVE_CHUNK_ROWS if budget_bytes >= 256 * 1024 * 1024 else 2048
+    return budget_bytes, max_rows
+
+
+def compute_optimal_chunk_size(
+    num_rows: int,
+    vocab_size: int,
+    dtype: torch.dtype,
+    explicit_chunk: int | None = None,
+    *,
+    target_bytes: int | None = None,
+    max_chunk: int = 2048,
+) -> int:
+    """Choose row chunk size keeping temporary `[chunk, vocab_size]` logits within budget."""
     if num_rows <= 0:
         return 1
     if explicit_chunk is not None and explicit_chunk > 0:
         return min(num_rows, int(explicit_chunk))
     elem_bytes = 2 if dtype in (torch.float16, torch.bfloat16) else 4
-    max_elems = _TARGET_CHUNK_BYTES // elem_bytes
-    raw = max(128, min(2048, max_elems // max(1, vocab_size)))
+    budget = _TARGET_CHUNK_BYTES if (target_bytes is None or target_bytes <= 0) else int(target_bytes)
+    cap = max(128, int(max_chunk))
+    max_elems = budget // elem_bytes
+    raw = max(128, min(cap, max_elems // max(1, vocab_size)))
     # Round down to multiple of 64 (or keep >=128) for clean GEMM tile alignment
     aligned = max(128, (raw // 64) * 64)
     return min(num_rows, aligned)
@@ -61,16 +169,21 @@ def _chunk_ce_fwd(
     ignore_index: int,
     block_v: int,
     warps: int,
+    dummy_valid_count: torch.Tensor | None = None,
 ) -> None:
     m_c, v_dim = logits_c.shape
     if HAS_TRITON and _cross_entropy_fwd_kernel is not None and logits_c.is_cuda:
-        dummy_valid_count = torch.empty((), dtype=torch.int32, device=logits_c.device)
+        valid_buf = (
+            dummy_valid_count
+            if dummy_valid_count is not None
+            else torch.empty((), dtype=torch.int32, device=logits_c.device)
+        )
         _cross_entropy_fwd_kernel[(m_c,)](
             logits_c,
             targets_c,
             losses_out,
             lse_out,
-            dummy_valid_count,
+            valid_buf,
             logits_c.stride(0),
             targets_c.stride(0),
             v_dim,
@@ -156,33 +269,48 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
         n_rows, _h_dim = h_mm.shape
         vocab = int(weight.shape[0])
 
-        chunk = compute_optimal_chunk_size(n_rows, vocab, mm_dtype, chunk_size)
+        if chunk_size is not None and chunk_size > 0:
+            chunk = compute_optimal_chunk_size(n_rows, vocab, mm_dtype, chunk_size)
+        else:
+            target_bytes, max_chunk = _select_adaptive_chunk_budget(h_mm.device)
+            chunk = compute_optimal_chunk_size(
+                n_rows,
+                vocab,
+                mm_dtype,
+                None,
+                target_bytes=target_bytes,
+                max_chunk=max_chunk,
+            )
         losses = torch.empty((n_rows,), dtype=torch.float32, device=h_mm.device)
         lse = torch.empty((n_rows,), dtype=torch.float32, device=h_mm.device)
 
-        if HAS_TRITON and triton is not None and h_mm.is_cuda:
+        use_triton_cuda = bool(HAS_TRITON and triton is not None and h_mm.is_cuda)
+        if use_triton_cuda:
             block_v = min(4096, max(128, triton.next_power_of_2(vocab)))
             warps = 8 if block_v >= 2048 else 4
+            dummy_valid = torch.empty((), dtype=torch.int32, device=h_mm.device)
         else:
             block_v, warps = 1024, 4
+            dummy_valid = None
 
         w_mm = weight.to(mm_dtype) if weight.dtype != mm_dtype else weight
         w_t = w_mm.t()
         b_mm = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
 
+        single_chunk = chunk >= n_rows
         for start in range(0, n_rows, chunk):
-            end = min(start + chunk, n_rows)
-            logits_c = torch.mm(h_mm[start:end], w_t)
-            if b_mm is not None:
-                logits_c.add_(b_mm)
+            end = n_rows if single_chunk else min(start + chunk, n_rows)
+            h_c = h_mm if single_chunk else h_mm[start:end]
+            logits_c = torch.addmm(b_mm, h_c, w_t) if b_mm is not None else torch.mm(h_c, w_t)
             _chunk_ce_fwd(
                 logits_c,
-                tgt_1d[start:end],
-                losses[start:end],
-                lse[start:end],
+                tgt_1d if single_chunk else tgt_1d[start:end],
+                losses if single_chunk else losses[start:end],
+                lse if single_chunk else lse[start:end],
                 ignore_index=ignore_index,
                 block_v=block_v,
                 warps=warps,
+                dummy_valid_count=dummy_valid,
             )
             del logits_c
 
@@ -242,19 +370,18 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
         w_t = w_mm.t()
         b_mm = (bias.to(mm_dtype) if bias.dtype != mm_dtype else bias) if bias is not None else None
 
+        single_chunk = n_chunks == 1
         for start in range(0, n_rows, ctx.chunk):
-            end = min(start + ctx.chunk, n_rows)
-            h_c = h_mm[start:end]
+            end = n_rows if single_chunk else min(start + ctx.chunk, n_rows)
+            h_c = h_mm if single_chunk else h_mm[start:end]
 
-            logits_c = torch.mm(h_c, w_t)
-            if b_mm is not None:
-                logits_c.add_(b_mm)
+            logits_c = torch.addmm(b_mm, h_c, w_t) if b_mm is not None else torch.mm(h_c, w_t)
 
-            g_c = grad_in_all if is_scalar else grad_in_all[start:end]
+            g_c = grad_in_all if is_scalar else (grad_in_all if single_chunk else grad_in_all[start:end])
             dlogits_c = _chunk_ce_bwd(
                 logits_c,
-                tgt_1d[start:end],
-                lse[start:end],
+                tgt_1d if single_chunk else tgt_1d[start:end],
+                lse if single_chunk else lse[start:end],
                 g_c,
                 is_scalar_grad=is_scalar,
                 ignore_index=ctx.ignore_index,
@@ -264,10 +391,11 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
             dl_mm = dlogits_c.to(mm_dtype) if dlogits_c.dtype != mm_dtype else dlogits_c
 
             if d_hidden is not None:
+                dh_out = d_hidden if single_chunk else d_hidden[start:end]
                 if h_in_dtype == mm_dtype:
-                    torch.mm(dl_mm, w_mm, out=d_hidden[start:end])
+                    torch.mm(dl_mm, w_mm, out=dh_out)
                 else:
-                    d_hidden[start:end].copy_(torch.mm(dl_mm, w_mm))
+                    dh_out.copy_(torch.mm(dl_mm, w_mm))
             if d_weight is not None:
                 if use_addmm_w:
                     if start == 0:
@@ -381,7 +509,7 @@ class LazyLinearLogits(torch.Tensor):
                     )
                 except Exception:  # noqa: BLE001
                     base = torch.empty(out_shape, dtype=eff_out_dtype, device="meta")
-            obj = torch.Tensor._make_subclass(cls, base, require_grad=False)
+            obj = torch.Tensor._make_subclass(cls, base, False)
         obj._ptopt_lazy_linear = (hidden, weight, bias, tuple(out_shape), matmul_dtype)
         obj._ptopt_lazy_out_dtype = eff_out_dtype
         if req:
@@ -413,8 +541,10 @@ class LazyLinearLogits(torch.Tensor):
     def __torch_function__(cls, func: Any, types: Any, args: tuple[Any, ...] = (), kwargs: dict[str, Any] | None = None) -> Any:
         kw = kwargs or {}
         fname = getattr(func, "__name__", "")
+        desc_name = getattr(getattr(func, "__self__", None), "__name__", "") if fname in ("__get__", "__set__") else ""
         if (
-            func
+            desc_name in _SAFE_METADATA_DESCRIPTOR_NAMES
+            or func
             in (
                 torch.Tensor.shape.__get__,
                 torch.Tensor.ndim.__get__,
@@ -432,16 +562,7 @@ class LazyLinearLogits(torch.Tensor):
                 torch.Tensor.is_pinned,
                 torch.Tensor.is_contiguous,
             )
-            or fname
-            in (
-                "_is_view",
-                "is_floating_point",
-                "is_complex",
-                "data_ptr",
-                "get_device",
-                "element_size",
-                "nbytes",
-            )
+            or fname in _SAFE_METADATA_METHOD_NAMES
         ):
             with torch._C.DisableTorchFunctionSubclass():
                 return func(*args, **kw)

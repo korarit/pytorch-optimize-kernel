@@ -250,8 +250,37 @@ def _patch_functional_cross_entropy(
 
     orig_ce = func_mod.cross_entropy
     ce_min_elems = 8_388_608 if compile_active else 0
+    compiler_mod = getattr(torch_mod, "compiler", None)
+    compiler_disable = getattr(compiler_mod, "disable", None)
 
-    @functools.wraps(orig_ce)
+    def _run_fused_lce(
+        h: Any,
+        lin_w: Any,
+        target: Any,
+        lin_b: Any,
+        ignore_index: int,
+        reduction: str,
+        mm_dt: Any,
+    ) -> Any:
+        return fused_linear_cross_entropy(
+            h,
+            lin_w,
+            target,
+            bias=lin_b,
+            ignore_index=ignore_index,
+            reduction=reduction,
+            matmul_dtype=mm_dt,
+        )
+
+    fused_lce_exec = (
+        compiler_disable(_run_fused_lce)
+        if (compile_active and callable(compiler_disable))
+        else _run_fused_lce
+    )
+
+    # Omit __module__ and __wrapped__ so Dynamo traces our LazyLinearLogits dispatch
+    # instead of treating F.cross_entropy as a builtin torch op that calls .materialize().
+    @functools.wraps(orig_ce, assigned=("__name__", "__qualname__", "__doc__", "__annotations__"))
     def _custom_cross_entropy(
         inp: Any,
         target: Any,
@@ -272,14 +301,14 @@ def _patch_functional_cross_entropy(
             ):
                 try:
                     h, lin_w, lin_b, _out_shape, mm_dt = inp._ptopt_lazy_linear
-                    return fused_linear_cross_entropy(
+                    return fused_lce_exec(
                         h,
                         lin_w,
                         target,
-                        bias=lin_b,
-                        ignore_index=ignore_index,
-                        reduction=reduction,
-                        matmul_dtype=mm_dt,
+                        lin_b,
+                        ignore_index,
+                        reduction,
+                        mm_dt,
                     )
                 except Exception as exc:  # noqa: BLE001
                     if _is_checkpoint_control_flow(exc):
@@ -493,6 +522,20 @@ def _patch_module_submodules(
                 orig_fwd = sub.forward
 
                 def _make_lce_head_fwd(m: Any, base_f: Any) -> Callable[..., Any]:
+                    def _lce_head_eager(x: Any) -> Any:
+                        try:
+                            return create_lazy_linear_logits(x, m.weight, getattr(m, "bias", None))
+                        except Exception as exc:  # noqa: BLE001
+                            if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
+                                raise
+                        return base_f(x)
+
+                    lce_exec = (
+                        compiler_disable(_lce_head_eager)
+                        if (hybrid_compile_lce and callable(compiler_disable))
+                        else _lce_head_eager
+                    )
+
                     @functools.wraps(base_f)
                     def _lce_head_fwd(x: Any) -> Any:
                         compiling = False if hybrid_compile_lce else (
@@ -507,15 +550,9 @@ def _patch_module_submodules(
                             and x.numel() > 0
                             and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16")
                         ):
-                            try:
-                                return create_lazy_linear_logits(x, m.weight, getattr(m, "bias", None))
-                            except Exception as exc:  # noqa: BLE001
-                                if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
-                                    raise
+                            return lce_exec(x)
                         return base_f(x)
 
-                    if hybrid_compile_lce and callable(compiler_disable):
-                        return compiler_disable(_lce_head_fwd)
                     return _lce_head_fwd
 
                 sub._ptopt_kern_orig_forward = orig_fwd
