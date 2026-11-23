@@ -1,0 +1,488 @@
+{
+  "phase_breakdown": {
+    "num_steps": 521,
+    "step_0_cold": {
+      "data_other_ms": 2667.901,
+      "forward_ms": 5427.778,
+      "loss_clip_ms": 0.0,
+      "backward_ms": 0.0,
+      "optim_ms": 0.0,
+      "total_ms": 8095.679
+    },
+    "steady_mean_ms": {
+      "data_other_ms": 15.984,
+      "forward_ms": 39.173,
+      "loss_clip_ms": 8.583,
+      "backward_ms": 64.223,
+      "optim_ms": 14.862,
+      "total_ms": 142.827
+    },
+    "steady_median_ms": {
+      "data_other_ms": 0.496,
+      "forward_ms": 30.409,
+      "loss_clip_ms": 8.73,
+      "backward_ms": 66.336,
+      "optim_ms": 15.385,
+      "total_ms": 121.457
+    },
+    "steady_shares_pct": {
+      "data_other": 11.2,
+      "forward": 27.4,
+      "loss_clip": 6.0,
+      "backward": 45.0,
+      "optim": 10.4
+    },
+    "per_step_trace": [
+      {
+        "step": 0,
+        "data_other_ms": 2667.901,
+        "forward_ms": 5427.778,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 8095.679
+      },
+      {
+        "step": 1,
+        "data_other_ms": 1.767,
+        "forward_ms": 25.828,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 27.595
+      },
+      {
+        "step": 2,
+        "data_other_ms": 1.413,
+        "forward_ms": 28.887,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 30.3
+      },
+      {
+        "step": 3,
+        "data_other_ms": 2.468,
+        "forward_ms": 26.798,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 29.265
+      },
+      {
+        "step": 4,
+        "data_other_ms": 2.28,
+        "forward_ms": 30.095,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 32.374
+      },
+      {
+        "step": 5,
+        "data_other_ms": 1.545,
+        "forward_ms": 25.235,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 26.78
+      },
+      {
+        "step": 6,
+        "data_other_ms": 1.371,
+        "forward_ms": 26.583,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 27.953
+      },
+      {
+        "step": 7,
+        "data_other_ms": 1.34,
+        "forward_ms": 28.568,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 29.908
+      }
+    ]
+  },
+  "module_summary": {
+    "GPT": {
+      "train_calls": 501,
+      "eval_calls": 40,
+      "params": 123783936,
+      "input_shapes": [
+        "(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"
+      ]
+    }
+  },
+  "cuda_memory_debug": {
+    "total_vram_mb": 22563.12,
+    "peak_allocated_mb": 3624.19,
+    "peak_reserved_mb": 3668.0,
+    "reserved_overhead_mb": 43.81,
+    "active_peak_mb": 3624.19,
+    "headroom_mb": 18895.12,
+    "utilization_pct": 16.26,
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "torch_profiler": {
+    "sort_by": "self_cuda_time_total",
+    "total_self_cuda_ms": 239.487,
+    "total_self_cpu_ms": 86.896,
+    "top_cuda_ops": [
+      {
+        "name": "## Call CompiledFxGraph f6xkksnrxrxbsoftumcub2rz",
+        "calls": 3,
+        "self_cuda_ms": 80.344,
+        "total_cuda_ms": 80.344,
+        "pct": 33.5
+      },
+      {
+        "name": "aten::mm",
+        "calls": 147,
+        "self_cuda_ms": 48.877,
+        "total_cuda_ms": 48.877,
+        "pct": 20.4
+      },
+      {
+        "name": "ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag",
+        "calls": 39,
+        "self_cuda_ms": 26.079,
+        "total_cuda_ms": 26.079,
+        "pct": 10.9
+      },
+      {
+        "name": "ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn",
+        "calls": 108,
+        "self_cuda_ms": 22.755,
+        "total_cuda_ms": 22.755,
+        "pct": 9.5
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cuda_ms": 4.842,
+        "total_cuda_ms": 4.842,
+        "pct": 2.0
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cuda_ms": 4.842,
+        "total_cuda_ms": 4.842,
+        "pct": 2.0
+      },
+      {
+        "name": "triton_red_fused__log_softmax__unsafe_view_prepa",
+        "calls": 3,
+        "self_cuda_ms": 4.605,
+        "total_cuda_ms": 4.605,
+        "pct": 1.9
+      },
+      {
+        "name": "triton_red_fused__log_softmax__unsafe_view_prepa",
+        "calls": 3,
+        "self_cuda_ms": 4.605,
+        "total_cuda_ms": 4.605,
+        "pct": 1.9
+      },
+      {
+        "name": "aten::_flash_attention_forward",
+        "calls": 36,
+        "self_cuda_ms": 4.23,
+        "total_cuda_ms": 4.23,
+        "pct": 1.8
+      },
+      {
+        "name": "void pytorch_flash::flash_fwd_kernel<Flash_fwd_k",
+        "calls": 36,
+        "self_cuda_ms": 4.23,
+        "total_cuda_ms": 4.23,
+        "pct": 1.8
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cuda_ms": 3.717,
+        "total_cuda_ms": 3.717,
+        "pct": 1.6
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cuda_ms": 3.717,
+        "total_cuda_ms": 3.717,
+        "pct": 1.6
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 2.955,
+        "total_cuda_ms": 2.955,
+        "pct": 1.2
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 2.955,
+        "total_cuda_ms": 2.955,
+        "pct": 1.2
+      },
+      {
+        "name": "triton_poi_fused__to_copy_12",
+        "calls": 3,
+        "self_cuda_ms": 2.894,
+        "total_cuda_ms": 2.894,
+        "pct": 1.2
+      },
+      {
+        "name": "triton_poi_fused__to_copy_12",
+        "calls": 3,
+        "self_cuda_ms": 2.894,
+        "total_cuda_ms": 2.894,
+        "pct": 1.2
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.788,
+        "total_cuda_ms": 1.788,
+        "pct": 0.7
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.788,
+        "total_cuda_ms": 1.788,
+        "pct": 0.7
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.705,
+        "total_cuda_ms": 1.705,
+        "pct": 0.7
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.705,
+        "total_cuda_ms": 1.705,
+        "pct": 0.7
+      }
+    ],
+    "top_cpu_ops": [
+      {
+        "name": "cudaDeviceSynchronize",
+        "calls": 6,
+        "self_cpu_ms": 53.203,
+        "total_cpu_ms": 53.203,
+        "pct": 61.2
+      },
+      {
+        "name": "## Call CompiledFxGraph f6xkksnrxrxbsoftumcub2rz",
+        "calls": 3,
+        "self_cpu_ms": 11.923,
+        "total_cpu_ms": 29.429,
+        "pct": 13.7
+      },
+      {
+        "name": "aten::mm",
+        "calls": 147,
+        "self_cpu_ms": 3.773,
+        "total_cpu_ms": 5.367,
+        "pct": 4.3
+      },
+      {
+        "name": "cuLaunchKernel",
+        "calls": 264,
+        "self_cpu_ms": 2.141,
+        "total_cpu_ms": 2.141,
+        "pct": 2.5
+      },
+      {
+        "name": "Activity Buffer Request",
+        "calls": 1,
+        "self_cpu_ms": 2.072,
+        "total_cpu_ms": 2.072,
+        "pct": 2.4
+      },
+      {
+        "name": "TorchDynamo Cache Lookup",
+        "calls": 3,
+        "self_cpu_ms": 1.611,
+        "total_cpu_ms": 1.611,
+        "pct": 1.9
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 183,
+        "self_cpu_ms": 1.58,
+        "total_cpu_ms": 1.58,
+        "pct": 1.8
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cpu_ms": 0.863,
+        "total_cpu_ms": 1.373,
+        "pct": 1.0
+      },
+      {
+        "name": "aten::_flash_attention_forward",
+        "calls": 36,
+        "self_cpu_ms": 0.816,
+        "total_cpu_ms": 2.59,
+        "pct": 0.9
+      },
+      {
+        "name": "aten::empty",
+        "calls": 146,
+        "self_cpu_ms": 0.736,
+        "total_cpu_ms": 0.736,
+        "pct": 0.8
+      },
+      {
+        "name": "triton_poi_fused__to_copy_2",
+        "calls": 36,
+        "self_cpu_ms": 0.684,
+        "total_cpu_ms": 1.021,
+        "pct": 0.8
+      },
+      {
+        "name": "aten::_scaled_dot_product_flash_attention",
+        "calls": 36,
+        "self_cpu_ms": 0.54,
+        "total_cpu_ms": 3.785,
+        "pct": 0.6
+      },
+      {
+        "name": "Torch-Compiled Region: 0/0",
+        "calls": 3,
+        "self_cpu_ms": 0.517,
+        "total_cpu_ms": 30.058,
+        "pct": 0.6
+      },
+      {
+        "name": "aten::transpose",
+        "calls": 144,
+        "self_cpu_ms": 0.494,
+        "total_cpu_ms": 0.655,
+        "pct": 0.6
+      },
+      {
+        "name": "triton_poi_fused__to_copy_1",
+        "calls": 36,
+        "self_cpu_ms": 0.45,
+        "total_cpu_ms": 0.706,
+        "pct": 0.5
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cpu_ms": 0.435,
+        "total_cpu_ms": 0.732,
+        "pct": 0.5
+      },
+      {
+        "name": "aten::empty_strided",
+        "calls": 40,
+        "self_cpu_ms": 0.413,
+        "total_cpu_ms": 0.413,
+        "pct": 0.5
+      },
+      {
+        "name": "aten::add",
+        "calls": 128,
+        "self_cpu_ms": 0.334,
+        "total_cpu_ms": 0.334,
+        "pct": 0.4
+      },
+      {
+        "name": "aten::item",
+        "calls": 130,
+        "self_cpu_ms": 0.321,
+        "total_cpu_ms": 0.495,
+        "pct": 0.4
+      },
+      {
+        "name": "cudaMemsetAsync",
+        "calls": 36,
+        "self_cpu_ms": 0.319,
+        "total_cpu_ms": 0.319,
+        "pct": 0.4
+      }
+    ],
+    "window_steps": [
+      2,
+      5
+    ]
+  },
+  "dynamo_compile": {
+    "summary": {
+      "frames_total": 9,
+      "frames_ok": 7,
+      "calls_captured": 627,
+      "unique_graphs": 3,
+      "graph_break_count": 6,
+      "recompiles_count": 0,
+      "inductor_cache_hit": 4,
+      "inductor_cache_miss": 0,
+      "aot_cache_hit": 2,
+      "aot_cache_miss": 1
+    },
+    "counters": {
+      "frames": {
+        "total": 9,
+        "ok": 7
+      },
+      "stats": {
+        "calls_captured": 627,
+        "unique_graphs": 3
+      },
+      "aot_autograd": {
+        "total": 3,
+        "ok": 3,
+        "autograd_cache_hit": 2,
+        "autograd_cache_miss": 1
+      },
+      "inductor": {
+        "extern_calls": 325,
+        "async_compile_cache_miss": 135,
+        "async_compile_cache_hit": 90,
+        "triton_bundler_load_static_autotuner": 45,
+        "pattern_matcher_nodes": 6,
+        "fxgraph_cache_hit": 4,
+        "pattern_matcher_count": 3
+      },
+      "unimplemented": {
+        "Skip calling `torch.compiler.disable()`d function\n  Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f02089fa3e0>` since it was wrapped with `torch.compiler.disable` (reason: None)\n": 1
+      },
+      "graph_break": {
+        "Skip calling `torch.compiler.disable()`d function\n  Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f0208aa8b80>` since it was wrapped with `torch.compiler.di": 4,
+        "Skip calling `torch.compiler.disable()`d function\n  Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f02089fa3e0>` since it was wrapped with `torch.compiler.disable` (reason: None)\n": 1
+      },
+      "resumes": {
+        "torch_dynamo_resume_in_forward_at_186": 1,
+        "torch_dynamo_resume_in_forward_at_187": 1
+      }
+    },
+    "compile_times": "TorchDynamo compilation metrics:\nFunction                                             Runtimes (s)\n---------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n_compile.compile_inner                               4.0449, 3.3362, 0.0652, 0.0567, 0.2889, 0.5583, 0.0178, 0.0220, 0.0124\ncompile_attempt_0                                    3.5665, 1.4672, 0.0295, 0.0244, 0.2540, 0.0888, 0.0115, 0.0166, 0.0096\nbytecode_tracing                                     1.5860, 1.4648, 1.4073, 0.0252, 0.0013, 0.0224, 0.0012, 0.2519, 0.0066, 0.0847, 0.0398, 0.0068, 0.0136, 0.0054\nget_fake_value                                       0.2844, 0.2419, 0.2091, 0.0078, 0.0026\ncreate_proxy                                         0.3481, 0.3178, 0.3183, 0.0005, 0.0003, 0.0004, 0.0003, 0.0003, 0.0003, 0.0140, 0.0044, 0.0003, 0.0003, 0.0005\nwrap_to_fake_tensor_and_record                       0.0506, 0.0505, 0.0505, 0.0030, 0.0017, 0.0020, 0.0017, 0.0020, 0.0018, 0.0042, 0.0041, 0.0028, 0.0025, 0.0035\nvariable_builder_call                                0.2917, 0.2453, 0.2397, 0.0081, 0.0005, 0.0029, 0.0066, 0.0005, 0.0028, 0.0043, 0.0040, 0.0003, 0.0177, 0.0152, 0.0003, 0.0050, 0.0043, 0.0050\ninsert_deferred_runtime_asserts                      0.0183, 0.0174, 0.0017\nOutputGraph.call_user_compiler                       1.9232, 0.1632, 0.3467\ninductor_codecache_torch_key                         0.2693\nCacheBase.get_system.triton_key                      1.4930\nAOTAutogradCache.inductor_load                       0.0692, 0.0941\nTritonBundler.read_and_emit                          0.0011, 0.0011, 0.0012, 0.0001\nTritonBundler.load_cached_static_autotuners          0.0006, 0.0005, 0.0006\nPyCodeCache.load_by_key_path                         0.0402, 0.0313, 0.0417, 0.0012\nStaticAutotunerFuture.warm_precompile                0.0042, 0.0008, 0.0007, 0.0005, 0.0006, 0.0006, 0.0005, 0.0004, 0.0004, 0.0004, 0.0004, 0.0004, 0.0006, 0.0006, 0.0006, 0.0009, 0.0007, 0.0005, 0.0006, 0.0006, 0.0005, 0.0006, 0.0006, 0.0005, 0.0005, 0.0004, 0.0005, 0.0004, 0.0005, 0.0004, 0.0007, 0.0007, 0.0004, 0.0007, 0.0007, 0.0004, 0.0006, 0.0006, 0.0006, 0.0006, 0.0006, 0.0005, 0.0006, 0.0006, 0.0006\nasync_compile.wait                                   0.0044, 0.0091, 0.0096, 0.0001\nbuild_guards                                         0.4169, 0.2183, 0.0228, 0.0228, 0.0226, 0.0269\ngc                                                   0.0011, 0.0040, 0.0008, 0.0004, 0.0003, 0.0014, 0.0007, 0.0004, 0.0018\ncompile_attempt_1                                    1.6318, 0.0104, 0.0075, 0.0104, 0.4394\n_recursive_pre_grad_passes                           0.0052\npass.pre_grad_passes.group_batch_fusion_passes       0.0000\npass.pre_grad_passes.efficient_conv_bn_eval_pass     0.0001\npass.pre_grad_passes.apply_gumbel_max_trick_pass     0.0000\ncreate_aot_dispatcher_function                       0.3347\naot_collect_metadata                                 0.0112\naot_trace_joint_graph                                0.0167\n_recursive_joint_graph_passes                        0.2649\npass.joint_graph_passes.remove_noop_ops              0.0003\npass.joint_graph_passes.constant_fold_uniform_value  0.0006\npass.joint_graph_passes.pass_pattern_0               0.0024\npass.joint_graph_passes.pass_pattern_1               0.0000\nmin_cut_rematerialization_partition                  0.0139\ncompile_fx.<locals>.fw_compiler_base                 0.0152\ncompile_fx_inner                                     0.0150\nfx_codegen_and_compile                               0.0143"
+  },
+  "bandwidth_vram_booster": {
+    "inductor_bw_tune": {
+      "enabled": false,
+      "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)"
+    },
+    "vram_headroom": {
+      "total_mb": 22563.12,
+      "allocated_mb": 1444.94,
+      "reserved_mb": 3668.0,
+      "free_mb": 18895.12,
+      "used_ratio": 0.1626
+    }
+  }
+}

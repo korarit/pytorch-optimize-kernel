@@ -1,0 +1,280 @@
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: dataset = shakespeare
+Overriding: n_layer = 12
+Overriding: n_head = 12
+Overriding: n_embd = 768
+Overriding: batch_size = 16
+Overriding: block_size = 256
+Overriding: dropout = 0.0
+Overriding: compile = False
+Overriding: max_iters = 500
+Overriding: eval_interval = 500
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = False
+tokens per iteration will be: 4,096
+Initializing a new model from scratch
+defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)
+number of parameters: 123.59M
+num decayed parameter tensors: 50, with 123,764,736 parameters
+num non-decayed parameter tensors: 25, with 19,200 parameters
+using fused AdamW: True
+step 0: train loss 10.8776, val loss 10.8392
+iter 0: loss 10.8813, time 41830.57ms, mfu -100.00%
+iter 10: loss 8.6744, time 120.21ms, mfu 8.41%
+iter 20: loss 7.2228, time 120.32ms, mfu 8.41%
+iter 30: loss 6.1822, time 121.44ms, mfu 8.40%
+iter 40: loss 5.9291, time 121.98ms, mfu 8.39%
+iter 50: loss 5.8888, time 120.68ms, mfu 8.39%
+iter 60: loss 5.5717, time 120.48ms, mfu 8.39%
+iter 70: loss 5.5626, time 120.38ms, mfu 8.39%
+iter 80: loss 5.5712, time 120.99ms, mfu 8.38%
+iter 90: loss 5.2214, time 119.31ms, mfu 8.39%
+iter 100: loss 5.2304, time 120.35ms, mfu 8.39%
+iter 110: loss 5.1446, time 120.30ms, mfu 8.39%
+iter 120: loss 4.9088, time 119.51ms, mfu 8.40%
+iter 130: loss 4.8789, time 120.50ms, mfu 8.40%
+iter 140: loss 4.8298, time 120.66ms, mfu 8.40%
+iter 150: loss 5.1008, time 118.84ms, mfu 8.41%
+iter 160: loss 4.7507, time 119.45ms, mfu 8.41%
+iter 170: loss 4.5310, time 119.68ms, mfu 8.42%
+iter 180: loss 4.4109, time 123.40ms, mfu 8.39%
+iter 190: loss 4.4212, time 122.11ms, mfu 8.38%
+iter 200: loss 4.3885, time 121.41ms, mfu 8.38%
+iter 210: loss 4.5208, time 124.73ms, mfu 8.35%
+iter 220: loss 4.6219, time 124.81ms, mfu 8.32%
+iter 230: loss 4.4184, time 120.63ms, mfu 8.33%
+iter 240: loss 4.1071, time 120.05ms, mfu 8.34%
+iter 250: loss 4.2919, time 120.20ms, mfu 8.34%
+iter 260: loss 4.2605, time 121.92ms, mfu 8.34%
+iter 270: loss 4.4840, time 126.41ms, mfu 8.30%
+iter 280: loss 4.0027, time 124.46ms, mfu 8.29%
+iter 290: loss 4.0703, time 122.72ms, mfu 8.28%
+iter 300: loss 3.9071, time 124.34ms, mfu 8.27%
+iter 310: loss 4.1025, time 120.98ms, mfu 8.27%
+iter 320: loss 4.0559, time 120.82ms, mfu 8.28%
+iter 330: loss 3.8314, time 119.85ms, mfu 8.30%
+iter 340: loss 4.1991, time 121.04ms, mfu 8.30%
+iter 350: loss 3.9598, time 119.65ms, mfu 8.32%
+iter 360: loss 4.0716, time 120.73ms, mfu 8.32%
+iter 370: loss 3.8935, time 120.78ms, mfu 8.33%
+iter 380: loss 3.9340, time 121.44ms, mfu 8.33%
+iter 390: loss 3.8441, time 120.45ms, mfu 8.33%
+iter 400: loss 3.7741, time 119.33ms, mfu 8.35%
+iter 410: loss 3.8648, time 122.67ms, mfu 8.34%
+iter 420: loss 3.7486, time 120.03ms, mfu 8.34%
+iter 430: loss 3.4085, time 119.06ms, mfu 8.36%
+iter 440: loss 3.6899, time 120.02ms, mfu 8.37%
+iter 450: loss 3.6629, time 119.45ms, mfu 8.37%
+iter 460: loss 3.4788, time 119.95ms, mfu 8.38%
+iter 470: loss 3.8349, time 119.76ms, mfu 8.39%
+iter 480: loss 3.5232, time 118.71ms, mfu 8.40%
+iter 490: loss 3.5417, time 120.30ms, mfu 8.40%
+step 500: train loss 3.5567, val loss 4.9006
+saving checkpoint to out-shakespeare-char
+iter 500: loss 3.6566, time 62810.61ms, mfu 7.56%
+
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+W1123 18:43:49.005000 4451 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] WON'T CONVERT __torch_function__ /content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py line 540 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] due to: 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] Traceback (most recent call last):
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2333, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = self._inner_convert(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         frame, cache_entry, hooks, frame_state, skip=skip + 1
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 778, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = _compile(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         frame.f_code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<18 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         convert_frame_box=self._box,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2182, in _compile
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     raise InternalTorchDynamoError(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         f"{type(e).__qualname__}: {str(e)}"
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ).with_traceback(e.__traceback__) from None
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2116, in _compile
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]                                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_utils_internal.py", line 114, in wrapper_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return function(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1701, in compile_inner
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = _compile_inner(code, one_graph, hooks)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1761, in _compile_inner
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     dynamo_output = compile_frame(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<11 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1598, in compile_frame
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     bytecode, tracer_output = transform_code_object(code, transform)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1843, in transform_code_object
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer_output = transformations(instructions, code_options)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1569, in transform
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer_output = trace_frame(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<14 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 369, in _fn
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return fn(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 968, in trace_frame
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     run_tracer()
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 949, in run_tracer
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer.run()
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 2094, in run
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     while self.step():
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]           ~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1747, in step
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.dispatch_table[inst.opcode](self, inst)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1105, in wrapper
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return inner_fn(self, inst)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 3286, in CALL_FUNCTION_EX
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.call_function(fn, argsvars.items, kwargsvars)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1637, in call_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py", line 4258, in call_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return self.obj.call_method(tx, self.descriptor.__name__, list(args), kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/lazy.py", line 707, in realize_and_forward
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return getattr(self.realize(), name)(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 2307, in call_method
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return slotdef(self, tx, args, kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 1023, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     func = getattr(type(vt), self.impl)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] torch._dynamo.exc.InternalTorchDynamoError: AttributeError: type object 'GetSetDescriptorVariable' has no attribute 'tp_descr_set_impl'
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] from user code:
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]    File "/content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py", line 568, in __torch_function__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return func(*args, **kw)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] Traceback (most recent call last):
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2333, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = self._inner_convert(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         frame, cache_entry, hooks, frame_state, skip=skip + 1
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 778, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = _compile(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         frame.f_code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<18 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         convert_frame_box=self._box,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2182, in _compile
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     raise InternalTorchDynamoError(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         f"{type(e).__qualname__}: {str(e)}"
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ).with_traceback(e.__traceback__) from None
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2116, in _compile
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]                                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_utils_internal.py", line 114, in wrapper_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return function(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1701, in compile_inner
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     result = _compile_inner(code, one_graph, hooks)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1761, in _compile_inner
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     dynamo_output = compile_frame(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<11 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1598, in compile_frame
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     bytecode, tracer_output = transform_code_object(code, transform)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1843, in transform_code_object
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer_output = transformations(instructions, code_options)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1569, in transform
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer_output = trace_frame(
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ...<14 lines>...
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     )
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 369, in _fn
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return fn(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 968, in trace_frame
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     run_tracer()
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 949, in run_tracer
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     tracer.run()
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 2094, in run
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     while self.step():
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]           ~~~~~~~~~^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1747, in step
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.dispatch_table[inst.opcode](self, inst)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1105, in wrapper
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return inner_fn(self, inst)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 3286, in CALL_FUNCTION_EX
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.call_function(fn, argsvars.items, kwargsvars)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1637, in call_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py", line 4258, in call_function
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return self.obj.call_method(tx, self.descriptor.__name__, list(args), kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/lazy.py", line 707, in realize_and_forward
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return getattr(self.realize(), name)(*args, **kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 2307, in call_method
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return slotdef(self, tx, args, kwargs)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 1023, in __call__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     func = getattr(type(vt), self.impl)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] torch._dynamo.exc.InternalTorchDynamoError: AttributeError: type object 'GetSetDescriptorVariable' has no attribute 'tp_descr_set_impl'
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] from user code:
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]    File "/content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py", line 568, in __torch_function__
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429]     return func(*args, **kw)
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+W1123 18:44:11.582000 4451 torch/_dynamo/convert_frame.py:2429] 
+

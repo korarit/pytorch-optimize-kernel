@@ -1,0 +1,517 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+USDT:2026-11-23 19:20:39 22845:22845 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-23 19:20:40 22845:22845 SyncActivityProfilerHandler.cpp:46] profiler_stop
+V1123 19:20:40.659000 22845 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function _wrapped_mod_call in /content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py:367
+V1123 19:20:40.659000 22845 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1123 19:20:40.659000 22845 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Graph break in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] User code traceback:
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/external_repos/nanoGPT/train.py", line 300, in <module>
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     logits, loss = model(X, Y)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]                    ~~~~~^^^^^^
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 391, in _amp_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_call(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/external_repos/nanoGPT/model.py", line 186, in forward
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     logits = self.lm_head(x)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_call(mod_self, *args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 553, in _lce_head_fwd
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return lce_exec(x)
+V1123 19:20:42.201000 22845 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1123 19:20:43.726000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1123 19:20:45.469000 22845 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles] Recompiling function _wrapped_mod_call in /content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py:367
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     triggered by the following guard failure(s):
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     - 0/1: len(args) == 2                                           # return orig_mod_call(mod_self, *args, **kwargs)  # ontent/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py:370 in _wrapped_mod_call
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     - User stack trace:
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     -   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     -     return orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:47.363000 22845 torch/_dynamo/guards.py:5621] [0/2] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] 
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] 
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks] 
+V1123 19:20:47.462000 22845 torch/_dynamo/symbolic_convert.py:5375] [0/2] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles] Recompiling function _unified_mod_call in /content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py:169
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles]     triggered by the following guard failure(s):
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles]     - 1/0: len(args) == 2                                           # return orig_call(mod_self, *args, **kwargs)  # ontent/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py:176 in _unified_mod_call
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles]     - User stack trace:
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles]     -   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+V1123 19:20:47.517000 22845 torch/_dynamo/guards.py:5621] [1/1] [__recompiles]     -     return orig_call(mod_self, *args, **kwargs)
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] 
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] 
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks] 
+V1123 19:20:47.551000 22845 torch/_dynamo/symbolic_convert.py:5375] [1/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7ff385be2d40>
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1123 19:20:47.615000 22845 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph break in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:304
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_KW: a function call with keyword arguments, e.g. f(x=True):
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7ff38d3b63e0>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Developer debug context: <function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7ff38d3b63e0>
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] User code traceback:
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/nanoGPT/train.py", line 300, in <module>
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     logits, loss = model(X, Y)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]                    ~~~~~^^^^^^
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 391, in _amp_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return orig_mod_call(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return orig_call(mod_self, *args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/nanoGPT/model.py", line 187, in forward
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 304, in _custom_cross_entropy
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return fused_lce_exec(
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     
+V1123 19:20:47.740000 22845 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] WON'T CONVERT __torch_function__ /content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py line 540 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] due to: 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] Traceback (most recent call last):
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2333, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = self._inner_convert(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         frame, cache_entry, hooks, frame_state, skip=skip + 1
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 778, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = _compile(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         frame.f_code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<18 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         convert_frame_box=self._box,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2182, in _compile
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     raise InternalTorchDynamoError(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         f"{type(e).__qualname__}: {str(e)}"
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ).with_traceback(e.__traceback__) from None
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2116, in _compile
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]                                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_utils_internal.py", line 114, in wrapper_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return function(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1701, in compile_inner
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = _compile_inner(code, one_graph, hooks)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1761, in _compile_inner
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     dynamo_output = compile_frame(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<11 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1598, in compile_frame
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     bytecode, tracer_output = transform_code_object(code, transform)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1843, in transform_code_object
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer_output = transformations(instructions, code_options)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1569, in transform
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer_output = trace_frame(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<14 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 369, in _fn
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return fn(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 968, in trace_frame
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     run_tracer()
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 949, in run_tracer
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer.run()
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 2094, in run
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     while self.step():
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]           ~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1747, in step
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.dispatch_table[inst.opcode](self, inst)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1105, in wrapper
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return inner_fn(self, inst)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 3286, in CALL_FUNCTION_EX
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.call_function(fn, argsvars.items, kwargsvars)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1637, in call_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py", line 4258, in call_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return self.obj.call_method(tx, self.descriptor.__name__, list(args), kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/lazy.py", line 707, in realize_and_forward
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return getattr(self.realize(), name)(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 2307, in call_method
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return slotdef(self, tx, args, kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 1023, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     func = getattr(type(vt), self.impl)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] torch._dynamo.exc.InternalTorchDynamoError: AttributeError: type object 'GetSetDescriptorVariable' has no attribute 'tp_descr_set_impl'
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] from user code:
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]    File "/content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py", line 568, in __torch_function__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return func(*args, **kw)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] Traceback (most recent call last):
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2333, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = self._inner_convert(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         frame, cache_entry, hooks, frame_state, skip=skip + 1
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 778, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = _compile(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         frame.f_code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<18 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         convert_frame_box=self._box,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2182, in _compile
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     raise InternalTorchDynamoError(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         f"{type(e).__qualname__}: {str(e)}"
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ).with_traceback(e.__traceback__) from None
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 2116, in _compile
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     guarded_code, tracer_output = compile_inner(code, one_graph, hooks)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]                                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_utils_internal.py", line 114, in wrapper_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return function(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1701, in compile_inner
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     result = _compile_inner(code, one_graph, hooks)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1761, in _compile_inner
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     dynamo_output = compile_frame(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<11 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1598, in compile_frame
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     bytecode, tracer_output = transform_code_object(code, transform)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]                               ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/bytecode_transformation.py", line 1843, in transform_code_object
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer_output = transformations(instructions, code_options)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 1569, in transform
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer_output = trace_frame(
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         code,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ...<14 lines>...
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]         package=package,
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     )
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 369, in _fn
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return fn(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 968, in trace_frame
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     run_tracer()
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/convert_frame.py", line 949, in run_tracer
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     tracer.run()
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 2094, in run
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     while self.step():
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]           ~~~~~~~~~^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1747, in step
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.dispatch_table[inst.opcode](self, inst)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1105, in wrapper
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return inner_fn(self, inst)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 3286, in CALL_FUNCTION_EX
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.call_function(fn, argsvars.items, kwargsvars)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/symbolic_convert.py", line 1637, in call_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     self.push(fn.call_function(self, args, kwargs))  # type: ignore[arg-type]
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py", line 4258, in call_function
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return self.obj.call_method(tx, self.descriptor.__name__, list(args), kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/lazy.py", line 707, in realize_and_forward
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return getattr(self.realize(), name)(*args, **kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 2307, in call_method
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return slotdef(self, tx, args, kwargs)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]   File "/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/base.py", line 1023, in __call__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     func = getattr(type(vt), self.impl)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] torch._dynamo.exc.InternalTorchDynamoError: AttributeError: type object 'GetSetDescriptorVariable' has no attribute 'tp_descr_set_impl'
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] from user code:
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]    File "/content/pytorch-optimize-kernel/ptopt/kernels/fused_linear_cross_entropy.py", line 568, in __torch_function__
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429]     return func(*args, **kw)
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] Set TORCHDYNAMO_VERBOSE=1 for the internal stack trace (please do this especially if you're reporting a bug to PyTorch). For even more developer context, set TORCH_LOGS="+dynamo"
+W1123 19:20:48.471000 22845 torch/_dynamo/convert_frame.py:2429] 
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:304
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] Graph Break Reason: Failed to handle graph break gracefully. Skipping the function and falling back to eager. Graph break encountered:
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] 
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7ff38d3b63e0>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] 
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks]   Developer debug context: <function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7ff38d3b63e0>
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks] 
+V1123 19:20:48.494000 22845 torch/_dynamo/symbolic_convert.py:5375] [6/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=12 | SKIPPED=3 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmptd0t8eix/nanogpt-gpt2-bpe/conflict_balanced)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] kernels.patch: Patched 1 submodules in OptimizedModule with custom Triton kernels
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+  - [SKIPPED (by arch/config)] compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+  - [SKIPPED (by arch/config)] compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: dataset = shakespeare
+Overriding: n_layer = 12
+Overriding: n_head = 12
+Overriding: n_embd = 768
+Overriding: batch_size = 16
+Overriding: block_size = 256
+Overriding: dropout = 0.0
+Overriding: compile = True
+Overriding: max_iters = 500
+Overriding: eval_interval = 500
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = False
+tokens per iteration will be: 4,096
+Initializing a new model from scratch
+defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)
+number of parameters: 123.59M
+num decayed parameter tensors: 50, with 123,764,736 parameters
+num non-decayed parameter tensors: 25, with 19,200 parameters
+using fused AdamW: True
+compiling the model... (takes a ~minute)
+step 0: train loss 10.8776, val loss 10.8392
+iter 0: loss 10.8813, time 13301.84ms, mfu -100.00%
+iter 10: loss 8.6743, time 117.09ms, mfu 8.63%
+iter 20: loss 7.2227, time 118.33ms, mfu 8.62%
+iter 30: loss 6.1824, time 118.91ms, mfu 8.61%
+iter 40: loss 5.9308, time 119.52ms, mfu 8.59%
+iter 50: loss 5.8178, time 120.87ms, mfu 8.57%
+iter 60: loss 5.4889, time 121.08ms, mfu 8.55%
+iter 70: loss 5.4885, time 120.61ms, mfu 8.53%
+iter 80: loss 5.5576, time 119.01ms, mfu 8.53%
+iter 90: loss 5.1435, time 121.48ms, mfu 8.51%
+iter 100: loss 5.1441, time 121.36ms, mfu 8.49%
+iter 110: loss 5.1354, time 122.46ms, mfu 8.47%
+iter 120: loss 4.8547, time 118.59ms, mfu 8.47%
+iter 130: loss 4.8561, time 119.87ms, mfu 8.47%
+iter 140: loss 4.8099, time 120.06ms, mfu 8.46%
+iter 150: loss 5.0706, time 120.53ms, mfu 8.45%
+iter 160: loss 4.7333, time 118.78ms, mfu 8.46%
+iter 170: loss 4.4813, time 123.44ms, mfu 8.43%
+iter 180: loss 4.3944, time 121.96ms, mfu 8.42%
+iter 190: loss 4.3809, time 123.76ms, mfu 8.39%
+iter 200: loss 4.3505, time 121.00ms, mfu 8.39%
+iter 210: loss 4.4625, time 120.80ms, mfu 8.39%
+iter 220: loss 4.5907, time 119.23ms, mfu 8.40%
+iter 230: loss 4.3748, time 120.68ms, mfu 8.39%
+iter 240: loss 4.0519, time 121.37ms, mfu 8.39%
+iter 250: loss 4.2430, time 128.58ms, mfu 8.33%
+iter 260: loss 4.2274, time 125.51ms, mfu 8.31%
+iter 270: loss 4.4247, time 126.70ms, mfu 8.27%
+iter 280: loss 3.9455, time 125.01ms, mfu 8.25%
+iter 290: loss 4.0364, time 122.23ms, mfu 8.26%
+iter 300: loss 3.8642, time 119.29ms, mfu 8.28%
+iter 310: loss 4.0461, time 119.55ms, mfu 8.29%
+iter 320: loss 4.0329, time 120.77ms, mfu 8.30%
+iter 330: loss 3.7925, time 122.24ms, mfu 8.30%
+iter 340: loss 4.1540, time 123.71ms, mfu 8.29%
+iter 350: loss 3.9261, time 125.21ms, mfu 8.26%
+iter 360: loss 4.0372, time 122.87ms, mfu 8.26%
+iter 370: loss 3.8525, time 122.40ms, mfu 8.26%
+iter 380: loss 3.8965, time 120.32ms, mfu 8.27%
+iter 390: loss 3.7968, time 122.49ms, mfu 8.27%
+iter 400: loss 3.7390, time 121.25ms, mfu 8.28%
+iter 410: loss 3.8431, time 119.29ms, mfu 8.30%
+iter 420: loss 3.7149, time 122.22ms, mfu 8.29%
+iter 430: loss 3.3835, time 121.25ms, mfu 8.30%
+iter 440: loss 3.6559, time 120.19ms, mfu 8.31%
+iter 450: loss 3.5980, time 122.74ms, mfu 8.30%
+iter 460: loss 3.4519, time 121.96ms, mfu 8.30%
+iter 470: loss 3.7902, time 121.44ms, mfu 8.30%
+iter 480: loss 3.4800, time 119.77ms, mfu 8.32%
+iter 490: loss 3.5130, time 120.82ms, mfu 8.32%
+step 500: train loss 3.5018, val loss 4.8915
+saving checkpoint to out-shakespeare-char
+iter 500: loss 3.6269, time 4971.41ms, mfu 7.51%
+
