@@ -469,6 +469,100 @@ class TestFusedLinearCrossEntropyParity(unittest.TestCase):
             uninstall_custom_kernels_hooks(torch)
             mgr.reset()
 
+    def test_lazy_linear_logits_descriptor_setters_no_dynamo_error(self) -> None:
+        import torch._dynamo.variables.functions as dyn_f
+
+        h = torch.randn(2, 4, 16, requires_grad=True)
+        w = torch.randn(32, 16, requires_grad=True)
+        lazy = create_lazy_linear_logits(h, w, None)
+
+        # Uninitialized subclass instance before _ptopt_lazy_linear is attached stays safe
+        raw_base = torch.empty_strided((2, 4, 32), (0, 0, 0), dtype=torch.float32)
+        with torch.no_grad():
+            uninit = torch.Tensor._make_subclass(LazyLinearLogits, raw_base, False)
+        self.assertEqual(uninit.device, torch.device("cpu"))
+        self.assertFalse(uninit.is_cuda)
+
+        # Eager grad descriptor set & delete parity
+        g = torch.ones(2, 4, 32)
+        lazy.grad = g
+        self.assertIs(lazy.grad, g)
+        del lazy.grad
+        self.assertIsNone(lazy.grad)
+
+        def _missing_tp_descr_set(*_args: object, **_kwargs: object) -> object:
+            raise AttributeError("type object 'GetSetDescriptorVariable' has no attribute 'tp_descr_set_impl'")
+
+        # Simulate PyTorch <= 2.14 where GetSetDescriptorVariable lacks tp_descr_set_impl
+        cls_gs = getattr(dyn_f, "GetSetDescriptorVariable", None)
+        patch_ctx = (
+            patch.object(cls_gs, "tp_descr_set_impl", _missing_tp_descr_set)
+            if cls_gs is not None and hasattr(cls_gs, "tp_descr_set_impl")
+            else patch.dict(os.environ, {}, clear=False)
+        )
+
+        prev_suppress = torch._dynamo.config.suppress_errors
+        torch._dynamo.config.suppress_errors = False
+        try:
+            with patch_ctx:
+                torch._dynamo.reset()
+
+                def _clear_grad(t: torch.Tensor) -> torch.Tensor:
+                    t.grad = None
+                    return t
+
+                out_full = torch.compile(_clear_grad, backend="eager", fullgraph=True)(lazy)
+                self.assertIsInstance(out_full, LazyLinearLogits)
+
+                torch._dynamo.reset()
+
+                def _del_grad(t: torch.Tensor) -> torch.Tensor:
+                    del t.grad
+                    return t
+
+                out_del = torch.compile(_del_grad, backend="eager")(lazy)
+                self.assertIsInstance(out_del, LazyLinearLogits)
+
+                # Simulate hybrid train forward resuming into logits.view(...) + F.cross_entropy
+                class _HybridTrainLM(nn.Module):
+                    def __init__(self) -> None:
+                        super().__init__()
+                        self.proj = nn.Linear(16, 16)
+                        self.head = nn.Linear(16, 64, bias=False)
+
+                    def forward(self, inp: torch.Tensor, tgt: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+                        hid = torch.relu(self.proj(inp))
+                        logits = self.head(hid)
+                        return logits, F.cross_entropy(logits.view(-1, logits.size(-1)), tgt.view(-1))
+
+                cfg = OptimizeConfig(profile="balanced")
+                cfg.compile.enabled = True
+                mgr = HookManager()
+                install_custom_kernels_hooks(cfg, mgr, torch, triton_available=True, sm_override=89)
+                try:
+                    m = _HybridTrainLM()
+
+                    @torch.compiler.disable
+                    def _dis_head(inp: torch.Tensor) -> torch.Tensor:
+                        return create_lazy_linear_logits(inp, m.head.weight, m.head.bias)
+
+                    m.head.forward = _dis_head  # type: ignore[method-assign]
+                    x = torch.randn(2, 4, 16)
+                    y = torch.randint(0, 64, (2, 4))
+                    torch._dynamo.reset()
+                    compiled = torch.compile(m, backend="aot_eager")
+                    logits_out, loss_out = compiled(x, y)
+                    loss_out.backward()
+                    self.assertIsInstance(logits_out, LazyLinearLogits)
+                    self.assertIsNotNone(m.head.weight.grad)
+                    self.assertIsNotNone(m.proj.weight.grad)
+                finally:
+                    uninstall_custom_kernels_hooks(torch)
+                    mgr.reset()
+        finally:
+            torch._dynamo.config.suppress_errors = prev_suppress
+            torch._dynamo.reset()
+
 
 if __name__ == "__main__":
     unittest.main()

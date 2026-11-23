@@ -478,6 +478,50 @@ def fused_linear_cross_entropy(
     return out
 
 
+_COMPILER_DISABLE = getattr(getattr(torch, "compiler", None), "disable", None)
+
+
+def _call_without_subclass_dispatch_eager(func: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Execute `func(*args, **kwargs)` outside `TorchFunctionSubclass` dispatch."""
+    with torch._C.DisableTorchFunctionSubclass():
+        return func(*args, **kwargs)
+
+
+_call_without_subclass_dispatch = (
+    _COMPILER_DISABLE(_call_without_subclass_dispatch_eager)
+    if callable(_COMPILER_DISABLE)
+    else _call_without_subclass_dispatch_eager
+)
+
+
+def _invoke_without_subclass_dispatch(
+    func: Any,
+    fname: str,
+    desc_name: str,
+    desc_obj: Any,
+    args: tuple[Any, ...],
+    kw: dict[str, Any],
+) -> Any:
+    """Invoke `func` bypassing subclass dispatch without crashing Dynamo descriptor tracing."""
+    # TorchDynamo <= 2.14 raises `InternalTorchDynamoError` (`GetSetDescriptorVariable` lacks
+    # `tp_descr_set_impl`) when tracing C descriptor `__set__`/`__delete__` method-wrappers.
+    if (
+        fname == "__set__"
+        and desc_name
+        and len(args) == 2
+        and not kw
+        and desc_obj is not None
+        and getattr(type(args[0]), desc_name, None) is desc_obj
+    ):
+        with torch._C.DisableTorchFunctionSubclass():
+            setattr(args[0], desc_name, args[1])
+            return None
+    if fname in ("__set__", "__delete__"):
+        return _call_without_subclass_dispatch(func, args, kw)
+    with torch._C.DisableTorchFunctionSubclass():
+        return func(*args, **kw)
+
+
 class LazyLinearLogits(torch.Tensor):
     """Zero-VRAM `torch.Tensor` subclass deferring `F.linear(hidden, weight, bias)` until needed or fused."""
 
@@ -519,11 +563,19 @@ class LazyLinearLogits(torch.Tensor):
 
     @property
     def device(self) -> torch.device:  # type: ignore[override]
-        return self._ptopt_lazy_linear[0].device
+        lazy_info = getattr(self, "_ptopt_lazy_linear", None)
+        if lazy_info is not None:
+            return lazy_info[0].device
+        with torch._C.DisableTorchFunctionSubclass():
+            return torch.Tensor.device.__get__(self)
 
     @property
     def is_cuda(self) -> bool:  # type: ignore[override]
-        return self._ptopt_lazy_linear[0].is_cuda
+        lazy_info = getattr(self, "_ptopt_lazy_linear", None)
+        if lazy_info is not None:
+            return lazy_info[0].is_cuda
+        with torch._C.DisableTorchFunctionSubclass():
+            return torch.Tensor.is_cuda.__get__(self)
 
     def materialize(self) -> torch.Tensor:
         """Compute full `F.linear(hidden, weight, bias)` if a non-fused consumer touches logits."""
@@ -541,7 +593,8 @@ class LazyLinearLogits(torch.Tensor):
     def __torch_function__(cls, func: Any, types: Any, args: tuple[Any, ...] = (), kwargs: dict[str, Any] | None = None) -> Any:
         kw = kwargs or {}
         fname = getattr(func, "__name__", "")
-        desc_name = getattr(getattr(func, "__self__", None), "__name__", "") if fname in ("__get__", "__set__") else ""
+        desc_obj = getattr(func, "__self__", None) if fname in ("__get__", "__set__", "__delete__") else None
+        desc_name = getattr(desc_obj, "__name__", "") if desc_obj is not None else ""
         if (
             desc_name in _SAFE_METADATA_DESCRIPTOR_NAMES
             or func
@@ -564,8 +617,7 @@ class LazyLinearLogits(torch.Tensor):
             )
             or fname in _SAFE_METADATA_METHOD_NAMES
         ):
-            with torch._C.DisableTorchFunctionSubclass():
-                return func(*args, **kw)
+            return _invoke_without_subclass_dispatch(func, fname, desc_name, desc_obj, args, kw)
 
         first = args[0] if args else None
         if isinstance(first, LazyLinearLogits):
@@ -636,8 +688,7 @@ class LazyLinearLogits(torch.Tensor):
 
         new_args = tuple(x.materialize() if isinstance(x, LazyLinearLogits) else x for x in args)
         new_kw = {k: (v.materialize() if isinstance(v, LazyLinearLogits) else v) for k, v in kw.items()}
-        with torch._C.DisableTorchFunctionSubclass():
-            return func(*new_args, **new_kw)
+        return _invoke_without_subclass_dispatch(func, fname, desc_name, desc_obj, new_args, new_kw)
 
 
 def create_lazy_linear_logits(hidden: torch.Tensor, weight: torch.Tensor, bias: torch.Tensor | None) -> LazyLinearLogits:
