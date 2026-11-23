@@ -1,0 +1,504 @@
+{
+  "phase_breakdown": {
+    "num_steps": 521,
+    "step_0_cold": {
+      "data_other_ms": 3883.625,
+      "forward_ms": 17860.555,
+      "loss_clip_ms": 0.0,
+      "backward_ms": 0.0,
+      "optim_ms": 0.0,
+      "total_ms": 21744.179
+    },
+    "steady_mean_ms": {
+      "data_other_ms": 18.401,
+      "forward_ms": 78.855,
+      "loss_clip_ms": 8.665,
+      "backward_ms": 82.606,
+      "optim_ms": 14.886,
+      "total_ms": 203.414
+    },
+    "steady_median_ms": {
+      "data_other_ms": 0.506,
+      "forward_ms": 31.945,
+      "loss_clip_ms": 8.759,
+      "backward_ms": 68.88,
+      "optim_ms": 15.406,
+      "total_ms": 125.833
+    },
+    "steady_shares_pct": {
+      "data_other": 9.0,
+      "forward": 38.8,
+      "loss_clip": 4.3,
+      "backward": 40.6,
+      "optim": 7.3
+    },
+    "per_step_trace": [
+      {
+        "step": 0,
+        "data_other_ms": 3883.625,
+        "forward_ms": 17860.555,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 21744.179
+      },
+      {
+        "step": 1,
+        "data_other_ms": 2.585,
+        "forward_ms": 24.837,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 27.422
+      },
+      {
+        "step": 2,
+        "data_other_ms": 1.3,
+        "forward_ms": 28.118,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 29.418
+      },
+      {
+        "step": 3,
+        "data_other_ms": 2.421,
+        "forward_ms": 26.606,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 29.028
+      },
+      {
+        "step": 4,
+        "data_other_ms": 2.192,
+        "forward_ms": 27.653,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 29.845
+      },
+      {
+        "step": 5,
+        "data_other_ms": 1.62,
+        "forward_ms": 24.929,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 26.55
+      },
+      {
+        "step": 6,
+        "data_other_ms": 1.309,
+        "forward_ms": 25.389,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 26.698
+      },
+      {
+        "step": 7,
+        "data_other_ms": 1.253,
+        "forward_ms": 29.105,
+        "loss_clip_ms": 0.0,
+        "backward_ms": 0.0,
+        "optim_ms": 0.0,
+        "total_ms": 30.358
+      }
+    ]
+  },
+  "module_summary": {
+    "OptimizedModule": {
+      "train_calls": 501,
+      "eval_calls": 40,
+      "params": 123783936,
+      "input_shapes": [
+        "(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"
+      ]
+    }
+  },
+  "cuda_memory_debug": {
+    "total_vram_mb": 22563.12,
+    "peak_allocated_mb": 3292.55,
+    "peak_reserved_mb": 3354.0,
+    "reserved_overhead_mb": 61.45,
+    "active_peak_mb": 3292.55,
+    "headroom_mb": 19209.12,
+    "utilization_pct": 14.86,
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "torch_profiler": {
+    "sort_by": "self_cuda_time_total",
+    "total_self_cuda_ms": 211.307,
+    "total_self_cpu_ms": 83.566,
+    "top_cuda_ops": [
+      {
+        "name": "## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz",
+        "calls": 3,
+        "self_cuda_ms": 54.277,
+        "total_cuda_ms": 54.277,
+        "pct": 25.7
+      },
+      {
+        "name": "aten::mm",
+        "calls": 147,
+        "self_cuda_ms": 47.027,
+        "total_cuda_ms": 47.027,
+        "pct": 22.3
+      },
+      {
+        "name": "ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag",
+        "calls": 39,
+        "self_cuda_ms": 25.407,
+        "total_cuda_ms": 25.407,
+        "pct": 12.0
+      },
+      {
+        "name": "ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn",
+        "calls": 108,
+        "self_cuda_ms": 21.577,
+        "total_cuda_ms": 21.577,
+        "pct": 10.2
+      },
+      {
+        "name": "## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z",
+        "calls": 3,
+        "self_cuda_ms": 4.63,
+        "total_cuda_ms": 4.63,
+        "pct": 2.2
+      },
+      {
+        "name": "triton_red_fused__log_softmax_prepare_softmax_on",
+        "calls": 3,
+        "self_cuda_ms": 4.6,
+        "total_cuda_ms": 4.6,
+        "pct": 2.2
+      },
+      {
+        "name": "triton_red_fused__log_softmax_prepare_softmax_on",
+        "calls": 3,
+        "self_cuda_ms": 4.6,
+        "total_cuda_ms": 4.6,
+        "pct": 2.2
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cuda_ms": 4.264,
+        "total_cuda_ms": 4.264,
+        "pct": 2.0
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cuda_ms": 4.264,
+        "total_cuda_ms": 4.264,
+        "pct": 2.0
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cuda_ms": 3.716,
+        "total_cuda_ms": 3.716,
+        "pct": 1.8
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cuda_ms": 3.716,
+        "total_cuda_ms": 3.716,
+        "pct": 1.8
+      },
+      {
+        "name": "aten::copy_",
+        "calls": 16,
+        "self_cuda_ms": 3.195,
+        "total_cuda_ms": 3.195,
+        "pct": 1.5
+      },
+      {
+        "name": "aten::_flash_attention_forward",
+        "calls": 36,
+        "self_cuda_ms": 3.184,
+        "total_cuda_ms": 3.184,
+        "pct": 1.5
+      },
+      {
+        "name": "void pytorch_flash::flash_fwd_kernel<Flash_fwd_k",
+        "calls": 36,
+        "self_cuda_ms": 3.184,
+        "total_cuda_ms": 3.184,
+        "pct": 1.5
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 6,
+        "self_cuda_ms": 3.175,
+        "total_cuda_ms": 3.175,
+        "pct": 1.5
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 2.961,
+        "total_cuda_ms": 2.961,
+        "pct": 1.4
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 2.961,
+        "total_cuda_ms": 2.961,
+        "pct": 1.4
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.778,
+        "total_cuda_ms": 1.778,
+        "pct": 0.8
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.778,
+        "total_cuda_ms": 1.778,
+        "pct": 0.8
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cuda_ms": 1.667,
+        "total_cuda_ms": 1.667,
+        "pct": 0.8
+      }
+    ],
+    "top_cpu_ops": [
+      {
+        "name": "cudaDeviceSynchronize",
+        "calls": 6,
+        "self_cpu_ms": 46.448,
+        "total_cpu_ms": 46.448,
+        "pct": 55.6
+      },
+      {
+        "name": "## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz",
+        "calls": 3,
+        "self_cpu_ms": 13.412,
+        "total_cpu_ms": 30.866,
+        "pct": 16.0
+      },
+      {
+        "name": "aten::mm",
+        "calls": 147,
+        "self_cpu_ms": 3.892,
+        "total_cpu_ms": 5.536,
+        "pct": 4.7
+      },
+      {
+        "name": "cuLaunchKernel",
+        "calls": 261,
+        "self_cpu_ms": 2.177,
+        "total_cpu_ms": 2.177,
+        "pct": 2.6
+      },
+      {
+        "name": "Activity Buffer Request",
+        "calls": 1,
+        "self_cpu_ms": 2.008,
+        "total_cpu_ms": 2.008,
+        "pct": 2.4
+      },
+      {
+        "name": "TorchDynamo Cache Lookup",
+        "calls": 18,
+        "self_cpu_ms": 1.907,
+        "total_cpu_ms": 1.907,
+        "pct": 2.3
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 189,
+        "self_cpu_ms": 1.685,
+        "total_cpu_ms": 1.685,
+        "pct": 2.0
+      },
+      {
+        "name": "triton_poi_fused__to_copy_4",
+        "calls": 72,
+        "self_cpu_ms": 0.926,
+        "total_cpu_ms": 1.446,
+        "pct": 1.1
+      },
+      {
+        "name": "aten::_flash_attention_forward",
+        "calls": 36,
+        "self_cpu_ms": 0.844,
+        "total_cpu_ms": 2.564,
+        "pct": 1.0
+      },
+      {
+        "name": "aten::empty",
+        "calls": 146,
+        "self_cpu_ms": 0.771,
+        "total_cpu_ms": 0.771,
+        "pct": 0.9
+      },
+      {
+        "name": "triton_poi_fused__to_copy_2",
+        "calls": 36,
+        "self_cpu_ms": 0.694,
+        "total_cpu_ms": 1.035,
+        "pct": 0.8
+      },
+      {
+        "name": "aten::_scaled_dot_product_flash_attention",
+        "calls": 36,
+        "self_cpu_ms": 0.544,
+        "total_cpu_ms": 3.734,
+        "pct": 0.7
+      },
+      {
+        "name": "Torch-Compiled Region: 2/0",
+        "calls": 3,
+        "self_cpu_ms": 0.5,
+        "total_cpu_ms": 33.514,
+        "pct": 0.6
+      },
+      {
+        "name": "triton_poi_fused__unsafe_view_gelu_5",
+        "calls": 36,
+        "self_cpu_ms": 0.485,
+        "total_cpu_ms": 0.765,
+        "pct": 0.6
+      },
+      {
+        "name": "aten::transpose",
+        "calls": 147,
+        "self_cpu_ms": 0.473,
+        "total_cpu_ms": 0.644,
+        "pct": 0.6
+      },
+      {
+        "name": "triton_poi_fused__to_copy_1",
+        "calls": 36,
+        "self_cpu_ms": 0.462,
+        "total_cpu_ms": 0.74,
+        "pct": 0.6
+      },
+      {
+        "name": "aten::empty_strided",
+        "calls": 46,
+        "self_cpu_ms": 0.392,
+        "total_cpu_ms": 0.392,
+        "pct": 0.5
+      },
+      {
+        "name": "## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z",
+        "calls": 3,
+        "self_cpu_ms": 0.388,
+        "total_cpu_ms": 0.593,
+        "pct": 0.5
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cpu_ms": 0.358,
+        "total_cpu_ms": 0.498,
+        "pct": 0.4
+      },
+      {
+        "name": "triton_per_fused__to_copy__unsafe_view_add_nativ",
+        "calls": 15,
+        "self_cpu_ms": 0.355,
+        "total_cpu_ms": 0.477,
+        "pct": 0.4
+      }
+    ],
+    "window_steps": [
+      2,
+      5
+    ]
+  },
+  "dynamo_compile": {
+    "summary": {
+      "frames_total": 16,
+      "frames_ok": 14,
+      "calls_captured": 620,
+      "unique_graphs": 5,
+      "graph_break_count": 12,
+      "recompiles_count": 0,
+      "inductor_cache_hit": 0,
+      "inductor_cache_miss": 7,
+      "aot_cache_hit": 0,
+      "aot_cache_miss": 4
+    },
+    "counters": {
+      "frames": {
+        "total": 16,
+        "ok": 14
+      },
+      "unimplemented": {
+        "Observed exception\n  Explanation: Dynamo found no exception handler at the top-level compiled function when encountering an exception. Exception will propagate outside the compiled region.\n  Hint: Your code may result in an error when runni": 2
+      },
+      "graph_break": {
+        "Skip calling `torch.compiler.disable()`d function\n  Explanation: Skip calling function `<function Linear.forward at 0x7b3ae22d2160>` since it was wrapped with `torch.compiler.disable` (reason: None)\n  Hint: Remove the `torch.compiler.disabl": 10
+      },
+      "stats": {
+        "calls_captured": 620,
+        "unique_graphs": 5
+      },
+      "aot_autograd": {
+        "total": 5,
+        "ok": 5,
+        "autograd_cache_miss": 4,
+        "autograd_cache_saved": 4,
+        "autograd_cache_bypass": 1
+      },
+      "inductor": {
+        "triton_bundler_save_kernel": 856,
+        "pattern_matcher_nodes": 633,
+        "pattern_matcher_count": 541,
+        "extern_calls": 366,
+        "async_compile_cache_miss": 136,
+        "benchmarking.InductorBenchmarker.benchmark": 74,
+        "benchmarking.InductorBenchmarker.benchmark_gpu": 74,
+        "async_compile_cache_hit": 67,
+        "fxgraph_cache_miss": 7,
+        "triton_bundler_save_static_autotuner": 7
+      },
+      "aten_mm_info": {
+        "aten.mm_4096_768_768": 36,
+        "aten.mm_4096_3072_768": 36,
+        "aten.mm_4096_768_3072": 36,
+        "aten.mm_4096_2304_768": 24,
+        "aten.mm_640_50304_768": 12,
+        "aten.mm_768_3072_4096": 12,
+        "aten.mm_3072_768_4096": 12,
+        "aten.mm_768_768_4096": 12,
+        "aten.mm_2304_768_4096": 12,
+        "aten.mm_4096_768_2304": 12,
+        "aten.mm_640_768_50304": 6,
+        "aten.addmm_50304_768_640": 5,
+        "aten.mm_256_50304_768": 2,
+        "aten.mm_50304_768_640": 1,
+        "aten.mm_256_768_50304": 1,
+        "aten.addmm_50304_768_256": 1
+      },
+      "resumes": {
+        "torch_dynamo_resume_in_forward_at_186": 2
+      }
+    },
+    "compile_times": "TorchDynamo compilation metrics:\nFunction                                                          Runtimes (s)\n----------------------------------------------------------------  ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------\n_compile.compile_inner                                            1.7595, 1.6594, 12.8772, 0.0750, 0.3309, 0.5468, 2.2766, 2.4911, 14.2122, 0.0774, 0.0604, 0.0989, 0.0213, 0.0262, 3.1208, 0.5122\ncompile_attempt_0                                                 1.6554, 1.6142, 1.4122, 0.0230, 0.2921, 0.5199, 2.2236, 2.4395, 1.4832, 0.0223, 0.0178, 0.0861, 0.0195, 0.0216, 3.0848, 0.4819\nbytecode_tracing                                                  1.6365, 0.0013, 1.6121, 0.0012, 1.4100, 1.3929, 0.0180, 0.0012, 0.2900, 0.0015, 0.0556, 2.2193, 0.0013, 2.4375, 0.0013, 1.4810, 1.4300, 0.0174, 0.0012, 0.0158, 0.0012, 0.0840, 0.0151, 0.0192, 0.4318, 0.0157\nget_fake_value                                                    0.2551, 0.1938, 0.1939, 0.1938, 0.0297, 0.8597, 1.1131, 0.2510, 0.2134, 0.0060, 0.0004, 0.1207, 0.0012\ncreate_proxy                                                      0.3985, 0.0004, 0.3423, 0.0005, 0.3141, 0.3140, 0.0008, 0.0008, 0.0100, 0.4308, 0.0008, 0.3883, 0.0008, 0.3183, 0.3233, 0.0008, 0.0008, 0.0113, 0.0003, 0.0005, 0.1114, 0.0012\nwrap_to_fake_tensor_and_record                                    0.0499, 0.0015, 0.0463, 0.0014, 0.0469, 0.0530, 0.0096, 0.0028, 0.0017, 0.0510, 0.0028, 0.0496, 0.0028, 0.0489, 0.0479, 0.0154, 0.0074, 0.0111, 0.0071, 0.0030, 0.0131, 0.0033\nvariable_builder_call                                             0.3038, 0.0006, 0.0063, 0.2453, 0.0005, 0.0062, 0.2419, 0.2457, 0.0029, 0.0005, 0.0115, 0.0024, 0.0006, 0.0048, 0.0054, 0.2599, 0.0005, 0.0082, 0.2537, 0.0006, 0.0081, 0.2468, 0.2409, 0.0028, 0.0005, 0.0174, 0.0024, 0.0005, 0.0092, 0.0256, 0.0122, 0.0056, 0.0332, 0.0110\ncompile_attempt_1                                                 0.0145, 0.0114, 11.2331, 0.0189, 0.0101, 0.0160, 0.0135, 12.0063, 0.0246, 0.0139\nbuild_guards                                                      0.0247, 0.0245, 0.2165, 0.0293, 0.0264, 0.0240, 0.0252, 0.0256, 0.7068, 0.0275, 0.0264, 0.0311, 0.0251\ngc                                                                0.0009, 0.0008, 0.0023, 0.0010, 0.0003, 0.0013, 0.0011, 0.0012, 0.0008, 0.0010, 0.0005, 0.0015, 0.0005, 0.0003, 0.0033, 0.0032\ninsert_deferred_runtime_asserts                                   0.0186, 0.0012, 0.0171, 0.0092, 0.0011\nOutputGraph.call_user_compiler                                    9.7771, 0.4545, 10.5232, 2.6355, 0.4574\ninductor_codecache_torch_key                                      0.2731\nCacheBase.get_system.triton_key                                   1.4455\n_recursive_pre_grad_passes                                        0.0098, 0.0005, 0.0040, 0.0125, 0.0122, 0.0253, 0.0005\npass.pre_grad_passes.group_batch_fusion_passes                    0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\npass.pre_grad_passes.efficient_conv_bn_eval_pass                  0.0009, 0.0001, 0.0008, 0.0002, 0.0002, 0.0001, 0.0001\npass.pre_grad_passes.apply_gumbel_max_trick_pass                  0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\ncreate_aot_dispatcher_function                                    7.9583, 0.4494, 10.4527, 2.6041, 0.4518\naot_collect_metadata                                              0.3104, 0.0055, 0.3322, 0.2399, 0.0034\ncompile_fx.<locals>.fw_compiler_base                              6.6496, 0.4057, 5.8241, 1.6246, 0.4106\n_recursive_joint_graph_passes                                     0.7882, 0.0074, 0.6546, 0.0410, 0.0040\npass.joint_graph_passes.remove_noop_ops                           0.0111, 0.0004, 0.0255, 0.0039, 0.0003\npass.joint_graph_passes.constant_fold_uniform_value               0.0237, 0.0027, 0.0625, 0.0071, 0.0021\npass.joint_graph_passes.pass_pattern_0                            0.2115, 0.0028, 0.4674, 0.0267, 0.0006\npass.joint_graph_passes.pass_pattern_1                            0.0034, 0.0004, 0.0146, 0.0001, 0.0004\ncompile_fx_inner                                                  5.8599, 0.3980, 5.8236, 1.6243, 0.8018, 6.3533, 0.4063\nfx_codegen_and_compile                                            5.8434, 0.3969, 5.8052, 1.6216, 0.7995, 6.3252, 0.4053\nadditional_fake_tensor_prop                                       0.2400, 0.0114, 0.2697, 0.0417, 0.0340, 0.3267, 0.0080\n_recursive_post_grad_passes                                       0.2028, 0.0280, 0.1948, 0.1579, 0.0832, 0.2837, 0.0266\npass.post_grad_passes.reorder_for_locality                        0.0033, 0.0002, 0.0002\npass.post_grad_passes.remove_profiler_ops                         0.0002, 0.0000, 0.0003, 0.0001, 0.0001, 0.0003, 0.0000\npass.post_grad_passes.respecialize_current_device                 0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\npass.post_grad_passes.post_grad_custom_pre_pass                   0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\npass.post_grad_passes.remove_noop_ops                             0.0040, 0.0003, 0.0086, 0.0021, 0.0010, 0.0062, 0.0003\npass.post_grad_passes.remove_assert_ops                           0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\npass.post_grad_passes.pass_pattern_0                              0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\npass.post_grad_passes.pass_pattern_1                              0.0633, 0.0173, 0.0656, 0.0017, 0.0009, 0.0870, 0.0160\npass.post_grad_passes.pass_pattern_2                              0.0051, 0.0001, 0.0051, 0.0001, 0.0012, 0.0053, 0.0001\npass.post_grad_passes.stable_sort                                 0.0016, 0.0001, 0.0018, 0.0002, 0.0002, 0.0024, 0.0001\npass.post_grad_passes.move_constructors_to_cuda                   0.0019, 0.0002, 0.0020, 0.0003, 0.0002, 0.0026, 0.0001\npass.post_grad_passes.reinplace_inplaceable_ops                   0.0532, 0.0018, 0.0541, 0.0641, 0.0298, 0.0670, 0.0017\npass.post_grad_passes.fix_auto_functionalized_dtype_views         0.0002, 0.0000, 0.0002, 0.0001, 0.0001, 0.0004, 0.0000\npass.post_grad_passes.decompose_triton_kernel_wrapper_functional  0.0001, 0.0001, 0.0001, 0.0802, 0.0395, 0.0001, 0.0001\npass.post_grad_passes.decompose_auto_functionalized               0.0016, 0.0001, 0.0018, 0.0004, 0.0003, 0.0022, 0.0001\npass.post_grad_passes.decompose_scan_to_while_loop                0.0001, 0.0000, 0.0001, 0.0001, 0.0001, 0.0001, 0.0001\npass.post_grad_passes.decompose_map_to_while_loop                 0.0001, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000\nGraphLowering.run                                                 0.9208, 0.0310, 1.0518, 0.3782, 0.2645, 1.2699, 0.0260\nGraphLowering.compile_to_fn                                       4.3125, 0.3041, 4.0952, 0.9705, 0.3680, 4.1967, 0.3221\nGraphLowering.compile_to_module                                   4.3124, 0.3041, 4.0951, 0.9704, 0.3680, 4.1966, 0.3221\nGraphLowering.codegen                                             4.0203, 0.0782, 3.8923, 0.7398, 0.1515, 3.8946, 0.0867\nScheduler.__init__                                                1.9106, 0.0245, 2.1673, 0.1834, 0.0418, 1.4287, 0.0231\nScheduler.fused_nodes                                             1.4700, 0.0062, 1.6267, 0.0720, 0.0066, 0.3461, 0.0057\nScheduler.simple_overlap                                          0.0008, 0.0001, 0.0009, 0.0003, 0.0002, 0.0012, 0.0001\nScheduler.codegen                                                 2.0343, 0.0504, 1.6367, 0.5228, 0.0982, 2.3291, 0.0606\nPythonWrapperCodegen.generate                                     0.0656, 0.0022, 0.0807, 0.0325, 0.0091, 0.1086, 0.0022\nPyCodeCache.load_by_key_path                                      0.2901, 0.2251, 0.2006, 0.2284,"
+  },
+  "bandwidth_vram_booster": {
+    "vram_headroom": {
+      "total_mb": 22563.12,
+      "allocated_mb": 1444.94,
+      "reserved_mb": 3354.0,
+      "free_mb": 19209.12,
+      "used_ratio": 0.1486
+    }
+  }
+}

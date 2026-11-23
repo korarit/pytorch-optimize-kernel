@@ -1,0 +1,27 @@
+[ptopt fallback/hook summary]
+  profile=aggressive | exit_code=0 | cmd=/usr/bin/python3 train.py config/train_shakespeare_char.py --dataset=shakespeare --n_layer=12 --n_head=12 --n_embd=768 --batch_size=16 --block_size=256 --dropout=0.0 --compile=False --max_iters=500 --eval_interval=500 --eval_iters=10 --always_save_checkpoint=False
+  Counts: APPLIED=15 | SKIPPED=7 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/aggressive)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.cross_entropy: sm_89, triton=True
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+  - [APPLIED] kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+  - [APPLIED] inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+  - [APPLIED] compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+  - [SKIPPED (by arch/config)] compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: params=123783936 > 15000000 (large compute-bound module)
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)

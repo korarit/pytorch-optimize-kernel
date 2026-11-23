@@ -1,0 +1,395 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-23 10:09:29 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ c48c1be
+Targets            : 1
+Total Runs         : 9
+Comparisons        : 8
+Overall Status     : PASS
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target           | Arm               | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)         | VRAM MB (B->A/d)         | LossRel  | Stdout Metrics | Audit        | Status
+-----------------+-------------------+-------+-------+----------------+----------+-------------------------+--------------------------+----------+----------------+--------------+-------
+nanogpt-gpt2-bpe | safe              | none  | train | 125.66->132.95 | 0.94x    | 80.89s->83.02s (0.97x)  | 5359.6->5343.7 (-15.9)   | 0.0      | val_loss=4.926 | A:6 S:4 F:0  | PASS  
+nanogpt-gpt2-bpe | balanced          | cold  | train | 125.66->125.56 | 1.00x    | 80.89s->124.48s (0.65x) | 5359.6->3292.6 (-2067.1) | 0.019692 | val_loss=4.94  | A:13 S:2 F:0 | PASS  
+nanogpt-gpt2-bpe | balanced          | warm  | train | 125.66->125.87 | 1.00x    | 80.89s->92.35s (0.88x)  | 5359.6->3304.6 (-2055.0) | 0.018593 | val_loss=4.906 | A:13 S:2 F:0 | PASS  
+nanogpt-gpt2-bpe | aggressive        | cold  | train | 125.66->126.03 | 1.00x    | 80.89s->173.24s (0.47x) | 5359.6->3292.6 (-2067.1) | 0.018569 | val_loss=4.945 | A:15 S:7 F:0 | PASS  
+nanogpt-gpt2-bpe | aggressive        | warm  | train | 125.66->125.39 | 1.00x    | 80.89s->93.10s (0.87x)  | 5359.6->3304.6 (-2055.0) | 0.023093 | val_loss=4.919 | A:15 S:7 F:0 | PASS  
+nanogpt-gpt2-bpe | native_opt        | none  | train | 125.66->120.02 | 1.05x    | 80.89s->83.37s (0.97x)  | 5359.6->4183.1 (-1176.5) | 0.014392 | val_loss=4.913 | A:0 S:1 F:0  | PASS  
+nanogpt-gpt2-bpe | conflict:balanced | cold  | train | 125.66->125.88 | 1.00x    | 80.89s->128.21s (0.63x) | 5359.6->3292.6 (-2067.1) | 0.0184   | val_loss=4.952 | A:12 S:3 F:0 | PASS  
+nanogpt-gpt2-bpe | conflict:balanced | warm  | train | 125.66->125.81 | 1.00x    | 80.89s->97.35s (0.83x)  | 5359.6->3292.6 (-2067.1) | 0.017606 | val_loss=4.887 | A:12 S:3 F:0 | PASS  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target           | Arm/Cache              | Step0 ms | Data/Other  | Forward      | Loss/Clip | Backward     | Optim       | Steady Tot
+-----------------+------------------------+----------+-------------+--------------+-----------+--------------+-------------+-----------
+nanogpt-gpt2-bpe | baseline/none          | 4133.3   | 16.01 (11%) | 38.40 (26%)  | 8.75 (6%) | 68.18 (47%)  | 14.82 (10%) | 146.16    
+nanogpt-gpt2-bpe | safe/none              | 4039.6   | 17.06 (12%) | 38.40 (26%)  | 8.76 (6%) | 67.83 (46%)  | 14.81 (10%) | 146.86    
+nanogpt-gpt2-bpe | balanced/cold          | 18625.4  | 15.70 (8%)  | 69.79 (36%)  | 8.65 (4%) | 82.40 (43%)  | 14.87 (8%)  | 191.42    
+nanogpt-gpt2-bpe | balanced/warm          | 9740.4   | 16.21 (11%) | 43.55 (29%)  | 8.62 (6%) | 66.70 (44%)  | 14.87 (10%) | 149.96    
+nanogpt-gpt2-bpe | aggressive/cold        | 18632.4  | 12.20 (4%)  | 134.26 (43%) | 8.80 (3%) | 144.74 (46%) | 14.89 (5%)  | 314.89    
+nanogpt-gpt2-bpe | aggressive/warm        | 9710.5   | 17.51 (12%) | 43.56 (29%)  | 8.61 (6%) | 66.50 (44%)  | 14.86 (10%) | 151.04    
+nanogpt-gpt2-bpe | native_opt/none        | 8445.6   | 16.46 (12%) | 32.90 (24%)  | 8.56 (6%) | 62.30 (46%)  | 14.85 (11%) | 135.07    
+nanogpt-gpt2-bpe | conflict:balanced/cold | 21744.2  | 18.40 (9%)  | 78.86 (39%)  | 8.66 (4%) | 82.61 (41%)  | 14.89 (7%)  | 203.41    
+nanogpt-gpt2-bpe | conflict:balanced/warm | 13069.0  | 16.81 (11%) | 52.28 (33%)  | 8.69 (6%) | 66.64 (42%)  | 14.88 (9%)  | 159.29    
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target           | Arm/Cache              | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+-----------------+------------------------+----------------+--------+--------+------------+--------------------+--------------
+nanogpt-gpt2-bpe | balanced/cold          | 10/12          | 5      | 8      | 0          | 0/7                | 0/4          
+nanogpt-gpt2-bpe | balanced/warm          | 10/12          | 5      | 8      | 0          | 7/0                | 4/0          
+nanogpt-gpt2-bpe | aggressive/cold        | 10/12          | 5      | 8      | 0          | 0/7                | 0/4          
+nanogpt-gpt2-bpe | aggressive/warm        | 10/12          | 5      | 8      | 0          | 7/0                | 4/0          
+nanogpt-gpt2-bpe | native_opt/none        | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+nanogpt-gpt2-bpe | conflict:balanced/cold | 14/16          | 5      | 12     | 0          | 0/7                | 0/4          
+nanogpt-gpt2-bpe | conflict:balanced/warm | 14/16          | 5      | 12     | 0          | 7/0                | 4/0          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target           | Arm/Cache              | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+-----------------+------------------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+nanogpt-gpt2-bpe | baseline/none          | 5359.6/6380.0 | 1020.4      | 16183.1     | 28.3%     | 0/0         | 6628.0   | 81.4%       
+nanogpt-gpt2-bpe | safe/none              | 5343.7/5768.0 | 424.3       | 16795.1     | 25.6%     | 0/0         | 6016.0   | 81.4%       
+nanogpt-gpt2-bpe | balanced/cold          | 3292.6/3354.0 | 61.5        | 19209.1     | 14.9%     | 0/0         | 3602.0   | 53.8%       
+nanogpt-gpt2-bpe | balanced/warm          | 3304.6/3354.0 | 61.5        | 19209.1     | 14.9%     | 0/0         | 3602.0   | 69.8%       
+nanogpt-gpt2-bpe | aggressive/cold        | 3292.6/3736.0 | 443.4       | 18827.1     | 16.6%     | 0/0         | 4004.0   | 46.8%       
+nanogpt-gpt2-bpe | aggressive/warm        | 3304.6/3756.0 | 451.4       | 18807.1     | 16.6%     | 0/0         | 4024.0   | 68.8%       
+nanogpt-gpt2-bpe | native_opt/none        | 4183.1/4650.0 | 466.9       | 17913.1     | 20.6%     | 0/0         | 4898.0   | 72.5%       
+nanogpt-gpt2-bpe | conflict:balanced/cold | 3292.6/3354.0 | 61.5        | 19209.1     | 14.9%     | 0/0         | 3602.0   | 52.3%       
+nanogpt-gpt2-bpe | conflict:balanced/warm | 3292.6/3354.0 | 61.5        | 19209.1     | 14.9%     | 0/0         | 3602.0   | 65.6%       
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target           | Arm/Cache              | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+-----------------+------------------------+-----------------+--------------------+-------------+-----------+------------------
+nanogpt-gpt2-bpe | baseline/none          | -               | -                  | -           | -         | 16183.1 (28.3%)  
+nanogpt-gpt2-bpe | safe/none              | -               | -                  | -           | -         | 16795.1 (25.6%)  
+nanogpt-gpt2-bpe | balanced/cold          | -               | -                  | off         | -         | 19209.1 (14.9%)  
+nanogpt-gpt2-bpe | balanced/warm          | -               | -                  | off         | -         | 19209.1 (14.9%)  
+nanogpt-gpt2-bpe | aggressive/cold        | -               | -                  | off         | -         | 18827.1 (16.6%)  
+nanogpt-gpt2-bpe | aggressive/warm        | -               | -                  | off         | -         | 18807.1 (16.7%)  
+nanogpt-gpt2-bpe | native_opt/none        | -               | -                  | -           | -         | 17913.1 (20.6%)  
+nanogpt-gpt2-bpe | conflict:balanced/cold | -               | -                  | -           | -         | 19209.1 (14.9%)  
+nanogpt-gpt2-bpe | conflict:balanced/warm | -               | -                  | -           | -         | 19209.1 (14.9%)  
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- nanogpt-gpt2-bpe [baseline/none] (total_cuda=212.647ms, total_cpu=99.643ms) ---
+  CUDA  23.1% | self=  49.062ms | calls=  147 | aten::mm
+  CUDA  12.4% | self=  26.457ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  12.4% | self=  26.427ms | calls=  235 | aten::copy_
+  CUDA  10.6% | self=  22.565ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   7.4% | self=  15.770ms | calls=    3 | void at::native::unrolled_elementwise_kernel<at:
+  CUDA   5.0% | self=  10.636ms | calls=  222 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   4.9% | self=  10.347ms | calls=    3 | aten::_log_softmax
+  CUDA   4.9% | self=  10.347ms | calls=    3 | void at::native::(anonymous namespace)::cunn_Sof
+  CPU   58.7% | self=  58.495ms | calls=    6 | cudaDeviceSynchronize
+  CPU    6.0% | self=   5.984ms | calls=  609 | cudaLaunchKernel
+  CPU    5.2% | self=   5.140ms | calls=  147 | aten::mm
+  CPU    2.4% | self=   2.398ms | calls=  229 | aten::_to_copy
+  CPU    2.2% | self=   2.224ms | calls=  235 | aten::copy_
+  CPU    2.2% | self=   2.221ms | calls=  265 | aten::empty_strided
+  CPU    2.2% | self=   2.214ms | calls=  380 | aten::empty
+  CPU    2.1% | self=   2.064ms | calls=    1 | Activity Buffer Request
+--- nanogpt-gpt2-bpe [safe/none] (total_cuda=212.997ms, total_cpu=99.622ms) ---
+  CUDA  23.2% | self=  49.465ms | calls=  147 | aten::mm
+  CUDA  12.3% | self=  26.255ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  12.2% | self=  26.048ms | calls=  235 | aten::copy_
+  CUDA  10.9% | self=  23.167ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   7.4% | self=  15.777ms | calls=    3 | void at::native::unrolled_elementwise_kernel<at:
+  CUDA   4.9% | self=  10.362ms | calls=    3 | aten::_log_softmax
+  CUDA   4.9% | self=  10.362ms | calls=    3 | void at::native::(anonymous namespace)::cunn_Sof
+  CUDA   4.8% | self=  10.250ms | calls=  222 | void at::native::vectorized_elementwise_kernel<4
+  CPU   62.6% | self=  62.315ms | calls=    6 | cudaDeviceSynchronize
+  CPU    5.8% | self=   5.808ms | calls=  609 | cudaLaunchKernel
+  CPU    4.6% | self=   4.625ms | calls=  147 | aten::mm
+  CPU    2.2% | self=   2.197ms | calls=  235 | aten::copy_
+  CPU    2.2% | self=   2.185ms | calls=  380 | aten::empty
+  CPU    2.1% | self=   2.061ms | calls=    1 | Activity Buffer Request
+  CPU    1.9% | self=   1.874ms | calls=  265 | aten::empty_strided
+  CPU    1.8% | self=   1.788ms | calls=  294 | aten::linear
+--- nanogpt-gpt2-bpe [balanced/cold] (total_cuda=210.429ms, total_cpu=83.528ms) ---
+  CUDA  25.7% | self=  54.144ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CUDA  22.2% | self=  46.618ms | calls=  147 | aten::mm
+  CUDA  12.0% | self=  25.258ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  10.1% | self=  21.319ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   2.2% | self=   4.629ms | calls=    3 | ## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z
+  CUDA   2.2% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.2% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.0% | self=   4.247ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CPU   54.7% | self=  45.656ms | calls=    6 | cudaDeviceSynchronize
+  CPU   16.3% | self=  13.654ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CPU    4.7% | self=   3.892ms | calls=  147 | aten::mm
+  CPU    2.8% | self=   2.345ms | calls=  261 | cuLaunchKernel
+  CPU    2.4% | self=   2.020ms | calls=    1 | Activity Buffer Request
+  CPU    2.3% | self=   1.902ms | calls=   12 | TorchDynamo Cache Lookup
+  CPU    2.1% | self=   1.739ms | calls=  189 | cudaLaunchKernel
+  CPU    1.1% | self=   0.918ms | calls=   72 | triton_poi_fused__to_copy_4
+--- nanogpt-gpt2-bpe [balanced/warm] (total_cuda=214.047ms, total_cpu=85.497ms) ---
+  CUDA  25.8% | self=  55.262ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CUDA  22.3% | self=  47.784ms | calls=  147 | aten::mm
+  CUDA  12.0% | self=  25.707ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  10.3% | self=  22.035ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   2.2% | self=   4.637ms | calls=    3 | ## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z
+  CUDA   2.2% | self=   4.606ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.2% | self=   4.606ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.0% | self=   4.268ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CPU   50.4% | self=  43.084ms | calls=    6 | cudaDeviceSynchronize
+  CPU   17.8% | self=  15.178ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CPU    5.0% | self=   4.245ms | calls=  147 | aten::mm
+  CPU    2.9% | self=   2.472ms | calls=  261 | cuLaunchKernel
+  CPU    2.4% | self=   2.073ms | calls=    1 | Activity Buffer Request
+  CPU    2.2% | self=   1.916ms | calls=  189 | cudaLaunchKernel
+  CPU    2.1% | self=   1.815ms | calls=   12 | TorchDynamo Cache Lookup
+  CPU    1.3% | self=   1.074ms | calls=   36 | aten::_flash_attention_forward
+--- nanogpt-gpt2-bpe [aggressive/cold] (total_cuda=242.87ms, total_cpu=93.97ms) ---
+  CUDA  22.0% | self=  53.438ms | calls=    3 | ## Call CompiledFxGraph flhynivlbtdybs7ijyktnfs5
+  CUDA  21.8% | self=  53.065ms | calls=    3 | Torch-Compiled Region: 0/0
+  CUDA  10.4% | self=  25.222ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   8.8% | self=  21.382ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.5% | self=  15.723ms | calls=    3 | ## Call CompiledFxGraph fsj2apxpsfqu4yiyu4u3quok
+  CUDA   6.1% | self=  14.852ms | calls=    3 | aten::mm
+  CUDA   5.7% | self=  13.764ms | calls=   22 | aten::copy_
+  CUDA   4.3% | self=  10.558ms | calls=    6 | Memcpy DtoD (Device -> Device)
+  CPU   87.2% | self=  81.929ms | calls=    6 | cudaDeviceSynchronize
+  CPU    2.2% | self=   2.031ms | calls=    1 | Activity Buffer Request
+  CPU    2.2% | self=   2.031ms | calls=   12 | TorchDynamo Cache Lookup
+  CPU    1.1% | self=   1.077ms | calls=    3 | aten::mm
+  CPU    0.9% | self=   0.865ms | calls=    6 | cudaGraphLaunch
+  CPU    0.9% | self=   0.820ms | calls=    3 | ## Call CompiledFxGraph flhynivlbtdybs7ijyktnfs5
+  CPU    0.6% | self=   0.608ms | calls=    3 | Torch-Compiled Region: 0/0
+  CPU    0.6% | self=   0.525ms | calls=    3 | ## Call CompiledFxGraph fsj2apxpsfqu4yiyu4u3quok
+--- nanogpt-gpt2-bpe [aggressive/warm] (total_cuda=243.462ms, total_cpu=94.799ms) ---
+  CUDA  22.0% | self=  53.572ms | calls=    3 | ## Call CompiledFxGraph flhynivlbtdybs7ijyktnfs5
+  CUDA  21.8% | self=  53.152ms | calls=    3 | Torch-Compiled Region: 0/0
+  CUDA  10.4% | self=  25.262ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   8.8% | self=  21.487ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   6.5% | self=  15.780ms | calls=    3 | ## Call CompiledFxGraph fsj2apxpsfqu4yiyu4u3quok
+  CUDA   6.1% | self=  14.931ms | calls=    3 | aten::mm
+  CUDA   5.7% | self=  13.802ms | calls=   22 | aten::copy_
+  CUDA   4.4% | self=  10.619ms | calls=    6 | Memcpy DtoD (Device -> Device)
+  CPU   86.5% | self=  81.959ms | calls=    6 | cudaDeviceSynchronize
+  CPU    2.4% | self=   2.280ms | calls=    1 | Activity Buffer Request
+  CPU    2.2% | self=   2.079ms | calls=   12 | TorchDynamo Cache Lookup
+  CPU    1.2% | self=   1.154ms | calls=    3 | aten::mm
+  CPU    1.0% | self=   0.938ms | calls=    3 | ## Call CompiledFxGraph flhynivlbtdybs7ijyktnfs5
+  CPU    1.0% | self=   0.912ms | calls=    6 | cudaGraphLaunch
+  CPU    0.7% | self=   0.634ms | calls=    3 | Torch-Compiled Region: 0/0
+  CPU    0.6% | self=   0.554ms | calls=    3 | ## Call CompiledFxGraph fsj2apxpsfqu4yiyu4u3quok
+--- nanogpt-gpt2-bpe [native_opt/none] (total_cuda=239.365ms, total_cpu=86.403ms) ---
+  CUDA  33.6% | self=  80.513ms | calls=    3 | ## Call CompiledFxGraph f6xkksnrxrxbsoftumcub2rz
+  CUDA  20.5% | self=  49.105ms | calls=  147 | aten::mm
+  CUDA  11.0% | self=  26.220ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   9.5% | self=  22.842ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   1.9% | self=   4.610ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   1.9% | self=   4.610ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CUDA   1.9% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax__unsafe_view_prepa
+  CUDA   1.9% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax__unsafe_view_prepa
+  CPU   60.5% | self=  52.302ms | calls=    6 | cudaDeviceSynchronize
+  CPU   14.3% | self=  12.331ms | calls=    3 | ## Call CompiledFxGraph f6xkksnrxrxbsoftumcub2rz
+  CPU    4.7% | self=   4.057ms | calls=  147 | aten::mm
+  CPU    2.5% | self=   2.177ms | calls=  264 | cuLaunchKernel
+  CPU    2.4% | self=   2.099ms | calls=    1 | Activity Buffer Request
+  CPU    1.9% | self=   1.630ms | calls=  183 | cudaLaunchKernel
+  CPU    1.1% | self=   0.910ms | calls=   72 | triton_poi_fused__to_copy_4
+  CPU    1.0% | self=   0.867ms | calls=   36 | aten::_flash_attention_forward
+--- nanogpt-gpt2-bpe [conflict:balanced/cold] (total_cuda=211.307ms, total_cpu=83.566ms) ---
+  CUDA  25.7% | self=  54.277ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CUDA  22.3% | self=  47.027ms | calls=  147 | aten::mm
+  CUDA  12.0% | self=  25.407ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  10.2% | self=  21.577ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   2.2% | self=   4.630ms | calls=    3 | ## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z
+  CUDA   2.2% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.2% | self=   4.600ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.0% | self=   4.264ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CPU   55.6% | self=  46.448ms | calls=    6 | cudaDeviceSynchronize
+  CPU   16.0% | self=  13.412ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CPU    4.7% | self=   3.892ms | calls=  147 | aten::mm
+  CPU    2.6% | self=   2.177ms | calls=  261 | cuLaunchKernel
+  CPU    2.4% | self=   2.008ms | calls=    1 | Activity Buffer Request
+  CPU    2.3% | self=   1.907ms | calls=   18 | TorchDynamo Cache Lookup
+  CPU    2.0% | self=   1.685ms | calls=  189 | cudaLaunchKernel
+  CPU    1.1% | self=   0.926ms | calls=   72 | triton_poi_fused__to_copy_4
+--- nanogpt-gpt2-bpe [conflict:balanced/warm] (total_cuda=211.05ms, total_cpu=83.717ms) ---
+  CUDA  25.7% | self=  54.275ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CUDA  22.2% | self=  46.903ms | calls=  147 | aten::mm
+  CUDA  12.0% | self=  25.423ms | calls=   39 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA  10.2% | self=  21.439ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   2.2% | self=   4.628ms | calls=    3 | ## Call CompiledFxGraph f5caqoxvgb244kon7wh4sw6z
+  CUDA   2.2% | self=   4.599ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.2% | self=   4.599ms | calls=    3 | triton_red_fused__log_softmax_prepare_softmax_on
+  CUDA   2.0% | self=   4.263ms | calls=   36 | triton_poi_fused__unsafe_view_gelu_5
+  CPU   54.8% | self=  45.913ms | calls=    6 | cudaDeviceSynchronize
+  CPU   16.3% | self=  13.621ms | calls=    3 | ## Call CompiledFxGraph fi47t7pkfn6omkimjym7bnnz
+  CPU    4.7% | self=   3.933ms | calls=  147 | aten::mm
+  CPU    2.7% | self=   2.287ms | calls=  261 | cuLaunchKernel
+  CPU    2.5% | self=   2.098ms | calls=    1 | Activity Buffer Request
+  CPU    2.3% | self=   1.952ms | calls=   18 | TorchDynamo Cache Lookup
+  CPU    2.0% | self=   1.689ms | calls=  189 | cudaLaunchKernel
+  CPU    1.1% | self=   0.916ms | calls=   72 | triton_poi_fused__to_copy_4
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+nanogpt-gpt2-bpe [baseline/none] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [safe/none] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [balanced/cold] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [balanced/warm] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [aggressive/cold] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [aggressive/warm] GPT: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [native_opt/none] OptimizedModule: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [conflict:balanced/cold] OptimizedModule: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+nanogpt-gpt2-bpe [conflict:balanced/warm] OptimizedModule: params=123783936, train_calls=501, eval_calls=40, unique_shapes=1 -> ["(((16, 256), torch.int64, device(type='cuda', index=0)), ((16, 256), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] nanogpt-gpt2-bpe (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/01_nanogpt-gpt2-bpe__baseline__none
+[SKIPPED] nanogpt-gpt2-bpe (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] nanogpt-gpt2-bpe (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/02_nanogpt-gpt2-bpe__safe__none
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] nanogpt-gpt2-bpe (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] nanogpt-gpt2-bpe (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] nanogpt-gpt2-bpe (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] nanogpt-gpt2-bpe (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] nanogpt-gpt2-bpe (safe/none) -> kernels.auto: kernels.enabled is False
+[ARTIFACTS] nanogpt-gpt2-bpe (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/03_nanogpt-gpt2-bpe__balanced__cold
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/balanced)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+[SKIPPED] nanogpt-gpt2-bpe (balanced/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-gpt2-bpe (balanced/cold) -> compile.auto: Compiled GPT (mode=default, dynamic=False)
+[ARTIFACTS] nanogpt-gpt2-bpe (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/04_nanogpt-gpt2-bpe__balanced__warm
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/balanced)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+[SKIPPED] nanogpt-gpt2-bpe (balanced/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-gpt2-bpe (balanced/warm) -> compile.auto: Compiled GPT (mode=default, dynamic=False)
+[ARTIFACTS] nanogpt-gpt2-bpe (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/05_nanogpt-gpt2-bpe__aggressive__cold
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/aggressive)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: params=123783936 > 15000000 (large compute-bound module)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/cold) -> compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+[ARTIFACTS] nanogpt-gpt2-bpe (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/06_nanogpt-gpt2-bpe__aggressive__warm
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/aggressive)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> inference.cuda_graphs: Compiled eval GPT with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on GPT: params=123783936 > 15000000 (large compute-bound module)
+[SKIPPED] nanogpt-gpt2-bpe (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] nanogpt-gpt2-bpe (aggressive/warm) -> compile.auto: Compiled GPT (mode=max-autotune-no-cudagraphs, dynamic=False)
+[ARTIFACTS] nanogpt-gpt2-bpe (native_opt/none) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/07_nanogpt-gpt2-bpe__native_opt__none
+[SKIPPED] nanogpt-gpt2-bpe (native_opt/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] nanogpt-gpt2-bpe (conflict:balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/08_nanogpt-gpt2-bpe__conflict_balanced__cold
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/conflict_balanced)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> kernels.patch: Patched 1 submodules in OptimizedModule with custom Triton kernels
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/cold) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[ARTIFACTS] nanogpt-gpt2-bpe (conflict:balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/100929_20261123-real-nanogpt-gpt2-bpe/runs/09_nanogpt-gpt2-bpe__conflict_balanced__warm
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmprt2yeg61/nanogpt-gpt2-bpe/conflict_balanced)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> kernels.patch: Patched 1 submodules in OptimizedModule with custom Triton kernels
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[SKIPPED] nanogpt-gpt2-bpe (conflict:balanced/warm) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[VRAM:FRAGMENTATION] nanogpt-gpt2-bpe (baseline/none): reserved overhead is 1020.38 MB -> inspect `expandable_segments` & allocator settings.
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (balanced/cold): 8 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] nanogpt-gpt2-bpe (balanced/cold): avg GPU utilization is 53.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (balanced/warm): 8 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (aggressive/cold): 8 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] nanogpt-gpt2-bpe (aggressive/cold): avg GPU utilization is 46.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (aggressive/warm): 8 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (conflict:balanced/cold): 12 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] nanogpt-gpt2-bpe (conflict:balanced/cold): avg GPU utilization is 52.3% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] nanogpt-gpt2-bpe (conflict:balanced/warm): 12 graph breaks (unique_graphs=5) -> inspect `diag_stderr.log` and `debug_profile.json`.
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================
