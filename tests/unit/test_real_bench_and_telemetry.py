@@ -518,6 +518,47 @@ class TestRealBenchHarness(unittest.TestCase):
         )
         self.assertFalse(ok_det)
 
+    def test_failure_note_uses_single_line_exception_tail(self) -> None:
+        from real_bench import RealRunRecord, build_real_comparison_rows
+        from telemetry import compute_step_stats
+
+        zero_stats = compute_step_stats([])
+        tb = (
+            "..\n"
+            "  File \"timm/data/dataset_factory.py\", line 222, in create_dataset\n"
+            "    if search_split and os.path.isdir(root):\n"
+            "TypeError: stat: path should be string, bytes, os.PathLike or integer, not NoneType"
+        )
+        base = RealRunRecord(
+            target="timm",
+            arm="baseline",
+            cache_state="none",
+            exit_code=1,
+            end_to_end_sec=5.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=0.0,
+            peak_reserved_mb=0.0,
+            error=tb,
+        )
+        arm = RealRunRecord(
+            target="timm",
+            arm="safe",
+            cache_state="none",
+            exit_code=1,
+            end_to_end_sec=5.0,
+            train_stats=zero_stats,
+            eval_stats=zero_stats,
+            peak_allocated_mb=0.0,
+            peak_reserved_mb=0.0,
+            error=tb,
+        )
+        rows = build_real_comparison_rows([base, arm])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].status, "FAIL")
+        self.assertNotIn("\n", rows[0].note)
+        self.assertTrue(rows[0].note.startswith("TypeError: stat:"))
+
 
 if __name__ == "__main__":
     unittest.main()

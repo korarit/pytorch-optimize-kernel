@@ -193,23 +193,69 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
 #### 4.4 `huggingface/pytorch-image-models` (`timm`) — ViT & ConvNeXt
 ทดสอบว่าเทียบกับ `timm` default (Arm A) แล้ว `ptopt` (Arm B) เร่งขึ้นกี่เท่า และเทียบชั้นกับการเปิด `--amp --channels-last --torchcompile inductor` ของ `timm` เอง (Arm C) ได้แค่ไหน
 
+> **ข้อควรรู้เรื่อง dataset ของ `timm`**: `train.py` ของ `timm` **ไม่มี `--dataset fake` ในตัว** (หากใส่ `--dataset fake` โดยไม่ระบุ `--data-dir` ฟังก์ชัน `timm/data/dataset_factory.py:create_dataset` จะตกไปที่ `ImageFolder` โดย `root=None` และพังด้วย `TypeError: stat: path should be string, bytes, os.PathLike or integer, not NoneType`) จึงต้องสร้าง dummy `ImageFolder` หรือชี้ `--data-dir` ให้ชัดเจนเสมอ
+
+**แบบที่ 1 (แนะนำ — ไวบน Colab, ~100 train + 20 val steps/epoch, ไม่ต้องโหลดเน็ต):**
 ```bash
 cd /content/external_repos
 git clone --depth 1 https://github.com/huggingface/pytorch-image-models.git
 pip install -q timm
 
+# สร้าง dummy ImageFolder (100 classes, 6,400 train / 1,280 val ใช้ hardlink จาก 1 JPEG ไม่เปลือง disk)
+python3 -c "
+import os, pathlib, shutil
+from PIL import Image
+root = pathlib.Path('/tmp/timm_dummy_data')
+if root.exists():
+    shutil.rmtree(root)
+seed_dir = root / '_seed'
+seed_dir.mkdir(parents=True, exist_ok=True)
+seed_jpg = seed_dir / 'seed.jpg'
+Image.new('RGB', (224, 224), color=(128, 64, 32)).save(seed_jpg)
+for split, per_cls in (('train', 64), ('validation', 13)):
+    count = 0
+    limit = 6400 if split == 'train' else 1280
+    for c in range(100):
+        cdir = root / split / f'class_{c:03d}'
+        cdir.mkdir(parents=True, exist_ok=True)
+        for i in range(per_cls):
+            if count >= limit:
+                break
+            os.link(seed_jpg, cdir / f'img_{i:03d}.jpg')
+            count += 1
+shutil.rmtree(seed_dir)
+print('Prepared dummy ImageFolder at', root)
+"
+
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name timm-vit-base \
   --cwd /content/external_repos/pytorch-image-models \
-  --cmd "python3 train.py --dataset fake --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2" \
-  --native-cmd "python3 train.py --dataset fake --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --amp --channels-last --torchcompile inductor" \
+  --cmd "python3 train.py --data-dir /tmp/timm_dummy_data --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --output /tmp/timm_out" \
+  --native-cmd "python3 train.py --data-dir /tmp/timm_dummy_data --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --amp --channels-last --torchcompile inductor --output /tmp/timm_out" \
   --test-conflict \
   --profiles safe,balanced,aggressive \
-  --metric-regex "loss=Loss:\s*([0-9.]+)" \
+  --metric-regex "loss=Loss:\s*[0-9.]+\s*\(([0-9.]+)\)" \
   --timeout 3600 \
   --measure-pure-wall
 ```
-> **หมายเหตุระยะเวลารัน (`timm`)**: คำสั่งนี้มี 8 arms (`--test-conflict` + 3 profiles) × 3 passes และบางเวอร์ชันของ `timm` อาจต้องใช้ `--dataset torch/cifar100 --dataset-download --img-size 224` แทน `--dataset fake` หากต้องการรันไวขึ้นบน Colab ให้ลดเหลือ `--profiles safe,balanced` ก่อน
+
+**แบบที่ 2 (ใช้ข้อมูลจริง `torch/cifar100` — 50,000 train / 10,000 val, รันนานกว่ามาก):**
+```bash
+# Pre-download CIFAR-100 ลง /tmp/timm_cifar100 ล่วงหน้า (ต้องระบุ --data-dir เสมอ ไม่งั้น root=None จะ error)
+python3 -c "import torchvision; torchvision.datasets.CIFAR100('/tmp/timm_cifar100', train=True, download=True); torchvision.datasets.CIFAR100('/tmp/timm_cifar100', train=False, download=True)"
+
+python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
+  --name timm-vit-base-cifar100 \
+  --cwd /content/external_repos/pytorch-image-models \
+  --cmd "python3 train.py --dataset torch/cifar100 --data-dir /tmp/timm_cifar100 --img-size 224 --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --output /tmp/timm_out" \
+  --native-cmd "python3 train.py --dataset torch/cifar100 --data-dir /tmp/timm_cifar100 --img-size 224 --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --amp --channels-last --torchcompile inductor --output /tmp/timm_out" \
+  --test-conflict \
+  --profiles safe,balanced \
+  --metric-regex "loss=Loss:\s*[0-9.]+\s*\(([0-9.]+)\)" \
+  --timeout 3600 \
+  --measure-pure-wall
+```
+> **หมายเหตุระยะเวลารัน (`timm`)**: คำสั่งแบบเต็มมี 9 runs (`baseline` + `safe` + `balanced` cold/warm + `aggressive` cold/warm + `native_opt` + `conflict:balanced` cold/warm) × สูงสุด 3 passes; หากต้องการรันไวขึ้นบน Colab ให้ใช้แบบที่ 1 (`/tmp/timm_dummy_data`) หรือลดเหลือ `--profiles safe,balanced` ก่อน
 
 
 ---

@@ -943,6 +943,17 @@ def _evaluate_arm_parity(
     return True, None, "Eval/inference completed cleanly"
 
 
+def _format_failure_note(err: str, max_len: int = 120) -> str:
+    """Return a clean single-line summary preferring the final exception line."""
+    lines = [ln.strip() for ln in err.splitlines() if ln.strip()]
+    if not lines:
+        return "FAIL"
+    tail = lines[-1]
+    if len(tail) > max_len:
+        return tail[: max_len - 3] + "..."
+    return tail
+
+
 def build_real_comparison_rows(
     records: Sequence[RealRunRecord],
     specs_by_name: Mapping[str, RealTargetSpec] | None = None,
@@ -991,7 +1002,7 @@ def build_real_comparison_rows(
                     metrics_summary=metrics_str,
                     audit_summary=audit_str,
                     status="FAIL",
-                    note=err[:120],
+                    note=_format_failure_note(err),
                 )
             )
             continue
