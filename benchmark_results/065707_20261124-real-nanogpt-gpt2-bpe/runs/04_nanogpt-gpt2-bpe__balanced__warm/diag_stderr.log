@@ -1,0 +1,755 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py:381: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  _base(s_self, *args, **kwargs)
+USDT:2026-11-24 08:57:13 50033:50033 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-24 08:57:13 50033:50033 SyncActivityProfilerHandler.cpp:46] profiler_stop
+V1124 08:57:14.324000 50033 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function forward in /content/external_repos/nanoGPT/model.py:170
+V1124 08:57:14.324000 50033 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1124 08:57:14.324000 50033 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Graph break in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] User code traceback:
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/external_repos/nanoGPT/train.py", line 300, in <module>
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     logits, loss = model(X, Y)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]                    ~~~~~^^^^^^
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 391, in _amp_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/external_repos/nanoGPT/model.py", line 186, in forward
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     logits = self.lm_head(x)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_mod_call(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return orig_call(mod_self, *args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return self._call_impl(*args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 553, in _lce_head_fwd
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks]     return lce_exec(x)
+V1124 08:57:15.789000 50033 torch/_dynamo/symbolic_convert.py:5368] [0/1] [__graph_breaks] 
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1124 08:57:17.697000 50033 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1124 08:57:17.758000 50033 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:553
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]   Developer debug context: <function _patch_module_submodules.<locals>._make_lce_head_fwd.<locals>._lce_head_eager at 0x7f2c87c00e00>
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks] 
+V1124 08:57:18.039000 50033 torch/_dynamo/symbolic_convert.py:5375] [3/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph break in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:304
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_KW: a function call with keyword arguments, e.g. f(x=True):
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f2c87d4a3e0>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Developer debug context: <function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f2c87d4a3e0>
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] User code traceback:
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/nanoGPT/train.py", line 300, in <module>
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     logits, loss = model(X, Y)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]                    ~~~~~^^^^^^
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 391, in _amp_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/nanoGPT/model.py", line 187, in forward
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1)
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 304, in _custom_cross_entropy
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return fused_lce_exec(
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     
+V1124 08:57:18.165000 50033 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /content/pytorch-optimize-kernel/ptopt/kernels/registry.py:304
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] Graph Break Reason: Failed to handle graph break gracefully. Skipping the function and falling back to eager. Graph break encountered:
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] 
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] Skip calling `torch.compiler.disable()`d function
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks]   Explanation: Skip calling function `<function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f2c87d4a3e0>` since it was wrapped with `torch.compiler.disable` (reason: None)
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks]   Hint: Remove the `torch.compiler.disable` call
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] 
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks]   Developer debug context: <function _patch_functional_cross_entropy.<locals>._run_fused_lce at 0x7f2c87d4a3e0>
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks] 
+V1124 08:57:18.683000 50033 torch/_dynamo/symbolic_convert.py:5375] [7/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0098.html
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=13 | SKIPPED=2 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp09bi1m3t/nanogpt-gpt2-bpe/balanced)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] kernels.patch: Patched 1 submodules in GPT with custom Triton kernels
+  - [APPLIED] compile.auto: Compiled GPT (mode=default, dynamic=False)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] amp.auto: Pre-existing user AMP detected (torch.amp.autocast); yielding to user code
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+
+
+=== STDOUT ===
+Overriding config with config/train_shakespeare_char.py:
+# train a miniature character-level shakespeare model
+# good for debugging and playing on macbooks and such
+
+out_dir = 'out-shakespeare-char'
+eval_interval = 250 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 10 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = False
+
+wandb_log = False # override via command line if you like
+wandb_project = 'shakespeare-char'
+wandb_run_name = 'mini-gpt'
+
+dataset = 'shakespeare_char'
+gradient_accumulation_steps = 1
+batch_size = 64
+block_size = 256 # context of up to 256 previous characters
+
+# baby GPT model :)
+n_layer = 6
+n_head = 6
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = 5000 # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+
+Overriding: dataset = shakespeare
+Overriding: n_layer = 12
+Overriding: n_head = 12
+Overriding: n_embd = 768
+Overriding: batch_size = 16
+Overriding: block_size = 256
+Overriding: dropout = 0.0
+Overriding: compile = False
+Overriding: max_iters = 5000
+Overriding: eval_interval = 5000
+Overriding: eval_iters = 10
+Overriding: always_save_checkpoint = False
+tokens per iteration will be: 4,096
+Initializing a new model from scratch
+defaulting to vocab_size of GPT-2 to 50304 (50257 rounded up for efficiency)
+number of parameters: 123.59M
+num decayed parameter tensors: 50, with 123,764,736 parameters
+num non-decayed parameter tensors: 25, with 19,200 parameters
+using fused AdamW: True
+step 0: train loss 10.8776, val loss 10.8392
+iter 0: loss 10.8813, time 10824.96ms, mfu -100.00%
+iter 10: loss 8.6741, time 117.67ms, mfu 8.59%
+iter 20: loss 7.2229, time 120.41ms, mfu 8.57%
+iter 30: loss 6.1826, time 120.56ms, mfu 8.55%
+iter 40: loss 5.9289, time 118.89ms, mfu 8.55%
+iter 50: loss 5.8644, time 119.49ms, mfu 8.54%
+iter 60: loss 5.5814, time 120.31ms, mfu 8.52%
+iter 70: loss 5.5271, time 119.75ms, mfu 8.51%
+iter 80: loss 5.5882, time 120.51ms, mfu 8.50%
+iter 90: loss 5.1889, time 119.17ms, mfu 8.50%
+iter 100: loss 5.2086, time 125.56ms, mfu 8.45%
+iter 110: loss 5.1561, time 119.84ms, mfu 8.45%
+iter 120: loss 4.9010, time 122.16ms, mfu 8.43%
+iter 130: loss 4.8913, time 122.07ms, mfu 8.42%
+iter 140: loss 4.8302, time 121.20ms, mfu 8.41%
+iter 150: loss 5.0871, time 119.78ms, mfu 8.41%
+iter 160: loss 4.7451, time 121.40ms, mfu 8.40%
+iter 170: loss 4.5259, time 120.99ms, mfu 8.40%
+iter 180: loss 4.4579, time 122.66ms, mfu 8.38%
+iter 190: loss 4.4191, time 121.46ms, mfu 8.38%
+iter 200: loss 4.3879, time 121.55ms, mfu 8.37%
+iter 210: loss 4.4960, time 119.09ms, mfu 8.38%
+iter 220: loss 4.6159, time 120.99ms, mfu 8.38%
+iter 230: loss 4.4056, time 124.51ms, mfu 8.35%
+iter 240: loss 4.1110, time 120.50ms, mfu 8.36%
+iter 250: loss 4.2733, time 122.06ms, mfu 8.35%
+iter 260: loss 4.2519, time 121.70ms, mfu 8.34%
+iter 270: loss 4.4560, time 122.65ms, mfu 8.33%
+iter 280: loss 3.9784, time 123.33ms, mfu 8.32%
+iter 290: loss 4.0632, time 129.70ms, mfu 8.27%
+iter 300: loss 3.8973, time 122.75ms, mfu 8.26%
+iter 310: loss 4.0901, time 124.12ms, mfu 8.25%
+iter 320: loss 4.0378, time 123.04ms, mfu 8.25%
+iter 330: loss 3.8186, time 123.32ms, mfu 8.24%
+iter 340: loss 4.2336, time 120.45ms, mfu 8.26%
+iter 350: loss 3.9536, time 123.48ms, mfu 8.25%
+iter 360: loss 4.0809, time 120.23ms, mfu 8.27%
+iter 370: loss 3.8794, time 121.83ms, mfu 8.27%
+iter 380: loss 3.9354, time 121.72ms, mfu 8.27%
+iter 390: loss 3.8238, time 122.21ms, mfu 8.27%
+iter 400: loss 3.7535, time 123.61ms, mfu 8.26%
+iter 410: loss 3.8590, time 122.93ms, mfu 8.26%
+iter 420: loss 3.7324, time 118.79ms, mfu 8.28%
+iter 430: loss 3.3950, time 120.51ms, mfu 8.29%
+iter 440: loss 3.6755, time 123.65ms, mfu 8.28%
+iter 450: loss 3.6426, time 121.85ms, mfu 8.28%
+iter 460: loss 3.4884, time 120.41ms, mfu 8.29%
+iter 470: loss 3.8504, time 119.60ms, mfu 8.31%
+iter 480: loss 3.5267, time 119.63ms, mfu 8.32%
+iter 490: loss 3.5697, time 119.24ms, mfu 8.34%
+iter 500: loss 3.6481, time 124.29ms, mfu 8.32%
+iter 510: loss 3.5373, time 120.31ms, mfu 8.33%
+iter 520: loss 3.6040, time 120.02ms, mfu 8.34%
+iter 530: loss 3.5840, time 120.42ms, mfu 8.34%
+iter 540: loss 3.6087, time 121.08ms, mfu 8.34%
+iter 550: loss 3.5688, time 120.75ms, mfu 8.34%
+iter 560: loss 3.3010, time 118.37ms, mfu 8.36%
+iter 570: loss 3.2467, time 120.32ms, mfu 8.37%
+iter 580: loss 3.5346, time 121.39ms, mfu 8.36%
+iter 590: loss 3.2545, time 120.31ms, mfu 8.37%
+iter 600: loss 3.2908, time 118.00ms, mfu 8.39%
+iter 610: loss 3.3155, time 126.56ms, mfu 8.35%
+iter 620: loss 3.3395, time 120.58ms, mfu 8.35%
+iter 630: loss 3.4104, time 121.84ms, mfu 8.34%
+iter 640: loss 3.1186, time 120.08ms, mfu 8.35%
+iter 650: loss 3.0085, time 122.00ms, mfu 8.35%
+iter 660: loss 3.3725, time 121.39ms, mfu 8.34%
+iter 670: loss 3.2219, time 121.15ms, mfu 8.34%
+iter 680: loss 3.0450, time 120.64ms, mfu 8.35%
+iter 690: loss 3.0496, time 119.27ms, mfu 8.36%
+iter 700: loss 3.0991, time 124.01ms, mfu 8.34%
+iter 710: loss 3.0623, time 120.17ms, mfu 8.35%
+iter 720: loss 2.9374, time 119.33ms, mfu 8.36%
+iter 730: loss 3.0568, time 120.56ms, mfu 8.36%
+iter 740: loss 2.9986, time 120.83ms, mfu 8.36%
+iter 750: loss 2.9729, time 119.31ms, mfu 8.37%
+iter 760: loss 3.0286, time 118.87ms, mfu 8.38%
+iter 770: loss 2.9266, time 119.51ms, mfu 8.39%
+iter 780: loss 2.9093, time 120.58ms, mfu 8.39%
+iter 790: loss 2.7885, time 120.25ms, mfu 8.39%
+iter 800: loss 2.8761, time 120.33ms, mfu 8.39%
+iter 810: loss 2.6351, time 121.75ms, mfu 8.38%
+iter 820: loss 3.0214, time 120.43ms, mfu 8.38%
+iter 830: loss 2.6993, time 120.28ms, mfu 8.39%
+iter 840: loss 3.0760, time 124.37ms, mfu 8.36%
+iter 850: loss 2.5424, time 119.33ms, mfu 8.37%
+iter 860: loss 2.7044, time 120.67ms, mfu 8.37%
+iter 870: loss 2.5260, time 120.35ms, mfu 8.37%
+iter 880: loss 2.7272, time 122.16ms, mfu 8.36%
+iter 890: loss 2.6684, time 121.64ms, mfu 8.36%
+iter 900: loss 2.7251, time 121.23ms, mfu 8.36%
+iter 910: loss 2.6050, time 119.86ms, mfu 8.36%
+iter 920: loss 2.5200, time 121.95ms, mfu 8.36%
+iter 930: loss 2.6981, time 120.33ms, mfu 8.36%
+iter 940: loss 2.6188, time 119.17ms, mfu 8.37%
+iter 950: loss 2.2915, time 119.25ms, mfu 8.38%
+iter 960: loss 2.3645, time 119.94ms, mfu 8.39%
+iter 970: loss 2.2435, time 126.53ms, mfu 8.35%
+iter 980: loss 2.0338, time 123.49ms, mfu 8.33%
+iter 990: loss 2.4242, time 124.08ms, mfu 8.31%
+iter 1000: loss 2.7841, time 122.16ms, mfu 8.31%
+iter 1010: loss 2.4863, time 122.61ms, mfu 8.30%
+iter 1020: loss 2.2995, time 121.66ms, mfu 8.30%
+iter 1030: loss 2.3268, time 121.79ms, mfu 8.30%
+iter 1040: loss 2.1917, time 121.84ms, mfu 8.30%
+iter 1050: loss 2.3640, time 122.99ms, mfu 8.29%
+iter 1060: loss 1.8724, time 122.94ms, mfu 8.29%
+iter 1070: loss 2.0846, time 125.34ms, mfu 8.26%
+iter 1080: loss 2.1192, time 123.29ms, mfu 8.26%
+iter 1090: loss 2.0438, time 123.21ms, mfu 8.25%
+iter 1100: loss 2.2748, time 122.24ms, mfu 8.25%
+iter 1110: loss 2.1664, time 125.49ms, mfu 8.23%
+iter 1120: loss 1.9497, time 127.65ms, mfu 8.20%
+iter 1130: loss 2.2376, time 119.96ms, mfu 8.22%
+iter 1140: loss 2.0330, time 121.45ms, mfu 8.23%
+iter 1150: loss 2.1787, time 123.77ms, mfu 8.23%
+iter 1160: loss 2.0751, time 119.65ms, mfu 8.25%
+iter 1170: loss 1.8277, time 121.20ms, mfu 8.26%
+iter 1180: loss 2.2675, time 121.16ms, mfu 8.27%
+iter 1190: loss 1.8710, time 120.92ms, mfu 8.28%
+iter 1200: loss 1.7975, time 120.29ms, mfu 8.29%
+iter 1210: loss 1.7554, time 121.33ms, mfu 8.29%
+iter 1220: loss 1.8967, time 118.81ms, mfu 8.31%
+iter 1230: loss 1.7314, time 120.27ms, mfu 8.32%
+iter 1240: loss 1.6609, time 120.90ms, mfu 8.33%
+iter 1250: loss 1.6286, time 122.86ms, mfu 8.32%
+iter 1260: loss 1.6705, time 121.35ms, mfu 8.32%
+iter 1270: loss 1.6022, time 122.53ms, mfu 8.31%
+iter 1280: loss 1.6025, time 120.49ms, mfu 8.32%
+iter 1290: loss 1.5463, time 120.77ms, mfu 8.32%
+iter 1300: loss 1.6296, time 120.71ms, mfu 8.33%
+iter 1310: loss 1.6902, time 120.28ms, mfu 8.34%
+iter 1320: loss 1.7270, time 119.57ms, mfu 8.35%
+iter 1330: loss 1.5546, time 119.98ms, mfu 8.36%
+iter 1340: loss 1.4355, time 119.73ms, mfu 8.36%
+iter 1350: loss 1.3251, time 120.63ms, mfu 8.37%
+iter 1360: loss 1.2646, time 125.60ms, mfu 8.33%
+iter 1370: loss 1.2099, time 120.92ms, mfu 8.34%
+iter 1380: loss 1.3471, time 122.62ms, mfu 8.33%
+iter 1390: loss 1.4315, time 120.63ms, mfu 8.33%
+iter 1400: loss 1.1935, time 121.17ms, mfu 8.33%
+iter 1410: loss 1.2038, time 121.80ms, mfu 8.33%
+iter 1420: loss 1.2383, time 125.86ms, mfu 8.30%
+iter 1430: loss 1.3085, time 123.16ms, mfu 8.29%
+iter 1440: loss 1.2132, time 119.66ms, mfu 8.31%
+iter 1450: loss 1.0493, time 119.42ms, mfu 8.32%
+iter 1460: loss 1.0971, time 120.21ms, mfu 8.33%
+iter 1470: loss 1.2889, time 122.70ms, mfu 8.32%
+iter 1480: loss 1.2120, time 119.24ms, mfu 8.34%
+iter 1490: loss 0.9306, time 120.48ms, mfu 8.34%
+iter 1500: loss 1.0823, time 120.18ms, mfu 8.35%
+iter 1510: loss 1.0266, time 126.17ms, mfu 8.31%
+iter 1520: loss 0.9892, time 124.79ms, mfu 8.29%
+iter 1530: loss 0.8919, time 123.39ms, mfu 8.28%
+iter 1540: loss 0.9683, time 121.73ms, mfu 8.28%
+iter 1550: loss 0.7727, time 121.18ms, mfu 8.29%
+iter 1560: loss 0.8879, time 120.89ms, mfu 8.30%
+iter 1570: loss 0.9588, time 120.52ms, mfu 8.31%
+iter 1580: loss 0.8089, time 122.22ms, mfu 8.30%
+iter 1590: loss 0.8503, time 119.96ms, mfu 8.31%
+iter 1600: loss 0.8196, time 121.90ms, mfu 8.31%
+iter 1610: loss 0.8439, time 123.89ms, mfu 8.30%
+iter 1620: loss 0.8214, time 122.55ms, mfu 8.29%
+iter 1630: loss 0.8083, time 118.16ms, mfu 8.32%
+iter 1640: loss 0.7626, time 120.08ms, mfu 8.33%
+iter 1650: loss 0.7113, time 125.42ms, mfu 8.30%
+iter 1660: loss 0.7889, time 125.70ms, mfu 8.27%
+iter 1670: loss 0.7717, time 121.51ms, mfu 8.28%
+iter 1680: loss 0.6162, time 121.14ms, mfu 8.29%
+iter 1690: loss 0.6340, time 120.98ms, mfu 8.29%
+iter 1700: loss 0.7151, time 125.44ms, mfu 8.27%
+iter 1710: loss 0.6560, time 125.17ms, mfu 8.25%
+iter 1720: loss 0.7026, time 124.84ms, mfu 8.23%
+iter 1730: loss 0.5933, time 122.05ms, mfu 8.24%
+iter 1740: loss 0.5966, time 124.47ms, mfu 8.23%
+iter 1750: loss 0.6850, time 121.14ms, mfu 8.24%
+iter 1760: loss 0.9397, time 122.34ms, mfu 8.24%
+iter 1770: loss 0.5107, time 121.59ms, mfu 8.25%
+iter 1780: loss 0.5147, time 119.61ms, mfu 8.27%
+iter 1790: loss 0.6128, time 120.39ms, mfu 8.28%
+iter 1800: loss 0.6083, time 122.99ms, mfu 8.27%
+iter 1810: loss 0.6871, time 120.18ms, mfu 8.29%
+iter 1820: loss 0.5218, time 123.60ms, mfu 8.28%
+iter 1830: loss 0.5191, time 121.20ms, mfu 8.28%
+iter 1840: loss 0.5534, time 122.42ms, mfu 8.28%
+iter 1850: loss 0.6163, time 121.61ms, mfu 8.28%
+iter 1860: loss 0.5453, time 123.50ms, mfu 8.27%
+iter 1870: loss 0.4905, time 121.51ms, mfu 8.28%
+iter 1880: loss 0.4784, time 120.07ms, mfu 8.29%
+iter 1890: loss 0.4360, time 119.96ms, mfu 8.30%
+iter 1900: loss 0.5049, time 121.31ms, mfu 8.31%
+iter 1910: loss 0.4965, time 119.95ms, mfu 8.32%
+iter 1920: loss 0.4076, time 122.12ms, mfu 8.32%
+iter 1930: loss 0.4069, time 121.98ms, mfu 8.31%
+iter 1940: loss 0.4067, time 122.20ms, mfu 8.31%
+iter 1950: loss 0.3616, time 122.55ms, mfu 8.30%
+iter 1960: loss 0.3773, time 119.36ms, mfu 8.32%
+iter 1970: loss 0.4979, time 121.58ms, mfu 8.32%
+iter 1980: loss 0.4877, time 119.29ms, mfu 8.33%
+iter 1990: loss 0.4667, time 119.81ms, mfu 8.34%
+iter 2000: loss 0.3904, time 120.32ms, mfu 8.35%
+iter 2010: loss 0.4292, time 120.42ms, mfu 8.35%
+iter 2020: loss 0.3403, time 124.07ms, mfu 8.33%
+iter 2030: loss 0.4932, time 122.68ms, mfu 8.32%
+iter 2040: loss 0.2954, time 125.07ms, mfu 8.30%
+iter 2050: loss 0.3532, time 122.82ms, mfu 8.29%
+iter 2060: loss 0.3516, time 125.20ms, mfu 8.27%
+iter 2070: loss 0.4019, time 121.67ms, mfu 8.27%
+iter 2080: loss 0.3571, time 119.97ms, mfu 8.29%
+iter 2090: loss 0.3164, time 120.64ms, mfu 8.30%
+iter 2100: loss 0.3389, time 121.44ms, mfu 8.30%
+iter 2110: loss 0.3255, time 125.64ms, mfu 8.27%
+iter 2120: loss 0.2875, time 122.80ms, mfu 8.27%
+iter 2130: loss 0.3231, time 124.27ms, mfu 8.26%
+iter 2140: loss 0.2768, time 123.08ms, mfu 8.25%
+iter 2150: loss 0.3463, time 122.95ms, mfu 8.25%
+iter 2160: loss 0.3857, time 125.02ms, mfu 8.23%
+iter 2170: loss 0.3196, time 125.67ms, mfu 8.21%
+iter 2180: loss 0.3428, time 121.41ms, mfu 8.22%
+iter 2190: loss 0.3259, time 120.90ms, mfu 8.24%
+iter 2200: loss 0.2516, time 120.85ms, mfu 8.25%
+iter 2210: loss 0.3024, time 120.03ms, mfu 8.27%
+iter 2220: loss 0.3353, time 119.62ms, mfu 8.29%
+iter 2230: loss 0.2459, time 121.63ms, mfu 8.29%
+iter 2240: loss 0.3077, time 121.43ms, mfu 8.29%
+iter 2250: loss 0.2735, time 122.05ms, mfu 8.29%
+iter 2260: loss 0.2661, time 122.26ms, mfu 8.29%
+iter 2270: loss 0.2757, time 122.44ms, mfu 8.28%
+iter 2280: loss 0.2649, time 121.63ms, mfu 8.29%
+iter 2290: loss 0.2517, time 120.94ms, mfu 8.29%
+iter 2300: loss 0.2492, time 121.39ms, mfu 8.30%
+iter 2310: loss 0.2639, time 120.98ms, mfu 8.30%
+iter 2320: loss 0.2357, time 119.77ms, mfu 8.32%
+iter 2330: loss 0.2460, time 121.02ms, mfu 8.32%
+iter 2340: loss 0.2689, time 121.65ms, mfu 8.32%
+iter 2350: loss 0.2365, time 119.98ms, mfu 8.33%
+iter 2360: loss 0.2590, time 122.30ms, mfu 8.32%
+iter 2370: loss 0.2808, time 124.90ms, mfu 8.30%
+iter 2380: loss 0.2187, time 123.37ms, mfu 8.29%
+iter 2390: loss 0.2587, time 121.16ms, mfu 8.29%
+iter 2400: loss 0.2391, time 122.21ms, mfu 8.29%
+iter 2410: loss 0.2417, time 120.88ms, mfu 8.30%
+iter 2420: loss 0.2522, time 122.28ms, mfu 8.30%
+iter 2430: loss 0.2721, time 119.10ms, mfu 8.31%
+iter 2440: loss 0.1909, time 120.36ms, mfu 8.32%
+iter 2450: loss 0.2220, time 119.79ms, mfu 8.33%
+iter 2460: loss 0.2131, time 122.23ms, mfu 8.33%
+iter 2470: loss 0.2232, time 124.10ms, mfu 8.31%
+iter 2480: loss 0.2226, time 125.92ms, mfu 8.28%
+iter 2490: loss 0.2208, time 123.58ms, mfu 8.27%
+iter 2500: loss 0.2180, time 122.63ms, mfu 8.27%
+iter 2510: loss 0.1864, time 123.34ms, mfu 8.26%
+iter 2520: loss 0.1636, time 123.44ms, mfu 8.25%
+iter 2530: loss 0.2219, time 123.07ms, mfu 8.25%
+iter 2540: loss 0.1976, time 124.44ms, mfu 8.24%
+iter 2550: loss 0.2291, time 121.26ms, mfu 8.25%
+iter 2560: loss 0.1863, time 123.76ms, mfu 8.24%
+iter 2570: loss 0.2104, time 121.27ms, mfu 8.25%
+iter 2580: loss 0.1935, time 122.70ms, mfu 8.25%
+iter 2590: loss 0.2196, time 122.51ms, mfu 8.25%
+iter 2600: loss 0.1747, time 119.80ms, mfu 8.27%
+iter 2610: loss 0.1840, time 120.28ms, mfu 8.28%
+iter 2620: loss 0.1708, time 122.06ms, mfu 8.28%
+iter 2630: loss 0.2457, time 121.19ms, mfu 8.29%
+iter 2640: loss 0.1671, time 121.18ms, mfu 8.29%
+iter 2650: loss 0.1997, time 121.67ms, mfu 8.29%
+iter 2660: loss 0.1897, time 120.26ms, mfu 8.30%
+iter 2670: loss 0.1743, time 123.56ms, mfu 8.29%
+iter 2680: loss 0.1611, time 120.08ms, mfu 8.30%
+iter 2690: loss 0.2023, time 121.12ms, mfu 8.31%
+iter 2700: loss 0.1802, time 120.99ms, mfu 8.31%
+iter 2710: loss 0.1702, time 121.01ms, mfu 8.32%
+iter 2720: loss 0.2011, time 121.46ms, mfu 8.32%
+iter 2730: loss 0.1824, time 122.97ms, mfu 8.31%
+iter 2740: loss 0.1814, time 123.36ms, mfu 8.30%
+iter 2750: loss 0.1925, time 122.33ms, mfu 8.29%
+iter 2760: loss 0.2128, time 120.95ms, mfu 8.30%
+iter 2770: loss 0.1798, time 118.81ms, mfu 8.32%
+iter 2780: loss 0.1794, time 120.74ms, mfu 8.32%
+iter 2790: loss 0.1671, time 120.30ms, mfu 8.33%
+iter 2800: loss 0.1771, time 125.97ms, mfu 8.30%
+iter 2810: loss 0.1760, time 121.33ms, mfu 8.30%
+iter 2820: loss 0.1500, time 122.74ms, mfu 8.30%
+iter 2830: loss 0.1726, time 125.28ms, mfu 8.27%
+iter 2840: loss 0.1660, time 122.06ms, mfu 8.27%
+iter 2850: loss 0.1763, time 118.92ms, mfu 8.30%
+iter 2860: loss 0.1581, time 120.16ms, mfu 8.31%
+iter 2870: loss 0.1796, time 121.07ms, mfu 8.31%
+iter 2880: loss 0.1811, time 122.97ms, mfu 8.30%
+iter 2890: loss 0.1625, time 124.60ms, mfu 8.28%
+iter 2900: loss 0.1728, time 123.71ms, mfu 8.27%
+iter 2910: loss 0.1850, time 122.20ms, mfu 8.27%
+iter 2920: loss 0.1822, time 125.24ms, mfu 8.25%
+iter 2930: loss 0.1700, time 124.24ms, mfu 8.24%
+iter 2940: loss 0.1611, time 119.81ms, mfu 8.26%
+iter 2950: loss 0.1405, time 122.26ms, mfu 8.26%
+iter 2960: loss 0.1463, time 121.08ms, mfu 8.27%
+iter 2970: loss 0.1293, time 120.44ms, mfu 8.28%
+iter 2980: loss 0.1556, time 121.54ms, mfu 8.28%
+iter 2990: loss 0.1410, time 121.45ms, mfu 8.29%
+iter 3000: loss 0.1186, time 120.18ms, mfu 8.30%
+iter 3010: loss 0.1510, time 120.38ms, mfu 8.31%
+iter 3020: loss 0.1441, time 120.41ms, mfu 8.32%
+iter 3030: loss 0.1429, time 120.05ms, mfu 8.33%
+iter 3040: loss 0.1256, time 120.83ms, mfu 8.33%
+iter 3050: loss 0.1282, time 120.11ms, mfu 8.34%
+iter 3060: loss 0.1368, time 119.91ms, mfu 8.35%
+iter 3070: loss 0.1385, time 119.57ms, mfu 8.36%
+iter 3080: loss 0.1176, time 120.66ms, mfu 8.36%
+iter 3090: loss 0.1638, time 121.06ms, mfu 8.36%
+iter 3100: loss 0.1516, time 121.61ms, mfu 8.35%
+iter 3110: loss 0.1512, time 120.57ms, mfu 8.36%
+iter 3120: loss 0.1418, time 120.61ms, mfu 8.36%
+iter 3130: loss 0.1359, time 122.64ms, mfu 8.35%
+iter 3140: loss 0.1360, time 125.70ms, mfu 8.32%
+iter 3150: loss 0.1557, time 119.98ms, mfu 8.33%
+iter 3160: loss 0.1584, time 125.04ms, mfu 8.30%
+iter 3170: loss 0.1247, time 122.82ms, mfu 8.30%
+iter 3180: loss 0.1244, time 121.62ms, mfu 8.30%
+iter 3190: loss 0.1413, time 119.48ms, mfu 8.31%
+iter 3200: loss 0.1227, time 124.08ms, mfu 8.30%
+iter 3210: loss 0.1455, time 126.05ms, mfu 8.27%
+iter 3220: loss 0.1213, time 124.18ms, mfu 8.26%
+iter 3230: loss 0.1128, time 118.81ms, mfu 8.28%
+iter 3240: loss 0.1318, time 119.79ms, mfu 8.30%
+iter 3250: loss 0.1365, time 119.57ms, mfu 8.31%
+iter 3260: loss 0.1208, time 121.45ms, mfu 8.31%
+iter 3270: loss 0.1411, time 120.09ms, mfu 8.32%
+iter 3280: loss 0.1206, time 121.34ms, mfu 8.32%
+iter 3290: loss 0.1342, time 120.57ms, mfu 8.33%
+iter 3300: loss 0.1109, time 122.20ms, mfu 8.32%
+iter 3310: loss 0.1028, time 122.54ms, mfu 8.32%
+iter 3320: loss 0.1265, time 121.66ms, mfu 8.32%
+iter 3330: loss 0.1419, time 120.33ms, mfu 8.32%
+iter 3340: loss 0.1258, time 124.39ms, mfu 8.30%
+iter 3350: loss 0.1214, time 119.25ms, mfu 8.32%
+iter 3360: loss 0.1365, time 121.42ms, mfu 8.32%
+iter 3370: loss 0.0918, time 121.16ms, mfu 8.32%
+iter 3380: loss 0.1501, time 119.77ms, mfu 8.33%
+iter 3390: loss 0.0999, time 121.39ms, mfu 8.33%
+iter 3400: loss 0.1245, time 118.64ms, mfu 8.35%
+iter 3410: loss 0.1016, time 120.15ms, mfu 8.36%
+iter 3420: loss 0.1180, time 120.35ms, mfu 8.36%
+iter 3430: loss 0.1058, time 119.65ms, mfu 8.37%
+iter 3440: loss 0.0968, time 119.56ms, mfu 8.38%
+iter 3450: loss 0.1146, time 120.23ms, mfu 8.38%
+iter 3460: loss 0.1144, time 121.10ms, mfu 8.38%
+iter 3470: loss 0.0931, time 121.05ms, mfu 8.38%
+iter 3480: loss 0.0965, time 121.70ms, mfu 8.37%
+iter 3490: loss 0.1175, time 125.59ms, mfu 8.34%
+iter 3500: loss 0.1170, time 124.58ms, mfu 8.31%
+iter 3510: loss 0.0969, time 123.25ms, mfu 8.30%
+iter 3520: loss 0.1010, time 124.90ms, mfu 8.28%
+iter 3530: loss 0.1004, time 120.60ms, mfu 8.29%
+iter 3540: loss 0.1075, time 123.73ms, mfu 8.28%
+iter 3550: loss 0.1027, time 120.11ms, mfu 8.29%
+iter 3560: loss 0.1263, time 125.44ms, mfu 8.27%
+iter 3570: loss 0.1073, time 121.41ms, mfu 8.27%
+iter 3580: loss 0.1178, time 121.68ms, mfu 8.28%
+iter 3590: loss 0.0990, time 119.46ms, mfu 8.30%
+iter 3600: loss 0.0988, time 120.77ms, mfu 8.30%
+iter 3610: loss 0.0920, time 120.04ms, mfu 8.31%
+iter 3620: loss 0.1068, time 121.02ms, mfu 8.32%
+iter 3630: loss 0.0919, time 120.54ms, mfu 8.32%
+iter 3640: loss 0.1155, time 120.09ms, mfu 8.33%
+iter 3650: loss 0.1159, time 121.65ms, mfu 8.33%
+iter 3660: loss 0.0956, time 119.80ms, mfu 8.34%
+iter 3670: loss 0.0974, time 119.26ms, mfu 8.36%
+iter 3680: loss 0.1184, time 121.81ms, mfu 8.35%
+iter 3690: loss 0.1256, time 126.21ms, mfu 8.32%
+iter 3700: loss 0.1040, time 124.91ms, mfu 8.29%
+iter 3710: loss 0.0869, time 123.80ms, mfu 8.28%
+iter 3720: loss 0.0846, time 124.59ms, mfu 8.26%
+iter 3730: loss 0.1116, time 122.15ms, mfu 8.26%
+iter 3740: loss 0.1144, time 123.10ms, mfu 8.26%
+iter 3750: loss 0.0912, time 124.19ms, mfu 8.25%
+iter 3760: loss 0.0910, time 124.17ms, mfu 8.24%
+iter 3770: loss 0.1012, time 123.55ms, mfu 8.23%
+iter 3780: loss 0.1003, time 123.11ms, mfu 8.23%
+iter 3790: loss 0.1010, time 123.98ms, mfu 8.22%
+iter 3800: loss 0.1151, time 122.64ms, mfu 8.22%
+iter 3810: loss 0.0864, time 122.65ms, mfu 8.22%
+iter 3820: loss 0.1044, time 119.75ms, mfu 8.25%
+iter 3830: loss 0.1150, time 121.10ms, mfu 8.26%
+iter 3840: loss 0.0982, time 121.55ms, mfu 8.26%
+iter 3850: loss 0.1006, time 121.19ms, mfu 8.27%
+iter 3860: loss 0.0952, time 119.91ms, mfu 8.29%
+iter 3870: loss 0.1045, time 121.40ms, mfu 8.29%
+iter 3880: loss 0.1066, time 121.62ms, mfu 8.29%
+iter 3890: loss 0.0972, time 119.63ms, mfu 8.31%
+iter 3900: loss 0.0900, time 122.57ms, mfu 8.30%
+iter 3910: loss 0.0920, time 121.57ms, mfu 8.30%
+iter 3920: loss 0.1199, time 122.32ms, mfu 8.30%
+iter 3930: loss 0.1018, time 122.20ms, mfu 8.30%
+iter 3940: loss 0.0812, time 122.69ms, mfu 8.29%
+iter 3950: loss 0.0868, time 123.74ms, mfu 8.28%
+iter 3960: loss 0.0883, time 126.62ms, mfu 8.25%
+iter 3970: loss 0.1099, time 123.22ms, mfu 8.24%
+iter 3980: loss 0.0951, time 119.58ms, mfu 8.26%
+iter 3990: loss 0.0997, time 118.79ms, mfu 8.29%
+iter 4000: loss 0.0851, time 120.53ms, mfu 8.30%
+iter 4010: loss 0.0849, time 121.39ms, mfu 8.30%
+iter 4020: loss 0.0979, time 122.93ms, mfu 8.29%
+iter 4030: loss 0.0799, time 123.38ms, mfu 8.28%
+iter 4040: loss 0.0775, time 123.10ms, mfu 8.28%
+iter 4050: loss 0.0891, time 124.36ms, mfu 8.26%
+iter 4060: loss 0.0722, time 122.23ms, mfu 8.26%
+iter 4070: loss 0.0782, time 120.66ms, mfu 8.27%
+iter 4080: loss 0.0951, time 120.19ms, mfu 8.29%
+iter 4090: loss 0.0738, time 120.92ms, mfu 8.29%
+iter 4100: loss 0.0968, time 119.13ms, mfu 8.31%
+iter 4110: loss 0.1055, time 121.07ms, mfu 8.32%
+iter 4120: loss 0.0861, time 121.30ms, mfu 8.32%
+iter 4130: loss 0.0896, time 118.67ms, mfu 8.34%
+iter 4140: loss 0.0821, time 121.80ms, mfu 8.33%
+iter 4150: loss 0.0757, time 121.66ms, mfu 8.33%
+iter 4160: loss 0.0693, time 125.79ms, mfu 8.30%
+iter 4170: loss 0.0707, time 124.85ms, mfu 8.28%
+iter 4180: loss 0.0893, time 125.26ms, mfu 8.26%
+iter 4190: loss 0.0686, time 122.51ms, mfu 8.26%
+iter 4200: loss 0.0789, time 120.63ms, mfu 8.27%
+iter 4210: loss 0.0816, time 119.89ms, mfu 8.29%
+iter 4220: loss 0.0756, time 122.78ms, mfu 8.28%
+iter 4230: loss 0.0863, time 121.94ms, mfu 8.28%
+iter 4240: loss 0.1238, time 120.33ms, mfu 8.29%
+iter 4250: loss 0.0762, time 120.52ms, mfu 8.30%
+iter 4260: loss 0.0815, time 119.15ms, mfu 8.32%
+iter 4270: loss 0.0948, time 120.83ms, mfu 8.32%
+iter 4280: loss 0.0806, time 120.33ms, mfu 8.33%
+iter 4290: loss 0.0753, time 120.69ms, mfu 8.34%
+iter 4300: loss 0.0760, time 127.11ms, mfu 8.30%
+iter 4310: loss 0.0853, time 123.78ms, mfu 8.28%
+iter 4320: loss 0.0689, time 122.97ms, mfu 8.28%
+iter 4330: loss 0.0596, time 123.17ms, mfu 8.27%
+iter 4340: loss 0.0673, time 125.43ms, mfu 8.25%
+iter 4350: loss 0.1014, time 124.57ms, mfu 8.24%
+iter 4360: loss 0.0671, time 122.60ms, mfu 8.24%
+iter 4370: loss 0.0790, time 123.86ms, mfu 8.23%
+iter 4380: loss 0.0681, time 124.75ms, mfu 8.22%
+iter 4390: loss 0.0662, time 122.36ms, mfu 8.22%
+iter 4400: loss 0.0748, time 123.22ms, mfu 8.22%
+iter 4410: loss 0.0875, time 121.47ms, mfu 8.23%
+iter 4420: loss 0.0845, time 122.52ms, mfu 8.23%
+iter 4430: loss 0.0721, time 122.41ms, mfu 8.23%
+iter 4440: loss 0.0884, time 122.14ms, mfu 8.24%
+iter 4450: loss 0.0938, time 121.46ms, mfu 8.25%
+iter 4460: loss 0.0706, time 126.45ms, mfu 8.22%
+iter 4470: loss 0.0909, time 123.08ms, mfu 8.22%
+iter 4480: loss 0.0739, time 125.34ms, mfu 8.20%
+iter 4490: loss 0.0671, time 122.05ms, mfu 8.21%
+iter 4500: loss 0.0668, time 122.46ms, mfu 8.22%
+iter 4510: loss 0.0718, time 125.95ms, mfu 8.20%
+iter 4520: loss 0.0811, time 118.51ms, mfu 8.23%
+iter 4530: loss 0.0769, time 120.09ms, mfu 8.25%
+iter 4540: loss 0.0655, time 121.68ms, mfu 8.25%
+iter 4550: loss 0.0885, time 121.80ms, mfu 8.26%
+iter 4560: loss 0.0679, time 122.92ms, mfu 8.25%
+iter 4570: loss 0.0898, time 122.57ms, mfu 8.25%
+iter 4580: loss 0.0769, time 128.97ms, mfu 8.21%
+iter 4590: loss 0.0759, time 120.70ms, mfu 8.23%
+iter 4600: loss 0.0619, time 120.30ms, mfu 8.25%
+iter 4610: loss 0.0734, time 118.75ms, mfu 8.27%
+iter 4620: loss 0.0618, time 120.02ms, mfu 8.29%
+iter 4630: loss 0.0763, time 121.31ms, mfu 8.29%
+iter 4640: loss 0.0732, time 121.00ms, mfu 8.30%
+iter 4650: loss 0.0699, time 120.86ms, mfu 8.30%
+iter 4660: loss 0.0718, time 124.60ms, mfu 8.28%
+iter 4670: loss 0.0603, time 120.32ms, mfu 8.30%
+iter 4680: loss 0.0531, time 119.94ms, mfu 8.31%
+iter 4690: loss 0.0714, time 119.37ms, mfu 8.32%
+iter 4700: loss 0.0703, time 120.51ms, mfu 8.33%
+iter 4710: loss 0.0579, time 127.54ms, mfu 8.29%
+iter 4720: loss 0.0527, time 125.62ms, mfu 8.27%
+iter 4730: loss 0.0671, time 120.28ms, mfu 8.28%
+iter 4740: loss 0.0706, time 121.11ms, mfu 8.29%
+iter 4750: loss 0.0817, time 119.66ms, mfu 8.30%
+iter 4760: loss 0.0676, time 119.98ms, mfu 8.31%
+iter 4770: loss 0.0673, time 120.17ms, mfu 8.32%
+iter 4780: loss 0.0559, time 119.22ms, mfu 8.34%
+iter 4790: loss 0.0647, time 119.49ms, mfu 8.35%
+iter 4800: loss 0.0724, time 120.91ms, mfu 8.35%
+iter 4810: loss 0.0830, time 118.93ms, mfu 8.37%
+iter 4820: loss 0.0628, time 121.04ms, mfu 8.36%
+iter 4830: loss 0.0684, time 124.11ms, mfu 8.34%
+iter 4840: loss 0.0612, time 120.17ms, mfu 8.35%
+iter 4850: loss 0.0714, time 126.58ms, mfu 8.31%
+iter 4860: loss 0.0821, time 123.56ms, mfu 8.30%
+iter 4870: loss 0.0721, time 125.52ms, mfu 8.27%
+iter 4880: loss 0.0821, time 123.98ms, mfu 8.26%
+iter 4890: loss 0.0624, time 120.28ms, mfu 8.28%
+iter 4900: loss 0.0746, time 122.29ms, mfu 8.28%
+iter 4910: loss 0.0651, time 121.20ms, mfu 8.28%
+iter 4920: loss 0.0660, time 119.05ms, mfu 8.30%
+iter 4930: loss 0.0719, time 121.91ms, mfu 8.30%
+iter 4940: loss 0.0595, time 120.20ms, mfu 8.31%
+iter 4950: loss 0.0585, time 121.15ms, mfu 8.31%
+iter 4960: loss 0.0838, time 127.83ms, mfu 8.27%
+iter 4970: loss 0.0657, time 122.97ms, mfu 8.27%
+iter 4980: loss 0.0697, time 124.78ms, mfu 8.25%
+iter 4990: loss 0.0647, time 124.65ms, mfu 8.24%
+step 5000: train loss 0.0738, val loss 8.8903
+saving checkpoint to out-shakespeare-char
+iter 5000: loss 0.0684, time 7700.60ms, mfu 7.43%
+
