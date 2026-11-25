@@ -1,0 +1,66 @@
+=== STDOUT ===
+
+
+=== STDERR ===
+/usr/local/lib/python3.13/dist-packages/huggingface_hub/utils/_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+  0%|          | 0/25 [00:00<?, ?it/s]
+  0%|          | 0/25 [00:04<?, ?it/s]
+Traceback (most recent call last):
+  File "/content/external_repos/DiT/sample.py", line 83, in <module>
+    main(args)
+    ~~~~^^^^^^
+  File "/content/external_repos/DiT/sample.py", line 61, in main
+    samples = diffusion.p_sample_loop(
+        model.forward_with_cfg, z.shape, z, clip_denoised=False, model_kwargs=model_kwargs, progress=True, device=device
+    )
+  File "/content/external_repos/DiT/diffusion/gaussian_diffusion.py", line 450, in p_sample_loop
+    for sample in self.p_sample_loop_progressive(
+                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        model,
+        ^^^^^^
+    ...<7 lines>...
+        progress=progress,
+        ^^^^^^^^^^^^^^^^^^
+    ):
+    ^
+  File "/content/external_repos/DiT/diffusion/gaussian_diffusion.py", line 501, in p_sample_loop_progressive
+    out = self.p_sample(
+        model,
+    ...<5 lines>...
+        model_kwargs=model_kwargs,
+    )
+  File "/content/external_repos/DiT/diffusion/gaussian_diffusion.py", line 402, in p_sample
+    out = self.p_mean_variance(
+        model,
+    ...<4 lines>...
+        model_kwargs=model_kwargs,
+    )
+  File "/content/external_repos/DiT/diffusion/respace.py", line 92, in p_mean_variance
+    return super().p_mean_variance(self._wrap_model(model), *args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/content/external_repos/DiT/diffusion/gaussian_diffusion.py", line 279, in p_mean_variance
+    model_output = model(x, t, **model_kwargs)
+  File "/content/external_repos/DiT/diffusion/respace.py", line 129, in __call__
+    return self.model(x, new_ts, **kwargs)
+           ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+  File "/content/external_repos/DiT/models.py", line 257, in forward_with_cfg
+    model_out = self.forward(combined, t, y)
+  File "/content/external_repos/DiT/models.py", line 243, in forward
+    c = t + y                                # (N, D)
+        ~~^~~
+RuntimeError: Error: accessing tensor output of CUDAGraphs that has been overwritten by a subsequent run. Stack trace: File "/content/external_repos/DiT/models.py", line 63, in forward
+    t_emb = self.mlp(t_freq)
+  File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+    return orig_mod_call(mod_self, *args, **kwargs)
+  File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+    return orig_call(mod_self, *args, **kwargs)
+  File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 370, in _wrapped_mod_call
+    return orig_mod_call(mod_self, *args, **kwargs)
+  File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 176, in _unified_mod_call
+    return orig_call(mod_self, *args, **kwargs)
+  File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 748, in _fp8_forward
+    return base_fwd(inp). To prevent overwriting, call torch.compiler.cudagraph_mark_step_begin() before each model invocation. If a tensor is a user-visible output that must remain live across generations, manually clone the tensor outside torch.compile(), or set torch._inductor.config.triton.cudagraph_trees_generation_cloning = 'user_visible' to clone all user-visible tensors that persist across generations.
+

@@ -1,0 +1,41 @@
+=== STDOUT ===
+
+
+=== STDERR ===
+/usr/local/lib/python3.13/dist-packages/huggingface_hub/utils/_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+  0%|          | 0/25 [00:00<?, ?it/s]W1125 07:38:58.596000 47119 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+
+  4%|▍         | 1/25 [00:20<08:13, 20.56s/it]
+ 12%|█▏        | 3/25 [00:20<01:58,  5.39s/it]
+ 20%|██        | 5/25 [00:20<00:53,  2.66s/it]
+ 28%|██▊       | 7/25 [00:21<00:28,  1.57s/it]
+ 36%|███▌      | 9/25 [00:21<00:16,  1.01s/it]
+ 44%|████▍     | 11/25 [00:21<00:09,  1.47it/s]
+ 52%|█████▏    | 13/25 [00:21<00:05,  2.08it/s]
+ 60%|██████    | 15/25 [00:21<00:03,  2.85it/s]
+ 68%|██████▊   | 17/25 [00:21<00:02,  3.77it/s]
+ 76%|███████▌  | 19/25 [00:21<00:01,  4.83it/s]
+ 84%|████████▍ | 21/25 [00:22<00:00,  5.96it/s]
+ 92%|█████████▏| 23/25 [00:22<00:00,  7.11it/s]
+100%|██████████| 25/25 [00:22<00:00,  8.22it/s]
+100%|██████████| 25/25 [00:22<00:00,  1.11it/s]
+/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py:2762: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function at 'upsampling.py:156'. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS=+dynamo for a DEBUG stack trace.
+
+This call originates from:
+  File "/usr/local/lib/python3.13/dist-packages/diffusers/models/upsampling.py", line 156, in forward
+    if dtype == torch.bfloat16 and is_torch_version("<", "2.1"):
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py:2762: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function at 'upsampling.py:180'. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS=+dynamo for a DEBUG stack trace.
+
+This call originates from:
+  File "/usr/local/lib/python3.13/dist-packages/diffusers/models/upsampling.py", line 180, in forward
+    if dtype == torch.bfloat16 and is_torch_version("<", "2.1"):
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+
+  torch._dynamo.utils.warn_once(msg)
+

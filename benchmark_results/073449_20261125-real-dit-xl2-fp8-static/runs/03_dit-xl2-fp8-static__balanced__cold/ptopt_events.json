@@ -1,0 +1,884 @@
+[
+  {
+    "pass_name": "runtime.memory_allocator",
+    "status": "APPLIED",
+    "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.flags",
+    "status": "APPLIED",
+    "reason": "tf32=on, flash_sdp=True, mem_sdp=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "DataLoader auto-tune hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.fusion",
+    "status": "APPLIED",
+    "reason": "Optimizer fusion hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/balanced)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "APPLIED",
+    "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "APPLIED",
+    "reason": "Auto-AMP installed (dtype=bf16, grad_scaler=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "FP8 inference enabled (sm_89 eligible for FP8 inference)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.opt",
+    "status": "APPLIED",
+    "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.activation_checkpointing",
+    "status": "APPLIED",
+    "reason": "Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.fused_linear_cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True; hybrid compile+FusedLCE head enabled",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.auto",
+    "status": "APPLIED",
+    "reason": "Custom kernels active: fused_linear_cross_entropy",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.inductor_bw_tune",
+    "status": "SKIPPED",
+    "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled PatchEmbed (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19583.1MB (13.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled TimestepEmbedder (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled LabelEmbedder (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19483.1MB (13.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19463.1MB (13.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19443.1MB (13.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19423.1MB (13.9% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19403.1MB (14.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19263.1MB (14.6% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19121.1MB (15.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19061.1MB (15.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18981.1MB (15.9% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18961.1MB (16.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18941.1MB (16.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled DiTBlock (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on FinalLayer (2 steps, 0 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled FinalLayer (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18899.1MB (16.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on Conv2d (2 steps, 0 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled Conv2d (mode=default, dynamic=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 4 Linear layers on Decoder with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on Decoder (2 steps, 4 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Compiled Decoder (mode=default, dynamic=False)",
+    "error": null
+  }
+]

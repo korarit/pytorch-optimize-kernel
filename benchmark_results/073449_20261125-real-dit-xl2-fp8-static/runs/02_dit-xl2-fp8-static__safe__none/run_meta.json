@@ -1,0 +1,47 @@
+{
+  "target": "dit-xl2-fp8-static",
+  "arm": "safe",
+  "cache_state": "none",
+  "cwd": "/content/external_repos/DiT",
+  "target_cmd": [
+    "/usr/bin/python3",
+    "sample.py",
+    "--image-size",
+    "256",
+    "--num-sampling-steps",
+    "25",
+    "--seed",
+    "42"
+  ],
+  "ptopt_cmd": [
+    "/usr/bin/python3",
+    "-m",
+    "ptopt.cli.main",
+    "--profile",
+    "safe",
+    "--telemetry-out",
+    "/tmp/tmpfxy7drzm/telemetry.json",
+    "--override",
+    "compile.cache_dir=/tmp/tmpd2s358ub/dit-xl2-fp8-static/safe",
+    "--",
+    "/usr/bin/python3",
+    "sample.py",
+    "--image-size",
+    "256",
+    "--num-sampling-steps",
+    "25",
+    "--seed",
+    "42"
+  ],
+  "env_overrides": {
+    "PTOPT_INFERENCE_FP8": "1",
+    "PTOPT_FP8_STATIC_SCALE": "1"
+  },
+  "exit_code": 0,
+  "end_to_end_sec": 34.5933,
+  "pure_wall_sec": 34.4811,
+  "nvsmi_peak_mb": 6020.0,
+  "gpu_util_avg_pct": 15.7,
+  "extracted_metrics": {},
+  "pure_wall_metrics": {}
+}

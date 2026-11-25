@@ -1,0 +1,8 @@
+[
+  {
+    "pass_name": "ptopt.passes",
+    "status": "SKIPPED",
+    "reason": "PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)",
+    "error": null
+  }
+]

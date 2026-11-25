@@ -1,0 +1,31 @@
+[ptopt fallback/hook summary]
+  profile=aggressive | exit_code=1 | cmd=/usr/bin/python3 sample.py --image-size 256 --num-sampling-steps 25 --seed 42
+  Counts: APPLIED=21 | SKIPPED=5 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/aggressive)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=True)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.cross_entropy: sm_89, triton=True
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+  - [APPLIED] inference.cuda_graphs: Compiled eval PatchEmbed with mode=reduce-overhead (CUDA Graphs)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19561.1MB (13.3% used))
+  - [APPLIED] inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+  - [APPLIED] inference.cuda_graphs: Compiled eval TimestepEmbedder with mode=reduce-overhead (CUDA Graphs)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19561.1MB (13.3% used))
+  - [APPLIED] inference.cuda_graphs: Compiled eval LabelEmbedder with mode=reduce-overhead (CUDA Graphs)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)

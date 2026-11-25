@@ -1,0 +1,615 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-25 07:34:49 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 40554b6
+Targets            : 1
+Total Runs         : 6
+Comparisons        : 5
+Overall Status     : FAIL
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target             | Arm        | Cache | Kind | Step ms (B->A) | Step Spd | Wall E2E (B->A)        | VRAM MB (B->A/d)         | LossRel | Stdout Metrics | Audit         | Status
+-------------------+------------+-------+------+----------------+----------+------------------------+--------------------------+---------+----------------+---------------+-------
+dit-xl2-fp8-static | safe       | none  | eval | 7.85->7.09     | 1.11x    | 33.47s->34.48s (0.97x) | 4854.4->5255.5 (+401.1)  | N/A     | -              | A:72 S:7 F:0  | PASS  
+dit-xl2-fp8-static | balanced   | cold  | eval | 7.85->2.58     | 3.04x    | 33.47s->69.99s (0.48x) | 4854.4->4535.2 (-319.1)  | N/A     | -              | A:143 S:4 F:0 | PASS  
+dit-xl2-fp8-static | balanced   | warm  | eval | 7.85->2.59     | 3.03x    | 33.47s->39.04s (0.86x) | 4854.4->4535.2 (-319.1)  | N/A     | -              | A:143 S:4 F:0 | PASS  
+dit-xl2-fp8-static | aggressive | cold  | eval | 7.85->1073.59  | N/A      | 49.22s->38.13s (0.00x) | 4854.4->2971.7 (-1882.6) | N/A     | -              | A:21 S:5 F:0  | FAIL  
+dit-xl2-fp8-static | aggressive | warm  | eval | 7.85->231.49   | N/A      | 49.22s->34.43s (0.00x) | 4854.4->2923.8 (-1930.6) | N/A     | -              | A:21 S:5 F:0  | FAIL  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target             | Arm/Cache     | Step0 ms | Data/Other | Forward      | Loss/Clip | Backward  | Optim     | Steady Tot
+-------------------+---------------+----------+------------+--------------+-----------+-----------+-----------+-----------
+dit-xl2-fp8-static | baseline/none | 23312.5  | 0.25 (3%)  | 7.74 (97%)   | 0.00 (0%) | 0.00 (0%) | 0.00 (0%) | 7.99      
+dit-xl2-fp8-static | safe/none     | 23181.9  | 0.23 (2%)  | 9.10 (98%)   | 0.00 (0%) | 0.00 (0%) | 0.00 (0%) | 9.33      
+dit-xl2-fp8-static | balanced/cold | 27899.8  | 0.21 (0%)  | 46.80 (100%) | 0.00 (0%) | 0.00 (0%) | 0.00 (0%) | 47.01     
+dit-xl2-fp8-static | balanced/warm | 25359.9  | 0.24 (2%)  | 9.14 (98%)   | 0.00 (0%) | 0.00 (0%) | 0.00 (0%) | 9.38      
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target             | Arm/Cache     | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+-------------------+---------------+----------------+--------+--------+------------+--------------------+--------------
+dit-xl2-fp8-static | balanced/cold | 8/8            | 8      | 0      | 0          | 1/7                | 1/7          
+dit-xl2-fp8-static | balanced/warm | 8/8            | 8      | 0      | 0          | 8/0                | 8/0          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target             | Arm/Cache       | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+-------------------+-----------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+dit-xl2-fp8-static | baseline/none   | 4854.4/6704.0 | 1849.7      | 15859.1     | 29.7%     | 0/0         | 6940.0   | 19.2%       
+dit-xl2-fp8-static | safe/none       | 5255.5/5784.0 | 528.5       | 16779.1     | 25.6%     | 0/0         | 6020.0   | 15.7%       
+dit-xl2-fp8-static | balanced/cold   | 4535.2/4684.0 | 148.8       | 17879.1     | 20.8%     | 0/0         | 4932.0   | 15.3%       
+dit-xl2-fp8-static | balanced/warm   | 4535.2/4684.0 | 148.8       | 17879.1     | 20.8%     | 0/0         | 4932.0   | 7.2%        
+dit-xl2-fp8-static | aggressive/cold | 2971.7/3002.0 | -           | -           | -         | -           | -        | -           
+dit-xl2-fp8-static | aggressive/warm | 2923.8/2962.0 | -           | -           | -         | -           | -        | -           
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target             | Arm/Cache     | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache             | Free VRAM (Used%)
+-------------------+---------------+-----------------+--------------------+-------------+-----------------------+------------------
+dit-xl2-fp8-static | baseline/none | -               | -                  | -           | -                     | 15859.1 (29.7%)  
+dit-xl2-fp8-static | safe/none     | -               | -                  | -           | dual_resident_default | 16779.1 (25.6%)  
+dit-xl2-fp8-static | balanced/cold | -               | -                  | off         | dual_resident_default | 18079.1 (19.9%)  
+dit-xl2-fp8-static | balanced/warm | -               | -                  | off         | dual_resident_default | 18339.1 (18.7%)  
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- dit-xl2-fp8-static [baseline/none] (total_cuda=24.398ms, total_cpu=90.248ms) ---
+  CUDA  31.7% | self=   7.740ms | calls=   10 | aten::addmm
+  CUDA  13.6% | self=   3.323ms | calls=    4 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   9.3% | self=   2.278ms | calls=    2 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   7.2% | self=   1.752ms | calls=    2 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   5.4% | self=   1.312ms | calls=    2 | aten::_efficient_attention_forward
+  CUDA   5.4% | self=   1.312ms | calls=    2 | fmha_cutlassF_f32_aligned_64x128_rf_sm80(PyTorch
+  CUDA   4.8% | self=   1.175ms | calls=    2 | aten::gelu
+  CUDA   4.8% | self=   1.175ms | calls=    2 | void at::native::vectorized_elementwise_kernel<4
+  CPU   43.3% | self=  39.112ms | calls=    1 | aten::index_select
+  CPU   21.5% | self=  19.443ms | calls=   40 | cudaLaunchKernel
+  CPU    6.8% | self=   6.151ms | calls=    6 | cudaDeviceSynchronize
+  CPU    6.3% | self=   5.702ms | calls=    2 | aten::gelu
+  CPU    6.0% | self=   5.427ms | calls=    4 | aten::native_layer_norm
+  CPU    5.1% | self=   4.571ms | calls=    4 | aten::fill_
+  CPU    2.3% | self=   2.081ms | calls=    1 | Activity Buffer Request
+  CPU    1.4% | self=   1.294ms | calls=    1 | Runtime Triggered Module Loading
+--- dit-xl2-fp8-static [safe/none] (total_cuda=22.699ms, total_cpu=141.735ms) ---
+  CUDA   9.4% | self=   2.139ms | calls=   60 | aten::copy_
+  CUDA   8.5% | self=   1.925ms | calls=    8 | aten::_scaled_mm
+  CUDA   6.3% | self=   1.428ms | calls=    8 | void at::native::unrolled_elementwise_kernel<at:
+  CUDA   6.0% | self=   1.356ms | calls=    8 | _fp8_partial_amax_kernel
+  CUDA   5.8% | self=   1.308ms | calls=    2 | aten::gelu
+  CUDA   5.8% | self=   1.308ms | calls=    2 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   5.6% | self=   1.278ms | calls=    2 | aten::_efficient_attention_forward
+  CUDA   5.6% | self=   1.278ms | calls=    2 | fmha_cutlassF_f32_aligned_64x128_rf_sm80(PyTorch
+  CPU   27.1% | self=  38.461ms | calls=    1 | aten::index_select
+  CPU   20.5% | self=  29.051ms | calls=  208 | cudaLaunchKernel
+  CPU    7.8% | self=  11.092ms | calls=    8 | aten::amax
+  CPU    6.7% | self=   9.555ms | calls=   32 | aten::clamp
+  CPU    6.0% | self=   8.482ms | calls=   24 | aten::reciprocal
+  CPU    5.8% | self=   8.179ms | calls=   16 | aten::div
+  CPU    4.2% | self=   5.950ms | calls=    2 | aten::gelu
+  CPU    3.7% | self=   5.292ms | calls=    4 | aten::native_layer_norm
+--- dit-xl2-fp8-static [balanced/cold] (total_cuda=6366.449ms, total_cpu=8740.478ms) ---
+  CUDA  33.2% | self=2114.041ms | calls=    2 | ## Call CompiledFxGraph ffhguzvtexleuppab73faarx
+  CUDA  22.2% | self=1413.237ms | calls= 7871 | aten::fill_
+  CUDA  22.2% | self=1413.237ms | calls= 7871 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   3.0% | self= 194.010ms | calls=  802 | triton_red_fused__scaled_mm__to_copy_add_clamp_m
+  CUDA   3.0% | self= 194.010ms | calls=  802 | triton_red_fused__scaled_mm__to_copy_add_clamp_m
+  CUDA   2.5% | self= 160.260ms | calls=  537 | triton_poi_fused__to_copy_add_mul_split_unsqueez
+  CUDA   2.5% | self= 160.260ms | calls=  537 | triton_poi_fused__to_copy_add_mul_split_unsqueez
+  CUDA   2.1% | self= 132.718ms | calls=  737 | triton_red_fused__scaled_mm__to_copy_add_clamp_m
+  CPU   39.9% | self=3483.607ms | calls=    3 | async_compile.wait (dynamo_timed)
+  CPU   12.2% | self=1068.228ms | calls=  162 | cudaDeviceSynchronize
+  CPU    7.4% | self= 647.112ms | calls= 8776 | PythonDispatchMode
+  CPU    6.3% | self= 554.431ms | calls=    3 | bytecode_tracing (dynamo_timed)
+  CPU    5.2% | self= 450.927ms | calls=   12 | CachingAutotuner.benchmark_all_configs (dynamo_t
+  CPU    5.0% | self= 434.064ms | calls=    2 | Scheduler.codegen (dynamo_timed)
+  CPU    4.1% | self= 354.791ms | calls=    5 | aten::tanh
+  CPU    2.0% | self= 177.993ms | calls=    2 | Scheduler.__init__ (dynamo_timed)
+--- dit-xl2-fp8-static [balanced/warm] (total_cuda=26.999ms, total_cpu=1183.574ms) ---
+  CUDA  28.5% | self=   7.694ms | calls=    2 | ## Call CompiledFxGraph ffhguzvtexleuppab73faarx
+  CUDA   9.6% | self=   2.582ms | calls=   44 | aten::_scaled_mm
+  CUDA   5.0% | self=   1.337ms | calls=   20 | aten::abs
+  CUDA   5.0% | self=   1.337ms | calls=   10 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   4.4% | self=   1.186ms | calls=    4 | sm89_xmma_gemm_e4m3bf16_e4m3f32_f32_tn_n_tilesiz
+  CUDA   3.9% | self=   1.054ms | calls=  118 | aten::copy_
+  CUDA   3.9% | self=   1.051ms | calls=  144 | aten::mul
+  CUDA   3.1% | self=   0.836ms | calls=   10 | void at::native::elementwise_kernel<128, 2, at::
+  CPU   46.2% | self= 547.258ms | calls=    3 | bytecode_tracing (dynamo_timed)
+  CPU   13.8% | self= 163.424ms | calls=    3 | build_guards (dynamo_timed)
+  CPU    9.1% | self= 107.288ms | calls=  229 | PythonDispatchMode
+  CPU    4.1% | self=  48.287ms | calls=    3 | OutputGraph.call_user_compiler (dynamo_timed)
+  CPU    2.6% | self=  30.588ms | calls=    3 | AOTAutogradCache.inductor_load (dynamo_timed)
+  CPU    2.5% | self=  29.918ms | calls=    3 | compile_attempt_0 (dynamo_timed)
+  CPU    1.4% | self=  16.728ms | calls=  396 | cudaLaunchKernel
+  CPU    1.3% | self=  15.436ms | calls=   23 | StaticAutotunerFuture.warm_precompile (dynamo_ti
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+dit-xl2-fp8-static [baseline/none] PatchEmbed: params=19584, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [baseline/none] TimestepEmbedder: params=1624320, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [baseline/none] LabelEmbedder: params=1153152, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [baseline/none] DiTBlock: params=23905152, train_calls=0, eval_calls=700, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [baseline/none] FinalLayer: params=2693408, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [baseline/none] Conv2d: params=20, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [baseline/none] Decoder: params=49490179, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [safe/none] PatchEmbed: params=19584, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [safe/none] TimestepEmbedder: params=1624320, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [safe/none] LabelEmbedder: params=1153152, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [safe/none] DiTBlock: params=23905152, train_calls=0, eval_calls=700, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [safe/none] FinalLayer: params=2693408, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [safe/none] Conv2d: params=20, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [safe/none] Decoder: params=49490179, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/cold] PatchEmbed: params=19584, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/cold] TimestepEmbedder: params=1624320, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/cold] LabelEmbedder: params=1153152, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/cold] DiTBlock: params=23905152, train_calls=0, eval_calls=700, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [balanced/cold] FinalLayer: params=2693408, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [balanced/cold] Conv2d: params=20, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/cold] Decoder: params=49490179, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.bfloat16, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/warm] PatchEmbed: params=19584, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/warm] TimestepEmbedder: params=1624320, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/warm] LabelEmbedder: params=1153152, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16,), torch.int64, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/warm] DiTBlock: params=23905152, train_calls=0, eval_calls=700, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [balanced/warm] FinalLayer: params=2693408, train_calls=0, eval_calls=25, unique_shapes=1 -> ["(((16, 256, 1152), torch.float32, device(type='cuda', index=0)), ((16, 1152), torch.float32, device(type='cuda', index=0)))"]
+dit-xl2-fp8-static [balanced/warm] Conv2d: params=20, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.float32, device(type='cuda', index=0)),)"]
+dit-xl2-fp8-static [balanced/warm] Decoder: params=49490179, train_calls=0, eval_calls=1, unique_shapes=1 -> ["(((8, 4, 32, 32), torch.bfloat16, device(type='cuda', index=0)),)"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] dit-xl2-fp8-static (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/01_dit-xl2-fp8-static__baseline__none
+[SKIPPED] dit-xl2-fp8-static (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] dit-xl2-fp8-static (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/02_dit-xl2-fp8-static__safe__none
+[APPLIED] dit-xl2-fp8-static (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] dit-xl2-fp8-static (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] dit-xl2-fp8-static (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] dit-xl2-fp8-static (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] dit-xl2-fp8-static (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> kernels.auto: kernels.enabled is False
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18883.1MB (16.3% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))
+[APPLIED] dit-xl2-fp8-static (safe/none) -> inference.fp8: Patched 4 Linear layers on Decoder with FP8 _scaled_mm
+[SKIPPED] dit-xl2-fp8-static (safe/none) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[ARTIFACTS] dit-xl2-fp8-static (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/03_dit-xl2-fp8-static__balanced__cold
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/balanced)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] dit-xl2-fp8-static (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled PatchEmbed (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19583.1MB (13.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled TimestepEmbedder (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled LabelEmbedder (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19483.1MB (13.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19463.1MB (13.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19443.1MB (13.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19423.1MB (13.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19403.1MB (14.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19263.1MB (14.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19121.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19061.1MB (15.5% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18981.1MB (15.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18961.1MB (16.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18941.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on FinalLayer (2 steps, 0 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled FinalLayer (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18899.1MB (16.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on Conv2d (2 steps, 0 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled Conv2d (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8: Patched 4 Linear layers on Decoder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on Decoder (2 steps, 4 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (balanced/cold) -> compile.auto: Compiled Decoder (mode=default, dynamic=False)
+[ARTIFACTS] dit-xl2-fp8-static (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/04_dit-xl2-fp8-static__balanced__warm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/balanced)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[SKIPPED] dit-xl2-fp8-static (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled PatchEmbed (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled TimestepEmbedder (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled LabelEmbedder (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19543.1MB (13.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19463.1MB (13.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19443.1MB (13.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19423.1MB (13.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19403.1MB (14.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19263.1MB (14.6% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19121.1MB (15.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19061.1MB (15.5% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18981.1MB (15.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18961.1MB (16.0% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18941.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on FinalLayer (2 steps, 0 layers ready)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled FinalLayer (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18899.1MB (16.2% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on Conv2d (2 steps, 0 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled Conv2d (mode=default, dynamic=False)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18981.1MB (15.9% used))
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8: Patched 4 Linear layers on Decoder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on Decoder (2 steps, 4 layers ready)
+[SKIPPED] dit-xl2-fp8-static (balanced/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (balanced/warm) -> compile.auto: Compiled Decoder (mode=default, dynamic=False)
+[ARTIFACTS] dit-xl2-fp8-static (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/05_dit-xl2-fp8-static__aggressive__cold
+[ERROR] dit-xl2-fp8-static (aggressive/cold): se_fwd(inp). To prevent overwriting, call torch.compiler.cudagraph_mark_step_begin() before each model invocation. If a tensor is a user-visible output that must remain live across generations, manually clone the tensor outside torch.compile(), or set torch._inductor.config.triton.cudagraph_trees_generation_cloning = 'user_visible' to clone all user-visible tensors that persist across generations.
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/aggressive)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=True)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] dit-xl2-fp8-static (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] dit-xl2-fp8-static (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] dit-xl2-fp8-static (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] dit-xl2-fp8-static (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.cuda_graphs: Compiled eval PatchEmbed with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] dit-xl2-fp8-static (aggressive/cold) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19561.1MB (13.3% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.cuda_graphs: Compiled eval TimestepEmbedder with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19561.1MB (13.3% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/cold) -> inference.cuda_graphs: Compiled eval LabelEmbedder with mode=reduce-overhead (CUDA Graphs)
+[ARTIFACTS] dit-xl2-fp8-static (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/073449_20261125-real-dit-xl2-fp8-static/runs/06_dit-xl2-fp8-static__aggressive__warm
+[ERROR] dit-xl2-fp8-static (aggressive/warm): se_fwd(inp). To prevent overwriting, call torch.compiler.cudagraph_mark_step_begin() before each model invocation. If a tensor is a user-visible output that must remain live across generations, manually clone the tensor outside torch.compile(), or set torch._inductor.config.triton.cudagraph_trees_generation_cloning = 'user_visible' to clone all user-visible tensors that persist across generations.
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/aggressive)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=True)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] dit-xl2-fp8-static (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] dit-xl2-fp8-static (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] dit-xl2-fp8-static (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] dit-xl2-fp8-static (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.cuda_graphs: Compiled eval PatchEmbed with mode=reduce-overhead (CUDA Graphs)
+[SKIPPED] dit-xl2-fp8-static (aggressive/warm) -> runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19601.1MB (13.1% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.cuda_graphs: Compiled eval TimestepEmbedder with mode=reduce-overhead (CUDA Graphs)
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19601.1MB (13.1% used))
+[APPLIED] dit-xl2-fp8-static (aggressive/warm) -> inference.cuda_graphs: Compiled eval LabelEmbedder with mode=reduce-overhead (CUDA Graphs)
+[FAIL] dit-xl2-fp8-static (aggressive): se_fwd(inp). To prevent overwriting, call torch.compiler.cudagraph_mark_step_begin() before each model invocation. If...
+[FAIL] dit-xl2-fp8-static (aggressive): se_fwd(inp). To prevent overwriting, call torch.compiler.cudagraph_mark_step_begin() before each model invocation. If...
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[VRAM:FRAGMENTATION] dit-xl2-fp8-static (baseline/none): reserved overhead is 1849.65 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] dit-xl2-fp8-static (baseline/none): avg GPU utilization is 19.2% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[VRAM:FRAGMENTATION] dit-xl2-fp8-static (safe/none): reserved overhead is 528.52 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] dit-xl2-fp8-static (safe/none): avg GPU utilization is 15.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] dit-xl2-fp8-static (balanced/cold): avg GPU utilization is 15.3% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] dit-xl2-fp8-static (balanced/warm): avg GPU utilization is 7.2% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================

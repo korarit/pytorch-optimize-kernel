@@ -1,0 +1,476 @@
+[
+  {
+    "pass_name": "runtime.memory_allocator",
+    "status": "APPLIED",
+    "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.flags",
+    "status": "APPLIED",
+    "reason": "tf32=on, flash_sdp=True, mem_sdp=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "DataLoader auto-tune hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.fusion",
+    "status": "APPLIED",
+    "reason": "Optimizer fusion hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "SKIPPED",
+    "reason": "compile.enabled is False",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "APPLIED",
+    "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "SKIPPED",
+    "reason": "amp.enabled is False or dtype is fp32",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "FP8 inference enabled (sm_89 eligible for FP8 inference)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.opt",
+    "status": "APPLIED",
+    "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.activation_checkpointing",
+    "status": "SKIPPED",
+    "reason": "runtime.activation_checkpointing is off",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.auto",
+    "status": "SKIPPED",
+    "reason": "kernels.enabled is False",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18883.1MB (16.3% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 4 Linear layers on Decoder with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  }
+]

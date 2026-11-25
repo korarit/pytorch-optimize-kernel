@@ -1,0 +1,84 @@
+[ptopt fallback/hook summary]
+  profile=safe | exit_code=0 | cmd=/usr/bin/python3 sample.py --image-size 256 --num-sampling-steps 25 --seed 42
+  Counts: APPLIED=72 | SKIPPED=7 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+  - [APPLIED] inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19623.1MB (13.0% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19323.1MB (14.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19243.1MB (14.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19103.1MB (15.3% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19063.1MB (15.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19023.1MB (15.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19003.1MB (15.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18963.1MB (16.0% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18923.1MB (16.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18883.1MB (16.3% used))
+  - [APPLIED] inference.fp8: Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18819.1MB (16.6% used))
+  - [APPLIED] inference.fp8: Patched 4 Linear layers on Decoder with FP8 _scaled_mm
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.auto: compile.enabled is False
+  - [SKIPPED (by arch/config)] amp.auto: amp.enabled is False or dtype is fp32
+  - [SKIPPED (by arch/config)] runtime.activation_checkpointing: runtime.activation_checkpointing is off
+  - [SKIPPED (by arch/config)] kernels.auto: kernels.enabled is False
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)

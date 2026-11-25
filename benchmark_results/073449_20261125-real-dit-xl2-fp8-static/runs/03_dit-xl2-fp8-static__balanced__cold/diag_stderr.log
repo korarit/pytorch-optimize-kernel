@@ -1,0 +1,208 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+/usr/local/lib/python3.13/dist-packages/huggingface_hub/utils/_validators.py:206: UserWarning: The `local_dir_use_symlinks` argument is deprecated and ignored in `hf_hub_download`. Downloading to a local directory does not use symlinks anymore.
+  warnings.warn(
+
+  0%|          | 0/25 [00:00<?, ?it/s]W1125 07:41:18.856000 48875 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+USDT:2026-11-25 07:41:22 48875:48875 SyncActivityProfilerHandler.cpp:39] profiler_start
+I1125 07:41:25.048000 48875 torch/_inductor/graph.py:1045] [3/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention.default
+I1125 07:41:25.404000 48875 torch/_inductor/codegen/simd.py:4909] [3/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+I1125 07:41:25.406000 48875 torch/_inductor/codegen/simd.py:4909] [3/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+I1125 07:41:25.408000 48875 torch/_inductor/codegen/simd.py:4909] [3/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+I1125 07:41:25.429000 48875 torch/_inductor/codegen/simd.py:4909] [3/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+I1125 07:41:25.438000 48875 torch/_inductor/codegen/simd.py:4909] [3/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+V1125 07:41:31.376000 48875 torch/_dynamo/guards.py:5621] [3/1] [__recompiles] Recompiling function forward in /content/external_repos/DiT/models.py:118
+V1125 07:41:31.376000 48875 torch/_dynamo/guards.py:5621] [3/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 07:41:31.376000 48875 torch/_dynamo/guards.py:5621] [3/1] [__recompiles]     - 3/0: tensor 'x' dispatch key set mismatch. expected DispatchKeySet(CUDA, BackendSelect, ADInplaceOrView, AutocastCUDA), actual DispatchKeySet(CUDA, BackendSelect, AutocastCUDA)
+USDT:2026-11-25 07:41:31 48875:48875 SyncActivityProfilerHandler.cpp:46] profiler_stop
+I1125 07:41:42.474000 48875 torch/_inductor/codegen/simd.py:4909] [4/0] [__perf_hints] possibly bad tiling: [{'y': 4096, 'x': 1152, 'r0_': 1}, {'x': 4718592, 'r0_': 1}]
+
+  4%|▍         | 1/25 [00:30<12:18, 30.77s/it]
+ 12%|█▏        | 3/25 [00:30<02:56,  8.04s/it]
+ 20%|██        | 5/25 [00:31<01:18,  3.95s/it]
+ 28%|██▊       | 7/25 [00:31<00:41,  2.31s/it]
+ 36%|███▌      | 9/25 [00:31<00:23,  1.47s/it]
+ 44%|████▍     | 11/25 [00:31<00:13,  1.02it/s]
+ 52%|█████▏    | 13/25 [00:31<00:08,  1.47it/s]
+ 60%|██████    | 15/25 [00:31<00:04,  2.05it/s]
+ 68%|██████▊   | 17/25 [00:32<00:02,  2.77it/s]
+ 76%|███████▌  | 19/25 [00:32<00:01,  3.65it/s]
+ 84%|████████▍ | 21/25 [00:32<00:00,  4.66it/s]
+ 92%|█████████▏| 23/25 [00:32<00:00,  5.76it/s]
+100%|██████████| 25/25 [00:32<00:00,  6.88it/s]
+100%|██████████| 25/25 [00:32<00:00,  1.31s/it]
+/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py:2762: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function at 'upsampling.py:156'. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS=+dynamo for a DEBUG stack trace.
+
+This call originates from:
+  File "/usr/local/lib/python3.13/dist-packages/diffusers/models/upsampling.py", line 156, in forward
+    if dtype == torch.bfloat16 and is_torch_version("<", "2.1"):
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+
+  torch._dynamo.utils.warn_once(msg)
+/usr/local/lib/python3.13/dist-packages/torch/_dynamo/variables/functions.py:2762: UserWarning: Dynamo detected a call to a `functools.lru_cache`-wrapped function at 'upsampling.py:180'. Dynamo ignores the cache wrapper and directly traces the wrapped function. Silent incorrectness is only a *potential* risk, not something we have observed. Enable TORCH_LOGS=+dynamo for a DEBUG stack trace.
+
+This call originates from:
+  File "/usr/local/lib/python3.13/dist-packages/diffusers/models/upsampling.py", line 180, in forward
+    if dtype == torch.bfloat16 and is_torch_version("<", "2.1"):
+                                   ~~~~~~~~~~~~~~~~^^^^^^^^^^^^
+
+  torch._dynamo.utils.warn_once(msg)
+I1125 07:41:55.454000 48875 torch/_inductor/graph.py:1045] [6/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_efficient_attention.default
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=143 | SKIPPED=4 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/balanced_diag_cold)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.fp8: FP8 inference enabled (sm_89 eligible for FP8 inference)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=True)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)
+  - [APPLIED] compile.auto: Compiled PatchEmbed (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19583.1MB (13.2% used))
+  - [APPLIED] inference.fp8: Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm
+  - [APPLIED] compile.auto: Compiled TimestepEmbedder (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))
+  - [APPLIED] compile.auto: Compiled LabelEmbedder (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19563.1MB (13.3% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19483.1MB (13.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19503.1MB (13.6% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19463.1MB (13.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19443.1MB (13.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19423.1MB (13.9% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19403.1MB (14.0% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19363.1MB (14.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19343.1MB (14.3% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19303.1MB (14.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19283.1MB (14.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19263.1MB (14.6% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19223.1MB (14.8% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19203.1MB (14.9% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19163.1MB (15.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19143.1MB (15.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19121.1MB (15.2% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19081.1MB (15.4% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19061.1MB (15.5% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19021.1MB (15.7% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18981.1MB (15.9% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18961.1MB (16.0% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18941.1MB (16.1% used))
+  - [APPLIED] inference.fp8: Patched 5 Linear layers on DiTBlock with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on DiTBlock (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled DiTBlock (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))
+  - [APPLIED] inference.fp8: Patched 2 Linear layers on FinalLayer with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on FinalLayer (2 steps, 0 layers ready)
+  - [APPLIED] compile.auto: Compiled FinalLayer (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18899.1MB (16.2% used))
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on Conv2d (2 steps, 0 layers ready)
+  - [APPLIED] compile.auto: Compiled Conv2d (mode=default, dynamic=False)
+  - [APPLIED] inference.fp8_cache: FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=18921.1MB (16.1% used))
+  - [APPLIED] inference.fp8: Patched 4 Linear layers on Decoder with FP8 _scaled_mm
+  - [APPLIED] inference.fp8_static: Calibrated static FP8 activation scales on Decoder (2 steps, 4 layers ready)
+  - [APPLIED] compile.auto: Compiled Decoder (mode=default, dynamic=False)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+  - [SKIPPED (by arch/config)] runtime.channels_last: Conv spatial/volume input below auto threshold (16384 px)
+
+
+=== STDOUT ===
+

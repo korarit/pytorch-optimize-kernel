@@ -1,0 +1,158 @@
+[
+  {
+    "pass_name": "runtime.memory_allocator",
+    "status": "APPLIED",
+    "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.flags",
+    "status": "APPLIED",
+    "reason": "tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True",
+    "error": null
+  },
+  {
+    "pass_name": "dataloader.auto_tune",
+    "status": "APPLIED",
+    "reason": "DataLoader auto-tune hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "optimizer.fusion",
+    "status": "APPLIED",
+    "reason": "Optimizer fusion hook installed",
+    "error": null
+  },
+  {
+    "pass_name": "compile.auto",
+    "status": "APPLIED",
+    "reason": "Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpd2s358ub/dit-xl2-fp8-static/aggressive)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "APPLIED",
+    "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+    "error": null
+  },
+  {
+    "pass_name": "amp.auto",
+    "status": "APPLIED",
+    "reason": "Auto-AMP installed (dtype=bf16, grad_scaler=False)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "FP8 inference enabled (sm_89 eligible for FP8 inference)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.opt",
+    "status": "APPLIED",
+    "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=True)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.activation_checkpointing",
+    "status": "APPLIED",
+    "reason": "Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.rmsnorm",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.layernorm",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.swiglu",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.rope",
+    "status": "SKIPPED",
+    "reason": "sm_89, triton=True; deferred to torch.compile Inductor fusion",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.fused_linear_cross_entropy",
+    "status": "APPLIED",
+    "reason": "sm_89, triton=True; hybrid compile+FusedLCE head enabled",
+    "error": null
+  },
+  {
+    "pass_name": "kernels.auto",
+    "status": "APPLIED",
+    "reason": "Custom kernels active: cross_entropy, fused_linear_cross_entropy",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19663.1MB (12.8% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_static",
+    "status": "APPLIED",
+    "reason": "Calibrated static FP8 activation scales on PatchEmbed (2 steps, 0 layers ready)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.cuda_graphs",
+    "status": "APPLIED",
+    "reason": "Compiled eval PatchEmbed with mode=reduce-overhead (CUDA Graphs)",
+    "error": null
+  },
+  {
+    "pass_name": "runtime.channels_last",
+    "status": "SKIPPED",
+    "reason": "Conv spatial/volume input below auto threshold (16384 px)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19601.1MB (13.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8",
+    "status": "APPLIED",
+    "reason": "Patched 2 Linear layers on TimestepEmbedder with FP8 _scaled_mm",
+    "error": null
+  },
+  {
+    "pass_name": "inference.cuda_graphs",
+    "status": "APPLIED",
+    "reason": "Compiled eval TimestepEmbedder with mode=reduce-overhead (CUDA Graphs)",
+    "error": null
+  },
+  {
+    "pass_name": "inference.fp8_cache",
+    "status": "APPLIED",
+    "reason": "FP8 cache policy=dual_resident_default (drop_bf16=False, free_vram=19601.1MB (13.1% used))",
+    "error": null
+  },
+  {
+    "pass_name": "inference.cuda_graphs",
+    "status": "APPLIED",
+    "reason": "Compiled eval LabelEmbedder with mode=reduce-overhead (CUDA Graphs)",
+    "error": null
+  }
+]
