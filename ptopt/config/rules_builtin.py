@@ -38,6 +38,10 @@ def _is_cuda(fp: HardwareFingerprint) -> bool:
     return fp.effective_backend == "cuda" and fp.primary_gpu is not None
 
 
+def _is_gpu_accel(fp: HardwareFingerprint) -> bool:
+    return fp.effective_backend in ("cuda", "rocm") and fp.primary_gpu is not None
+
+
 def _recommended_workers(fp: HardwareFingerprint) -> int:
     cores = fp.host.physical_cores or fp.host.logical_cores or 2
     return min(4, max(1, cores // 2))
@@ -287,12 +291,12 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_supersafe_cuda",
             layer="user_profile",
-            reason="Supersafe profile on CUDA: strict FP32 SIMT parity (0.0 drift; no TF32/AMP/compile), fused optimizer, inference_mode",
-            condition=lambda fp, p: p == "supersafe" and _is_cuda(fp),
-            updates={
+            reason="Supersafe profile on CUDA/ROCm: strict FP32 SIMT parity (0.0 drift; no TF32/AMP/compile), fused optimizer, inference_mode",
+            condition=lambda fp, p: p == "supersafe" and _is_gpu_accel(fp),
+            updates=lambda fp, _p: {
                 "runtime.tf32": False,
                 "runtime.cudnn_benchmark": False,
-                "optimizer.fused": True,
+                "optimizer.fused": _is_cuda(fp),
                 "inference.inference_mode": True,
             },
         ),
@@ -300,18 +304,18 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="profile_supersafe_non_cuda",
             layer="user_profile",
             reason="Supersafe profile on CPU/MPS: strict FP32 with inference_mode only",
-            condition=lambda fp, p: p == "supersafe" and not _is_cuda(fp),
+            condition=lambda fp, p: p == "supersafe" and not _is_gpu_accel(fp),
             updates={"inference.inference_mode": True},
         ),
         ConfigRule(
             name="profile_safe_cuda",
             layer="user_profile",
-            reason="Safe profile on CUDA: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)",
-            condition=lambda fp, p: p == "safe" and _is_cuda(fp),
+            reason="Safe profile on CUDA/ROCm: FP32 weights + TF32 Tensor Core matmul (sm>=80), fused optimizer, inference_mode (no AMP/compile)",
+            condition=lambda fp, p: p == "safe" and _is_gpu_accel(fp),
             updates=lambda fp, _p: {
-                "runtime.tf32": fp.sm_int >= 80,
+                "runtime.tf32": _is_cuda(fp) and fp.sm_int >= 80,
                 "runtime.cudnn_benchmark": False,
-                "optimizer.fused": True,
+                "optimizer.fused": _is_cuda(fp),
                 "inference.inference_mode": True,
             },
         ),
@@ -319,19 +323,19 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="profile_safe_non_cuda",
             layer="user_profile",
             reason="Safe profile on CPU/MPS: enable inference_mode only",
-            condition=lambda fp, p: p == "safe" and not _is_cuda(fp),
+            condition=lambda fp, p: p == "safe" and not _is_gpu_accel(fp),
             updates={"inference.inference_mode": True},
         ),
         ConfigRule(
             name="profile_balanced_cuda",
             layer="user_profile",
-            reason="Balanced profile on CUDA: enable TF32 (sm>=80), AMP, fused optimizer, compile(default), inference_mode (keep cudnn_benchmark off to avoid +125MB workspace bloat)",
-            condition=lambda fp, p: p == "balanced" and _is_cuda(fp),
+            reason="Balanced profile on CUDA/ROCm: enable TF32 (sm>=80), AMP, fused optimizer, compile(default), inference_mode (keep cudnn_benchmark off to avoid +125MB workspace bloat)",
+            condition=lambda fp, p: p == "balanced" and _is_gpu_accel(fp),
             updates=lambda fp, _p: {
-                "runtime.tf32": fp.sm_int >= 80,
+                "runtime.tf32": _is_cuda(fp) and fp.sm_int >= 80,
                 "runtime.cudnn_benchmark": False,
                 "amp.enabled": True,
-                "optimizer.fused": True,
+                "optimizer.fused": _is_cuda(fp),
                 "compile.enabled": True,
                 "compile.mode": "default",
                 "inference.inference_mode": True,
@@ -342,7 +346,7 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="profile_balanced_dataloader",
             layer="user_profile",
             reason="Safe/Balanced/Aggressive with healthy /dev/shm: enable DataLoader auto-tuning",
-            condition=lambda fp, p: p in ("safe", "balanced", "aggressive") and _is_cuda(fp) and not fp.is_low_shm,
+            condition=lambda fp, p: p in ("safe", "balanced", "aggressive") and _is_gpu_accel(fp) and not fp.is_low_shm,
             updates=lambda fp, _p: {
                 "dataloader.auto_tune": True,
                 "dataloader.pin_memory": True,
@@ -356,19 +360,19 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="profile_balanced_non_cuda",
             layer="user_profile",
             reason="Balanced profile on CPU/MPS: enable inference_mode safely",
-            condition=lambda fp, p: p == "balanced" and not _is_cuda(fp),
+            condition=lambda fp, p: p == "balanced" and not _is_gpu_accel(fp),
             updates={"inference.inference_mode": True},
         ),
         ConfigRule(
             name="profile_aggressive_cuda",
             layer="user_profile",
-            reason="Aggressive profile on CUDA: enable TF32 (sm>=80), cudnn_benchmark, AMP, fused optimizer, compile, inference_mode",
-            condition=lambda fp, p: p == "aggressive" and _is_cuda(fp),
+            reason="Aggressive profile on CUDA/ROCm: enable TF32 (sm>=80), cudnn_benchmark, AMP, fused optimizer, compile, inference_mode",
+            condition=lambda fp, p: p == "aggressive" and _is_gpu_accel(fp),
             updates=lambda fp, _p: {
-                "runtime.tf32": fp.sm_int >= 80,
-                "runtime.cudnn_benchmark": True,
+                "runtime.tf32": _is_cuda(fp) and fp.sm_int >= 80,
+                "runtime.cudnn_benchmark": _is_cuda(fp),
                 "amp.enabled": True,
-                "optimizer.fused": True,
+                "optimizer.fused": _is_cuda(fp),
                 "compile.enabled": True,
                 "inference.inference_mode": True,
                 "runtime.activation_checkpointing": "auto",
@@ -419,7 +423,7 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="profile_aggressive_non_cuda",
             layer="user_profile",
             reason="Aggressive profile on CPU/MPS: enable inference_mode",
-            condition=lambda fp, p: p == "aggressive" and not _is_cuda(fp),
+            condition=lambda fp, p: p == "aggressive" and not _is_gpu_accel(fp),
             updates={"inference.inference_mode": True},
         ),
     ]

@@ -14,7 +14,33 @@ if TYPE_CHECKING:
     from ptopt.hooks.manager import HookManager
 
 _OPTIM_FUSION_INSTALLED = False
-_TARGET_OPTIMIZERS = ("Adam", "AdamW", "SGD", "RMSprop", "Adagrad", "NAdam", "RAdam")
+_TARGET_OPTIMIZERS = (
+    "Adam",
+    "AdamW",
+    "SGD",
+    "RMSprop",
+    "Adagrad",
+    "NAdam",
+    "RAdam",
+    "Adamax",
+    "Adadelta",
+    "ASGD",
+)
+
+
+def _iter_subclasses(base_cls: Any) -> list[Any]:
+    seen: set[int] = set()
+    out: list[Any] = []
+    stack = [base_cls]
+    while stack:
+        cls = stack.pop()
+        for sub in getattr(cls, "__subclasses__", lambda: ())():
+            cid = id(sub)
+            if cid not in seen:
+                seen.add(cid)
+                out.append(sub)
+                stack.append(sub)
+    return out
 
 
 def _materialize_param_groups(params: Any) -> tuple[Any, list[Any]]:
@@ -78,16 +104,33 @@ def install_optimizer_fusion_hook(
     if optim_mod is None:
         return False
 
-    patched_classes: list[tuple[Any, Any]] = []
+    candidate_classes: list[tuple[str, Any]] = []
+    seen_cls_ids: set[int] = set()
     for cls_name in _TARGET_OPTIMIZERS:
         opt_cls = getattr(optim_mod, cls_name, None)
-        if opt_cls is None:
-            continue
+        if opt_cls is not None and id(opt_cls) not in seen_cls_ids:
+            seen_cls_ids.add(id(opt_cls))
+            candidate_classes.append((cls_name, opt_cls))
+
+    opt_base = getattr(optim_mod, "Optimizer", None)
+    if opt_base is not None:
+        for sub_cls in _iter_subclasses(opt_base):
+            if id(sub_cls) not in seen_cls_ids and "__init__" in getattr(sub_cls, "__dict__", {}):
+                seen_cls_ids.add(id(sub_cls))
+                candidate_classes.append((getattr(sub_cls, "__name__", "CustomOptimizer"), sub_cls))
+
+    patched_classes: list[tuple[Any, Any]] = []
+    for cls_name, opt_cls in candidate_classes:
         orig_init = opt_cls.__init__
-        sig = inspect.signature(orig_init)
+        try:
+            sig = inspect.signature(orig_init)
+        except (TypeError, ValueError):
+            continue
         supports_fused = "fused" in sig.parameters
         supports_foreach = "foreach" in sig.parameters
         supports_capturable = "capturable" in sig.parameters
+        if not (supports_fused or supports_foreach or supports_capturable):
+            continue
 
         def _make_wrapped_init(
             target_cls_name: str,
@@ -171,6 +214,7 @@ def install_optimizer_fusion_hook(
 
     if not patched_classes:
         return False
+    optim_mod._ptopt_fusion_patched_classes = patched_classes
     _OPTIM_FUSION_INSTALLED = True
     return True
 
@@ -182,9 +226,18 @@ def uninstall_optimizer_fusion_hook(torch_mod: Any) -> None:
         return
     optim_mod = getattr(torch_mod, "optim", None)
     if optim_mod is not None:
+        for opt_cls, orig_init in getattr(optim_mod, "_ptopt_fusion_patched_classes", ()):
+            try:
+                opt_cls.__init__ = orig_init
+                if "_ptopt_orig_init" in getattr(opt_cls, "__dict__", {}):
+                    delattr(opt_cls, "_ptopt_orig_init")
+            except Exception:  # noqa: BLE001
+                pass
+        if hasattr(optim_mod, "_ptopt_fusion_patched_classes"):
+            delattr(optim_mod, "_ptopt_fusion_patched_classes")
         for cls_name in _TARGET_OPTIMIZERS:
             opt_cls = getattr(optim_mod, cls_name, None)
-            if opt_cls is not None and hasattr(opt_cls, "_ptopt_orig_init"):
+            if opt_cls is not None and "_ptopt_orig_init" in getattr(opt_cls, "__dict__", {}):
                 opt_cls.__init__ = opt_cls._ptopt_orig_init
                 delattr(opt_cls, "_ptopt_orig_init")
     _OPTIM_FUSION_INSTALLED = False

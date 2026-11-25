@@ -21,6 +21,28 @@ if TYPE_CHECKING:
 _DATALOADER_HOOK_INSTALLED = False
 
 
+class _PTOPTWorkerInitWrapper:
+    """Picklable worker_init_fn wrapper that bounds OpenMP/MKL/intra-op threads per worker."""
+
+    def __init__(self, base_fn: Callable[[int], Any] | None) -> None:
+        self.base_fn = base_fn
+
+    def __call__(self, worker_id: int) -> Any:
+        os.environ.setdefault("OMP_NUM_THREADS", "1")
+        os.environ.setdefault("MKL_NUM_THREADS", "1")
+        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+        try:
+            tmod = sys.modules.get("torch")
+            set_threads = getattr(tmod, "set_num_threads", None) if tmod is not None else None
+            if callable(set_threads):
+                set_threads(1)
+        except Exception:  # noqa: BLE001
+            pass
+        if self.base_fn is not None:
+            return self.base_fn(worker_id)
+        return None
+
+
 def read_shm_total_mb() -> float | None:
     """Read /dev/shm total size in MB, or None if unavailable."""
     shm_path = Path("/dev/shm")
@@ -339,10 +361,20 @@ def decide_dataloader_params(
 
     # Only auto-bump when user kept default num_workers == 0
     if orig_num_workers == 0:
-        target = cfg.dataloader.num_workers
-        if target is None:
-            cores = cpu_cores or os.cpu_count() or 2
-            target = min(4, max(2, cores // 2))
+        data_ns = getattr(getattr(torch_mod, "utils", None), "data", None)
+        iterable_ds_cls = getattr(data_ns, "IterableDataset", None) if data_ns is not None else None
+        tensor_ds_cls = getattr(data_ns, "TensorDataset", None) if data_ns is not None else None
+        if iterable_ds_cls is not None and isinstance(dataset, iterable_ds_cls):
+            notes.append(("SKIPPED", "IterableDataset detected; keeping num_workers=0 to avoid duplicate streams"))
+            target = 0
+        elif tensor_ds_cls is not None and isinstance(dataset, tensor_ds_cls):
+            notes.append(("SKIPPED", "In-memory TensorDataset detected; keeping num_workers=0 to avoid IPC overhead"))
+            target = 0
+        else:
+            target = cfg.dataloader.num_workers
+            if target is None:
+                cores = cpu_cores or os.cpu_count() or 2
+                target = min(4, max(2, cores // 2))
 
         if target > 0:
             if shm_mb is not None and shm_mb < 1024.0:
@@ -466,6 +498,8 @@ def install_dataloader_hook(
                 bool(b_args.get("drop_last", False)),
                 b_args.get("batch_sampler"),
             )
+            dl_self._ptopt_dl_has_remainder = bool(has_rem)
+            dl_self._ptopt_dl_remainder_info = (ds_len, eff_bs)
             if has_rem:
                 try:
                     torch_mod._ptopt_dataloader_has_remainder = True
@@ -494,6 +528,10 @@ def install_dataloader_hook(
                 b_args["pin_memory"] = tuned["pin_memory"]
                 b_args["persistent_workers"] = tuned["persistent_workers"]
                 b_args["prefetch_factor"] = tuned["prefetch_factor"]
+                if tuned["bumped"] and int(tuned["num_workers"]) > 0:
+                    orig_wif = b_args.get("worker_init_fn")
+                    if not isinstance(orig_wif, _PTOPTWorkerInitWrapper):
+                        b_args["worker_init_fn"] = _PTOPTWorkerInitWrapper(orig_wif)
                 dl_self._ptopt_orig_dl = {
                     "num_workers": orig_workers,
                     "pin_memory": orig_pin,
@@ -537,6 +575,12 @@ def install_dataloader_hook(
 
     @functools.wraps(orig_iter)
     def _safe_iter(dl_self: Any) -> Any:
+        try:
+            torch_mod._ptopt_dataloader_has_remainder = bool(getattr(dl_self, "_ptopt_dl_has_remainder", False))
+            if hasattr(dl_self, "_ptopt_dl_remainder_info"):
+                torch_mod._ptopt_dataloader_remainder_info = dl_self._ptopt_dl_remainder_info
+        except Exception:  # noqa: BLE001
+            pass
         try:
             base_it = orig_iter(dl_self)
         except Exception as exc:  # noqa: BLE001
@@ -618,16 +662,12 @@ def install_dataloader_hook(
             return getattr(dev, "type", None) == "cuda"
 
         def _should_promote_non_blocking(t_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], cuda_target: bool) -> bool:
-            return (
-                cuda_target
-                and not getattr(t_self, "is_cuda", True)
-                and "non_blocking" not in kwargs
-                and len(args) <= 1
-                and not _dynamo_compiling()
-                and getattr(t_self, "device", None) is not None
-                and t_self.device.type == "cpu"
-                and t_self.is_pinned()
-            )
+            if not cuda_target or "non_blocking" in kwargs or len(args) > 1:
+                return False
+            if getattr(t_self, "is_cuda", True) or _dynamo_compiling():
+                return False
+            dev = getattr(t_self, "device", None)
+            return dev is not None and dev.type == "cpu" and t_self.is_pinned()
 
         @functools.wraps(orig_to)
         def _pinned_async_to(t_self: Any, *args: Any, **kwargs: Any) -> Any:

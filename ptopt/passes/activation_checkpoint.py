@@ -149,13 +149,20 @@ def discover_checkpoint_blocks(
     return [blk for blk in candidates if id(blk) not in ancestors_children]
 
 
+_TOTAL_VRAM_CACHE: dict[int, float] = {}
+
+
 def _default_vram_ratio(torch_mod: Any) -> float | None:
     try:
         cuda_api = getattr(torch_mod, "cuda", None)
         if not cuda_api or not cuda_api.is_available():
             return None
         idx = int(cuda_api.current_device()) if hasattr(cuda_api, "current_device") else 0
-        total = float(cuda_api.get_device_properties(idx).total_memory)
+        total = _TOTAL_VRAM_CACHE.get(idx)
+        if total is None:
+            total = float(cuda_api.get_device_properties(idx).total_memory)
+            if total > 0:
+                _TOTAL_VRAM_CACHE[idx] = total
         if total <= 0:
             return None
         peak = float(max(cuda_api.memory_allocated(idx), cuda_api.max_memory_allocated(idx)))
@@ -322,6 +329,8 @@ def install_activation_checkpoint_hook(
     )
 
     def _disable_compile_for_ckpt(mod_self: Any) -> bool:
+        if os.environ.get("PTOPT_ACT_CKPT_ALLOW_COMPILE", "0").strip() == "1":
+            return False
         # Bypass torch.compile on root AND all child submodules (so backward recomputation
         # inside checkpoint(..., use_reentrant=False) never compiles child blocks mid-backward,
         # preventing PyTorch #166926 tensor count mismatch).
@@ -415,7 +424,10 @@ def install_activation_checkpoint_hook(
                         reason_detail=f"mode=always, ratio={auto_ratio:.2f}",
                     )
                 else:
-                    vram_ratio = probe_vram()
+                    step_cnt = int(getattr(mod_self, "_ptopt_act_ckpt_probe_steps", 0)) + 1
+                    mod_self._ptopt_act_ckpt_probe_steps = step_cnt
+                    should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
+                    vram_ratio = probe_vram() if should_probe else None
                     if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
                         _activate_act_ckpt(
                             mod_self,
@@ -426,7 +438,10 @@ def install_activation_checkpoint_hook(
                             ),
                         )
             elif getattr(mod_self, "_ptopt_act_ckpt_partial", False):
-                vram_ratio = probe_vram()
+                step_cnt = int(getattr(mod_self, "_ptopt_act_ckpt_probe_steps", 0)) + 1
+                mod_self._ptopt_act_ckpt_probe_steps = step_cnt
+                should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
+                vram_ratio = probe_vram() if should_probe else None
                 if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
                     _activate_act_ckpt(
                         mod_self,

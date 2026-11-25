@@ -430,18 +430,42 @@ class TestAutoAmpPass(unittest.TestCase):
                 torch.Tensor, "backward", autospec=True, side_effect=lambda self_t, *a, **kw: None
             ):
                 pass
-            # Verify enqueue_loss_stability_check queues async check with 0 sync checks
-            with patch.object(torch.cuda, "Event", _FakeEvent):
+            # Verify balanced bf16 polls non-blockingly at optimizer.step() without forcing CUDA sync
+            events_created: list[_FakeEvent] = []
+
+            def _make_event() -> _FakeEvent:
+                ev = _FakeEvent()
+                events_created.append(ev)
+                return ev
+
+            with patch.object(torch.cuda, "Event", _make_event):
                 ok_fin = rt.enqueue_loss_stability_check(_FakeCudaLoss(1.0))  # type: ignore[arg-type]
                 self.assertTrue(ok_fin)
                 self.assertEqual(rt._async_watchdog_checks, 1)
                 self.assertEqual(rt._sync_watchdog_checks, 0)
                 self.assertTrue(rt.flush_pending_stability_check())
 
-                # Enqueue NaN loss -> backward does not sync; optimizer.step() catches NaN and skips weight corruption
+                # Enqueue NaN loss under balanced bf16: step 1 polls query() without stalling (synced=False)
+                self.assertEqual(len(events_created), 2)
+                for ev in events_created:
+                    ev.synced = False
                 ok_nan = rt.enqueue_loss_stability_check(_FakeCudaLoss(float("nan")))  # type: ignore[arg-type]
                 self.assertTrue(ok_nan)
                 self.assertFalse(rt.disabled_by_watchdog)
+                p.grad = torch.tensor([1.0, 1.0])
+                opt.step()
+                self.assertTrue(all(not ev.synced for ev in events_created))
+                # Explicit flush or PTOPT_AMP_WATCHDOG_SYNC=1 / fp16 catches pending NaN synchronously
+                self.assertFalse(rt.flush_pending_stability_check())
+                self.assertTrue(rt.disabled_by_watchdog)
+                self.assertTrue(any(ev.synced for ev in events_created))
+
+                # Reset and verify strict sync mode blocks optimizer.step() immediately
+                rt.disabled_by_watchdog = False
+                rt._watchdog_flush_steps = 1
+                ok_nan2 = rt.enqueue_loss_stability_check(_FakeCudaLoss(float("nan")))  # type: ignore[arg-type]
+                self.assertTrue(ok_nan2)
+                p.data.copy_(orig_p)
                 p.grad = torch.tensor([1.0, 1.0])
                 opt.step()
                 self.assertTrue(rt.disabled_by_watchdog)

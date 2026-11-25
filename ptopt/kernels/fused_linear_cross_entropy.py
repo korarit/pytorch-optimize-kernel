@@ -355,7 +355,7 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
         d_hidden = torch.empty((n_rows, h_dim), dtype=h_in_dtype, device=h_mm.device) if need_h else None
         d_weight = torch.empty(weight.shape, dtype=d_weight_dtype, device=weight.device) if need_w else None
         dw_buf = torch.empty(weight.shape, dtype=mm_dtype, device=weight.device) if (need_w and not use_addmm_w) else None
-        d_bias = torch.zeros(bias.shape, dtype=torch.float32, device=bias.device) if need_b else None
+        d_bias: torch.Tensor | None = None
 
         is_scalar = ctx.reduction in ("mean", "sum")
         if ctx.reduction == "mean":
@@ -409,8 +409,12 @@ class FusedLinearCrossEntropyFn(torch.autograd.Function):
                         d_weight.copy_(dw_buf)
                     else:
                         d_weight.add_(dw_buf)
-            if d_bias is not None:
-                d_bias.add_(dl_mm.sum(dim=0, dtype=torch.float32))
+            if need_b:
+                chunk_db = dl_mm.sum(dim=0, dtype=torch.float32)
+                if d_bias is None:
+                    d_bias = chunk_db
+                else:
+                    d_bias.add_(chunk_db)
             del logits_c, dlogits_c
 
         dw_out = (d_weight if d_weight.dtype == weight.dtype else d_weight.to(weight.dtype)) if d_weight is not None else None

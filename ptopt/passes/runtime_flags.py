@@ -37,6 +37,17 @@ def apply_runtime_flags_pass(
         cuda_ok = False
 
     if not cuda_ok:
+        if getattr(cfg, "profile", "safe") in ("balanced", "aggressive"):
+            cpu_parts: list[str] = []
+            flush_fn = getattr(tmod, "set_flush_denormal", None)
+            if callable(flush_fn):
+                try:
+                    if flush_fn(True):
+                        cpu_parts.append("flush_denormal=on")
+                except Exception:  # noqa: BLE001
+                    pass
+            if cpu_parts:
+                return f"CPU runtime flags: {', '.join(cpu_parts)}"
         return "SKIPPED: CUDA unavailable (CPU/non-CUDA backend)"
 
     sm_int = _detect_cuda_sm(tmod)

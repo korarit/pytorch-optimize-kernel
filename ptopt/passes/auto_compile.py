@@ -13,6 +13,7 @@ from ptopt.config import OptimizeConfig, detect_runtime_cache_key, validate_or_s
 from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
 from ptopt.hooks.module_dispatch import (
     build_shape_signature,
+    estimate_module_depth,
     has_cuda_context,
     iter_nested_tensors,
     register_module_call_handler,
@@ -184,6 +185,9 @@ def _is_worth_static_compile(
 
     total_params, input_elems = _count_module_params_and_elems(mod_self, args, kwargs, torch_mod)
     if total_params < min_params and input_elems < min_elems:
+        depth = estimate_module_depth(mod_self)
+        if depth >= 8:
+            return True, f"launch-bound depth={depth}, params={total_params}"
         return (
             False,
             f"params={total_params} < {min_params} and input_elems={input_elems} < {min_elems}",
@@ -252,6 +256,19 @@ def _configure_cache_and_dynamo(cfg: OptimizeConfig, torch_mod: Any, strict: boo
         try:
             if not strict and os.environ.get("PTOPT_COMPILE_STRICT") != "1":
                 dynamo_cfg.suppress_errors = True
+            if (
+                os.environ.get("PTOPT_DYNAMO_CAPTURE_DYNAMIC_OPS", "1") != "0"
+                and hasattr(dynamo_cfg, "capture_dynamic_output_shape_ops")
+            ):
+                dynamo_cfg.capture_dynamic_output_shape_ops = True
+            try:
+                cache_limit = int(os.environ.get("PTOPT_DYNAMO_CACHE_LIMIT", "32"))
+            except ValueError:
+                cache_limit = 32
+            if cache_limit > 0 and hasattr(dynamo_cfg, "cache_size_limit"):
+                cur_limit = int(getattr(dynamo_cfg, "cache_size_limit", 8) or 8)
+                if cur_limit < cache_limit:
+                    dynamo_cfg.cache_size_limit = cache_limit
         except Exception:  # noqa: BLE001
             pass
     return cache_resolved
@@ -417,10 +434,12 @@ def _discover_regional_blocks(
     *,
     min_blocks: int = 4,
 ) -> list[Any]:
-    """Return blocks from all non-overlapping homogeneous-shape `nn.ModuleList` containers."""
+    """Return blocks from all non-overlapping homogeneous-shape `ModuleList`/`Sequential` containers."""
     nn_ns = getattr(torch_mod, "nn", None)
     mod_list_cls = getattr(nn_ns, "ModuleList", None)
-    if mod_list_cls is None or not hasattr(root_mod, "modules"):
+    seq_cls = getattr(nn_ns, "Sequential", None)
+    container_types = tuple(c for c in (mod_list_cls, seq_cls) if c is not None)
+    if not container_types or not hasattr(root_mod, "modules"):
         return []
 
     from ptopt.passes.activation_checkpoint import _is_leaf_primitive_module  # noqa: PLC0415
@@ -428,7 +447,7 @@ def _discover_regional_blocks(
     selected_blocks: list[Any] = []
     owned_submodules: set[int] = set()
     for container in root_mod.modules():
-        if container is root_mod or not isinstance(container, mod_list_cls) or id(container) in owned_submodules:
+        if container is root_mod or not isinstance(container, container_types) or id(container) in owned_submodules:
             continue
         children = list(container.children()) if hasattr(container, "children") else []
         if len(children) < min_blocks:
@@ -480,11 +499,11 @@ def _should_use_auto_regional_compile(
     if env == "1":
         return _discover_regional_blocks(root_mod, torch_mod, min_blocks=4)
 
-    blocks = _discover_regional_blocks(root_mod, torch_mod, min_blocks=8)
+    blocks = _discover_regional_blocks(root_mod, torch_mod, min_blocks=6)
     if not blocks:
         return []
     total_params, _ = _count_module_params_and_elems(root_mod, (), {}, torch_mod)
-    if total_params < 50_000_000:
+    if total_params < 20_000_000:
         return []
     return blocks
 
@@ -696,20 +715,27 @@ def _attempt_compile_regional_blocks(
         return False
 
 
+def _has_conv1d(mod_self: Any, torch_mod: Any) -> bool:
+    c1d_cls = getattr(getattr(torch_mod, "nn", None), "Conv1d", None)
+    if c1d_cls is None or not hasattr(mod_self, "modules"):
+        return False
+    return any(isinstance(sub, c1d_cls) for sub in mod_self.modules())
+
+
 def _disable_cudnn_benchmark_for_dynamic_conv(
     mod_self: Any,
     torch_mod: Any,
     manager: "HookManager",
     reason: str,
 ) -> None:
-    """Disable `cudnn.benchmark` when dynamic shapes hit Conv2d/Conv3d modules."""
+    """Disable `cudnn.benchmark` when dynamic shapes hit Conv1d/Conv2d/Conv3d modules."""
     from ptopt.passes.channels_last import has_conv2d, has_conv3d  # noqa: PLC0415
 
     cudnn_backend = getattr(getattr(torch_mod, "backends", None), "cudnn", None)
     if (
         cudnn_backend is not None
         and getattr(cudnn_backend, "benchmark", False)
-        and (has_conv2d(mod_self, torch_mod) or has_conv3d(mod_self, torch_mod))
+        and (_has_conv1d(mod_self, torch_mod) or has_conv2d(mod_self, torch_mod) or has_conv3d(mod_self, torch_mod))
     ):
         cudnn_backend.benchmark = False
         manager.record_event("runtime.cudnn_benchmark", "FALLBACK", reason)
@@ -717,8 +743,13 @@ def _disable_cudnn_benchmark_for_dynamic_conv(
 
 def _has_explicit_dynamic_override(cfg: OptimizeConfig) -> bool:
     """Return True if user CLI/env explicitly set `compile.dynamic`."""
+    raw_explicit = os.environ.get("PTOPT_EXPLICIT_OVERRIDES", "")
+    if raw_explicit:
+        keys = {k.strip() for k in raw_explicit.split(",") if k.strip()}
+        if "compile.dynamic" in keys:
+            return True
     for entry in getattr(cfg, "rule_trace", None) or ():
-        if isinstance(entry, dict) and entry.get("name") in ("cli_overrides", "env_overrides"):
+        if isinstance(entry, dict) and entry.get("name") in ("cli_overrides", "env_overrides", "explicit_override"):
             changes = entry.get("changes")
             if isinstance(changes, dict) and "compile.dynamic" in changes:
                 return True
@@ -1088,7 +1119,12 @@ def install_auto_compile_hook(
                 target_mod._compiled_call_impl = getattr(target_mod, impl_attr, None)
                 target_mod._ptopt_compile_active = True
                 seen = getattr(target_mod, "_ptopt_seen_shapes", None)
-                if seen is not None and len(seen) < 8:
+                cur_dyn = getattr(target_mod, "_ptopt_compile_dynamic", rt.dynamic)
+                if (
+                    seen is not None
+                    and len(seen) < 8
+                    and (cur_dyn is not True or getattr(target_mod, "_ptopt_train_cg_active", False))
+                ):
                     sig = _shape_signature(args, kwargs, torch_mod)
                     if sig and sig not in seen:
                         seen.add(sig)
@@ -1165,9 +1201,9 @@ def install_auto_compile_hook(
                 except ValueError:
                     max_recomp = 6
                 try:
-                    max_gb = int(os.environ.get("PTOPT_COMPILE_MAX_GRAPH_BREAKS", "24"))
+                    max_gb = int(os.environ.get("PTOPT_COMPILE_MAX_GRAPH_BREAKS", "12"))
                 except ValueError:
-                    max_gb = 24
+                    max_gb = 12
                 recomp_thrash = max_recomp > 0 and mod_r >= max_recomp
                 severe_gb_thrash = max_gb > 0 and mod_gb >= max_gb and (mod_r > 0 or c_steps == 1)
                 if recomp_thrash or severe_gb_thrash:

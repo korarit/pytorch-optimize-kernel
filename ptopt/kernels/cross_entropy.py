@@ -131,11 +131,7 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
         losses = torch.empty((M,), dtype=torch.float32, device=logits.device)
         lse = torch.empty((M,), dtype=torch.float32, device=logits.device)
         need_valid = reduction == "mean"
-        valid_count_i = (
-            torch.zeros((), dtype=torch.int32, device=logits.device)
-            if need_valid
-            else torch.empty((), dtype=torch.int32, device=logits.device)
-        )
+        valid_count_i = torch.empty((), dtype=torch.int32, device=logits.device)
 
         block_v = min(4096, max(128, triton.next_power_of_2(V)))
         warps = 8 if block_v >= 2048 else 4
@@ -149,12 +145,15 @@ class _TritonCrossEntropyFn(torch.autograd.Function):
             targets_1d.stride(0),
             V,
             ignore_index,
-            COUNT_VALID=need_valid,
+            COUNT_VALID=False,
             BLOCK_V=block_v,
             num_warps=warps,
         )
 
-        valid_count_t = valid_count_i.to(torch.float32).clamp(min=1.0) if need_valid else None
+        valid_count_t: torch.Tensor | None = None
+        if need_valid:
+            valid_mask = (targets_1d != ignore_index) & (targets_1d >= 0) & (targets_1d < V)
+            valid_count_t = valid_mask.sum().to(torch.float32).clamp(min=1.0)
 
         ctx.save_for_backward(logits_2d, targets_1d, lse, valid_count_t)
         ctx.ignore_index = ignore_index

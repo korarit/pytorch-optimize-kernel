@@ -6,11 +6,13 @@ import functools
 import math
 import os
 import sys
+import weakref
 from typing import TYPE_CHECKING, Any
 
 from ptopt.config import OptimizeConfig
 from ptopt.hooks.module_dispatch import (
     has_cuda_context,
+    has_float64_context,
     register_module_call_handler,
     unregister_module_call_handler,
 )
@@ -19,13 +21,35 @@ if TYPE_CHECKING:
     from ptopt.hooks.manager import HookManager
 
 _AUTO_AMP_INSTALLED = False
-_OPTIM_STEP_CLASSES = ("Adam", "AdamW", "SGD", "RMSprop", "Adagrad", "NAdam", "RAdam")
+_OPTIM_STEP_CLASSES = (
+    "Adam",
+    "AdamW",
+    "SGD",
+    "RMSprop",
+    "Adagrad",
+    "NAdam",
+    "RAdam",
+    "Adamax",
+    "Adadelta",
+    "ASGD",
+    "LBFGS",
+    "SparseAdam",
+)
 _FUNCTIONAL_LOSS_FP32_SPECS: dict[str, bool] = {
     "cross_entropy": False,
     "nll_loss": False,
     "binary_cross_entropy_with_logits": True,
+    "binary_cross_entropy": True,
     "kl_div": True,
+    "ctc_loss": False,
+    "mse_loss": True,
+    "l1_loss": True,
+    "smooth_l1_loss": True,
+    "huber_loss": True,
+    "gaussian_nll_loss": True,
+    "poisson_nll_loss": True,
 }
+_FFT_FP32_FUNCS = ("rfft", "irfft", "fft", "ifft", "rfft2", "irfft2", "fft2", "ifft2")
 
 
 def _has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
@@ -109,6 +133,137 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
         func_mod._ptopt_amp_orig_losses = orig_losses
 
 
+def _install_fft_stft_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
+    """Force FP32 outside CUDA autocast for stft/fft calls inside ptopt AMP forward passes."""
+    half_dtypes = tuple(
+        dt for dt in (getattr(torch_mod, "float16", None), getattr(torch_mod, "bfloat16", None)) if dt is not None
+    )
+    if not half_dtypes:
+        return
+
+    def _promote_tensor_arg(val: Any) -> Any:
+        return _promote_half_cuda_tensor(val, half_dtypes)
+
+    def _make_fft_guard(base_fn: Any) -> Any:
+        @functools.wraps(base_fn)
+        def _fp32_fft_guard(*args: Any, **kwargs: Any) -> Any:
+            if rt._ptopt_autocast_depth <= 0 or rt.disabled_by_watchdog or rt.user_amp_detected:
+                return base_fn(*args, **kwargs)
+            new_args = tuple(_promote_tensor_arg(a) if i < 2 else a for i, a in enumerate(args))
+            if "window" in kwargs and kwargs["window"] is not None:
+                kwargs = dict(kwargs)
+                kwargs["window"] = _promote_tensor_arg(kwargs["window"])
+            if "input" in kwargs and kwargs["input"] is not None:
+                kwargs = dict(kwargs)
+                kwargs["input"] = _promote_tensor_arg(kwargs["input"])
+            with torch_mod.amp.autocast(device_type="cuda", enabled=False):
+                return base_fn(*new_args, **kwargs)
+
+        return _fp32_fft_guard
+
+    orig_stft = getattr(torch_mod, "stft", None)
+    if callable(orig_stft):
+        torch_mod._ptopt_amp_orig_stft = orig_stft
+        torch_mod.stft = _make_fft_guard(orig_stft)
+
+    fft_mod = getattr(torch_mod, "fft", None)
+    if fft_mod is not None:
+        orig_ffts: dict[str, Any] = {}
+        for fn_name in _FFT_FP32_FUNCS:
+            orig_fn = getattr(fft_mod, fn_name, None)
+            if callable(orig_fn):
+                orig_ffts[fn_name] = orig_fn
+                setattr(fft_mod, fn_name, _make_fft_guard(orig_fn))
+        if orig_ffts:
+            fft_mod._ptopt_amp_orig_ffts = orig_ffts
+
+
+def _install_grad_clip_unscale_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
+    """Ensure GradScaler.unscale_(opt) runs before clip_grad_norm_/clip_grad_value_."""
+    nn_mod = getattr(torch_mod, "nn", None)
+    utils_mod = getattr(nn_mod, "utils", None) if nn_mod is not None else None
+    if utils_mod is None:
+        return
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+
+    def _materialize_and_unscale(parameters: Any) -> Any:
+        if not (
+            rt.use_scaler
+            and rt.scaler is not None
+            and rt._step_scaled
+            and not rt.disabled_by_watchdog
+            and not rt.user_amp_detected
+        ):
+            return parameters
+        if tensor_cls is not None and isinstance(parameters, tensor_cls):
+            param_list = [parameters]
+            return_val: Any = parameters
+        else:
+            try:
+                param_list = list(parameters)
+                return_val = param_list
+            except TypeError:
+                return parameters
+
+        target_ids = {id(p) for p in param_list}
+        if not target_ids:
+            return return_val
+
+        matched_opts: list[Any] = []
+        for opt in list(rt._live_optimizers):
+            try:
+                opt_param_ids = {
+                    id(p)
+                    for grp in getattr(opt, "param_groups", ())
+                    for p in grp.get("params", ())
+                }
+            except Exception:  # noqa: BLE001
+                opt_param_ids = set()
+            if opt_param_ids & target_ids:
+                matched_opts.append(opt)
+
+        if not matched_opts:
+            matched_opts = list(rt._live_optimizers)
+
+        for opt in matched_opts:
+            oid = id(opt)
+            if oid in rt._unscaled_optimizer_ids:
+                continue
+            try:
+                rt.scaler.unscale_(opt)
+                rt._unscaled_optimizer_ids.add(oid)
+                rt._unscaled_this_step = True
+            except RuntimeError:
+                # User or prior clip call already unscaled this optimizer this step
+                rt._unscaled_optimizer_ids.add(oid)
+                rt._unscaled_this_step = True
+            except Exception:  # noqa: BLE001
+                pass
+        return return_val
+
+    def _make_clip_wrapper(base_fn: Any) -> Any:
+        @functools.wraps(base_fn)
+        def _clip_guard(parameters: Any, *args: Any, **kwargs: Any) -> Any:
+            mat_params = _materialize_and_unscale(parameters)
+            return base_fn(mat_params, *args, **kwargs)
+
+        return _clip_guard
+
+    orig_clips: list[tuple[Any, str, Any]] = []
+    for mod in (utils_mod, getattr(utils_mod, "clip_grad", None)):
+        if mod is None:
+            continue
+        for fn_name in ("clip_grad_norm_", "clip_grad_value_"):
+            orig_fn = getattr(mod, fn_name, None)
+            if callable(orig_fn) and not getattr(orig_fn, "_ptopt_is_clip_guard", False):
+                orig_clips.append((mod, fn_name, orig_fn))
+                wrapped = _make_clip_wrapper(orig_fn)
+                wrapped._ptopt_is_clip_guard = True
+                setattr(mod, fn_name, wrapped)
+    if orig_clips:
+        utils_mod._ptopt_amp_orig_clips = orig_clips
+
+
 def _has_conv_or_attention(mod_self: Any, torch_mod: Any) -> bool:
     nn_ns = getattr(torch_mod, "nn", None)
     if nn_ns is None or not hasattr(mod_self, "modules"):
@@ -189,8 +344,14 @@ class AutoAmpRuntime:
         self._step_scaled = False
         self._unscaled_this_step = False
         self._last_forward_skipped_amp = False
+        self._any_amp_forward_this_step = False
+        self._ptopt_autocast_depth = 0
+        self._amp_step_count = 0
         self._module_depth = 0
         self.scaler: Any = None
+        self._live_optimizers: weakref.WeakSet[Any] = weakref.WeakSet()
+        self._unscaled_optimizer_ids: set[int] = set()
+        self._patched_step_classes: list[tuple[Any, Any]] = []
         self._watchdog_buf: Any = None
         self._watchdog_events: list[Any] = [None, None]
         self._watchdog_pending_slot: int | None = None
@@ -200,6 +361,16 @@ class AutoAmpRuntime:
             os.environ.get("PTOPT_AMP_WATCHDOG_SYNC") == "1"
             or bool(getattr(manager, "strict", False))
         )
+        if self.use_scaler or self._watchdog_sync_mode or cfg.profile in ("safe", "supersafe"):
+            self._watchdog_flush_steps = 1
+        else:
+            try:
+                self._watchdog_flush_steps = max(
+                    0,
+                    int(os.environ.get("PTOPT_AMP_WATCHDOG_FLUSH_STEPS", "16")),
+                )
+            except ValueError:
+                self._watchdog_flush_steps = 16
         self._async_watchdog_checks: int = 0
         self._sync_watchdog_checks: int = 0
         if self.use_scaler:
@@ -392,7 +563,21 @@ def install_auto_amp_hook(
         if _is_autocast_active(torch_mod):
             rt.mark_user_amp("torch.amp.autocast")
             return next_fn(mod_self, *args, **kwargs)
-        if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
+        if not getattr(mod_self, "_ptopt_amp_cuda_ok", False):
+            if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
+                return next_fn(mod_self, *args, **kwargs)
+            if hasattr(mod_self, "parameters"):
+                try:
+                    for p in mod_self.parameters():
+                        if getattr(p, "is_cuda", False):
+                            mod_self._ptopt_amp_cuda_ok = True
+                        break
+                except Exception:  # noqa: BLE001
+                    pass
+        if has_float64_context(mod_self, args, kwargs, torch_mod):
+            is_train_fwd = bool(getattr(mod_self, "training", True) and torch_mod.is_grad_enabled())
+            if is_train_fwd:
+                rt._last_forward_skipped_amp = True
             return next_fn(mod_self, *args, **kwargs)
 
         eligible = getattr(mod_self, "_ptopt_amp_eligible", None)
@@ -425,8 +610,13 @@ def install_auto_amp_hook(
 
         if is_train_fwd:
             rt._last_forward_skipped_amp = False
-        with torch_mod.amp.autocast(device_type="cuda", dtype=rt.target_dtype):
-            return next_fn(mod_self, *args, **kwargs)
+            rt._any_amp_forward_this_step = True
+        rt._ptopt_autocast_depth += 1
+        try:
+            with torch_mod.amp.autocast(device_type="cuda", dtype=rt.target_dtype):
+                return next_fn(mod_self, *args, **kwargs)
+        finally:
+            rt._ptopt_autocast_depth -= 1
 
     register_module_call_handler(torch_mod, "amp.auto", 40, _amp_mod_call)
 
@@ -437,9 +627,11 @@ def install_auto_amp_hook(
     def _amp_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
         if rt.disabled_by_watchdog or rt.user_amp_detected:
             return orig_backward(tensor_self, *args, **kwargs)
-        if rt._last_forward_skipped_amp:
+        if rt._last_forward_skipped_amp and not rt._any_amp_forward_this_step:
             rt._last_forward_skipped_amp = False
             return orig_backward(tensor_self, *args, **kwargs)
+        rt._last_forward_skipped_amp = False
+        rt._any_amp_forward_this_step = False
 
         # Enqueue non-blocking stability check so forward->backward never forces a CUDA sync
         if getattr(tensor_self, "is_cuda", False) and not rt.enqueue_loss_stability_check(tensor_self):
@@ -455,6 +647,7 @@ def install_auto_amp_hook(
         ):
             rt._step_scaled = True
             rt._unscaled_this_step = False
+            rt._unscaled_optimizer_ids.clear()
             scaled = rt.scaler.scale(tensor_self)
             return orig_backward(scaled)
 
@@ -463,43 +656,97 @@ def install_auto_amp_hook(
     torch_mod.Tensor._ptopt_amp_orig_backward = orig_backward
     torch_mod.Tensor.backward = _amp_backward
 
-    # 4. Wrap optimizer step() classes for stability check flush + optional fp16 GradScaler.step()
+    # 4. Wrap optimizer step() classes & track live optimizers for grad-clip unscaling
+    def _make_amp_step(base_step: Any) -> Any:
+        @functools.wraps(base_step)
+        def _amp_step(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
+            if rt._in_internal_scaler_step or rt.user_amp_detected or rt.disabled_by_watchdog:
+                return base_step(opt_self, *args, **kwargs)
+            rt._amp_step_count += 1
+            rt._any_amp_forward_this_step = False
+            rt._last_forward_skipped_amp = False
+            need_sync = rt._watchdog_flush_steps == 1 or (
+                rt._watchdog_flush_steps > 0 and rt._amp_step_count % rt._watchdog_flush_steps == 0
+            )
+            if need_sync:
+                if not rt.flush_pending_stability_check():
+                    return None
+            else:
+                if not rt._poll_pending_slot_nonblocking():
+                    return None
+            if not (rt.use_scaler and rt.scaler is not None and rt._step_scaled):
+                return base_step(opt_self, *args, **kwargs)
+            rt._in_internal_scaler_step = True
+            opt_self._ptopt_in_scaler_step = True
+            try:
+                res = rt.scaler.step(opt_self, *args, **kwargs)
+                rt.scaler.update()
+                rt._step_scaled = False
+                rt._unscaled_this_step = False
+                rt._unscaled_optimizer_ids.clear()
+                return res
+            finally:
+                opt_self._ptopt_in_scaler_step = False
+                rt._in_internal_scaler_step = False
+
+        _amp_step._ptopt_is_amp_step = True
+        return _amp_step
+
+    def _patch_optimizer_step(opt_cls: Any) -> None:
+        if opt_cls is None or getattr(opt_cls, "step", None) is None:
+            return
+        cur_step = opt_cls.step
+        if getattr(cur_step, "_ptopt_is_amp_step", False):
+            return
+        if "step" not in getattr(opt_cls, "__dict__", {}) and hasattr(opt_cls, "_ptopt_amp_orig_step"):
+            return
+        opt_cls._ptopt_amp_orig_step = cur_step
+        opt_cls.step = _make_amp_step(cur_step)
+        rt._patched_step_classes.append((opt_cls, cur_step))
+
     optim_mod = getattr(torch_mod, "optim", None)
     if optim_mod is not None:
         for cls_name in _OPTIM_STEP_CLASSES:
             opt_cls = getattr(optim_mod, cls_name, None)
-            if opt_cls is None:
-                continue
-            orig_step = opt_cls.step
+            if opt_cls is not None:
+                _patch_optimizer_step(opt_cls)
 
-            def _make_amp_step(base_step: Any) -> Any:
-                @functools.wraps(base_step)
-                def _amp_step(opt_self: Any, *args: Any, **kwargs: Any) -> Any:
-                    if rt._in_internal_scaler_step or rt.user_amp_detected or rt.disabled_by_watchdog:
-                        return base_step(opt_self, *args, **kwargs)
-                    if not rt.flush_pending_stability_check():
-                        return None
-                    if not (rt.use_scaler and rt.scaler is not None and rt._step_scaled):
-                        return base_step(opt_self, *args, **kwargs)
-                    rt._in_internal_scaler_step = True
-                    opt_self._ptopt_in_scaler_step = True
+        opt_base = getattr(optim_mod, "Optimizer", None)
+        if opt_base is not None:
+            # Also patch already-imported custom Optimizer subclasses
+            stack = [opt_base]
+            seen_subs: set[int] = set()
+            while stack:
+                cls_cur = stack.pop()
+                for sub_cls in getattr(cls_cur, "__subclasses__", lambda: ())():
+                    cid = id(sub_cls)
+                    if cid not in seen_subs:
+                        seen_subs.add(cid)
+                        stack.append(sub_cls)
+                        if "step" in getattr(sub_cls, "__dict__", {}):
+                            _patch_optimizer_step(sub_cls)
+
+            orig_opt_init = opt_base.__init__
+            if not getattr(orig_opt_init, "_ptopt_is_amp_opt_init", False):
+                @functools.wraps(orig_opt_init)
+                def _tracked_opt_init(opt_self: Any, *args: Any, **kwargs: Any) -> None:
+                    orig_opt_init(opt_self, *args, **kwargs)
                     try:
-                        res = rt.scaler.step(opt_self, *args, **kwargs)
-                        rt.scaler.update()
-                        rt._step_scaled = False
-                        rt._unscaled_this_step = False
-                        return res
-                    finally:
-                        opt_self._ptopt_in_scaler_step = False
-                        rt._in_internal_scaler_step = False
+                        rt._live_optimizers.add(opt_self)
+                    except TypeError:
+                        pass
+                    _patch_optimizer_step(type(opt_self))
 
-                return _amp_step
-
-            opt_cls._ptopt_amp_orig_step = orig_step
-            opt_cls.step = _make_amp_step(orig_step)
+                _tracked_opt_init._ptopt_is_amp_opt_init = True
+                opt_base._ptopt_amp_orig_init = orig_opt_init
+                opt_base.__init__ = _tracked_opt_init
 
     # 5. Promote half-precision logits in functional losses invoked outside Module autocast
     _install_functional_loss_fp32_guards(torch_mod, rt)
+
+    # 6. Guard stft/fft in FP32 inside AMP autocast and unscale grads before clip_grad_*
+    _install_fft_stft_fp32_guards(torch_mod, rt)
+    _install_grad_clip_unscale_guards(torch_mod, rt)
 
     _AUTO_AMP_INSTALLED = True
     torch_mod._ptopt_amp_runtime = rt
@@ -511,6 +758,8 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
     global _AUTO_AMP_INSTALLED  # noqa: PLW0603
     if not _AUTO_AMP_INSTALLED or torch_mod is None:
         return
+
+    rt = getattr(torch_mod, "_ptopt_amp_runtime", None)
 
     for ns_cls in (
         getattr(getattr(torch_mod, "amp", None), "GradScaler", None),
@@ -532,8 +781,37 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
             setattr(func_mod, fn_name, orig_fn)
         delattr(func_mod, "_ptopt_amp_orig_losses")
 
+    if hasattr(torch_mod, "_ptopt_amp_orig_stft"):
+        torch_mod.stft = torch_mod._ptopt_amp_orig_stft
+        delattr(torch_mod, "_ptopt_amp_orig_stft")
+
+    fft_mod = getattr(torch_mod, "fft", None)
+    if fft_mod is not None and hasattr(fft_mod, "_ptopt_amp_orig_ffts"):
+        for fn_name, orig_fn in getattr(fft_mod, "_ptopt_amp_orig_ffts").items():
+            setattr(fft_mod, fn_name, orig_fn)
+        delattr(fft_mod, "_ptopt_amp_orig_ffts")
+
+    utils_mod = getattr(getattr(torch_mod, "nn", None), "utils", None)
+    if utils_mod is not None and hasattr(utils_mod, "_ptopt_amp_orig_clips"):
+        for mod, fn_name, orig_fn in getattr(utils_mod, "_ptopt_amp_orig_clips"):
+            setattr(mod, fn_name, orig_fn)
+        delattr(utils_mod, "_ptopt_amp_orig_clips")
+
+    if rt is not None:
+        for opt_cls, orig_step in getattr(rt, "_patched_step_classes", ()):
+            try:
+                opt_cls.step = orig_step
+                if hasattr(opt_cls, "_ptopt_amp_orig_step"):
+                    delattr(opt_cls, "_ptopt_amp_orig_step")
+            except Exception:  # noqa: BLE001
+                pass
+
     optim_mod = getattr(torch_mod, "optim", None)
     if optim_mod is not None:
+        opt_base = getattr(optim_mod, "Optimizer", None)
+        if opt_base is not None and hasattr(opt_base, "_ptopt_amp_orig_init"):
+            opt_base.__init__ = opt_base._ptopt_amp_orig_init
+            delattr(opt_base, "_ptopt_amp_orig_init")
         for cls_name in _OPTIM_STEP_CLASSES:
             opt_cls = getattr(optim_mod, cls_name, None)
             if opt_cls is not None and hasattr(opt_cls, "_ptopt_amp_orig_step"):

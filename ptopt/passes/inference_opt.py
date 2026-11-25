@@ -89,9 +89,9 @@ def _clone_cudagraph_outputs(out: Any, torch_mod: Any, *, max_bytes: int | None 
         return out
     if max_bytes is None:
         try:
-            max_bytes = int(os.environ.get("PTOPT_CG_CLONE_MAX_BYTES", str(64 * 1024 * 1024)))
+            max_bytes = int(os.environ.get("PTOPT_CG_CLONE_MAX_BYTES", str(256 * 1024 * 1024)))
         except ValueError:
-            max_bytes = 64 * 1024 * 1024
+            max_bytes = 256 * 1024 * 1024
 
     total_cuda_bytes = 0
     has_cuda_tensor = False
@@ -345,7 +345,7 @@ def _slice_fp8_calib_inputs(
 
     def _slice_obj(obj: Any) -> Any:
         if isinstance(obj, tensor_cls):
-            if obj.dim() >= 2 and int(obj.shape[0]) == bsz:
+            if obj.dim() >= 1 and int(obj.shape[0]) == bsz:
                 return obj[start:end]
             return obj
         if isinstance(obj, tuple):
@@ -1111,11 +1111,34 @@ def install_inference_opt_hook(
         # Optional CUDA Graphs / reduce-overhead compile for repeated static-shape CUDA eval (isolated from train handle)
         cg_target, is_dp_wrap, _ = resolve_dataparallel_target(mod_self, torch_mod)
 
-        on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
+        on_cuda = getattr(mod_self, "_ptopt_infer_cuda_ok", False)
+        if not on_cuda:
+            on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
+            if on_cuda and hasattr(mod_self, "parameters"):
+                try:
+                    for p in mod_self.parameters():
+                        if getattr(p, "is_cuda", False):
+                            mod_self._ptopt_infer_cuda_ok = True
+                        break
+                except Exception:  # noqa: BLE001
+                    pass
+        loss_base = getattr(getattr(getattr(torch_mod, "nn", None), "modules", None), "loss", None)
+        loss_cls = getattr(loss_base, "_Loss", None) if loss_base is not None else None
+        is_parameterless_non_compilable = False
+        if cg_target is not None:
+            if loss_cls is not None and isinstance(cg_target, loss_cls):
+                is_parameterless_non_compilable = True
+            elif hasattr(cg_target, "parameters"):
+                try:
+                    if next(cg_target.parameters(), None) is None:
+                        is_parameterless_non_compilable = True
+                except Exception:  # noqa: BLE001
+                    pass
         if (
             rt.cuda_graphs_enabled
             and on_cuda
             and cg_target is not None
+            and not is_parameterless_non_compilable
             and callable(getattr(torch_mod, "compile", None))
             and not getattr(cg_target, "_orig_mod", None)
         ):
@@ -1236,8 +1259,13 @@ def install_inference_opt_hook(
                     if manager.strict:
                         raise
             try:
+                cg_active_call = cg_target is not None and getattr(cg_target, "_ptopt_infer_cg_active", False)
+                if cg_active_call:
+                    mark_fn = getattr(getattr(torch_mod, "compiler", None), "cudagraph_mark_step_begin", None)
+                    if callable(mark_fn):
+                        mark_fn()
                 res = next_fn(mod_self, *args, **kwargs)
-                if cg_target is not None and getattr(cg_target, "_ptopt_infer_cg_active", False):
+                if cg_active_call:
                     res = _clone_cudagraph_outputs(res, torch_mod)
                 return res
             except Exception as exc:  # noqa: BLE001

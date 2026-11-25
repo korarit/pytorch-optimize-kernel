@@ -292,12 +292,20 @@ def _patch_functional_cross_entropy(
         label_smoothing: float = 0.0,
     ) -> Any:
         if hasattr(inp, "_ptopt_lazy_linear"):
+            is_int_target = not (callable(getattr(target, "is_floating_point", None)) and target.is_floating_point())
+            shape_ok = (
+                inp.dim() == 2
+                and getattr(target, "dim", lambda: -1)() == 1
+                and int(inp.shape[0]) == int(target.shape[0])
+            )
             if (
                 weight is None
                 and size_average is None
                 and reduce is None
                 and label_smoothing == 0.0
                 and reduction in ("mean", "sum", "none")
+                and is_int_target
+                and shape_ok
             ):
                 try:
                     h, lin_w, lin_b, _out_shape, mm_dt = inp._ptopt_lazy_linear
@@ -328,10 +336,12 @@ def _patch_functional_cross_entropy(
             and size_average is None
             and reduce is None
             and label_smoothing == 0.0
+            and not (callable(getattr(target, "is_floating_point", None)) and target.is_floating_point())
             and getattr(inp, "is_cuda", False)
             and getattr(target, "is_cuda", False)
             and inp.dim() == 2
             and target.dim() == 1
+            and int(inp.shape[0]) == int(target.shape[0])
             and _dtype_name(inp.dtype, torch_mod) in ("fp32", "fp16", "bf16")
             and (not compile_active or inp.numel() >= ce_min_elems or int(inp.shape[-1]) >= 4096)
         ):
@@ -400,8 +410,10 @@ def _patch_module_submodules(
             continue
         cls_lower = type(sub).__name__.lower()
 
-        if eligible.get("rmsnorm") and (
-            (rms_cls is not None and isinstance(sub, rms_cls)) or "rmsnorm" in cls_lower
+        if (
+            eligible.get("rmsnorm")
+            and "gemma" not in cls_lower
+            and ((rms_cls is not None and isinstance(sub, rms_cls)) or "rmsnorm" in cls_lower)
         ):
             weight = getattr(sub, "weight", None)
             if weight is not None and getattr(weight, "is_cuda", False) and weight.dim() == 1:
@@ -412,7 +424,8 @@ def _patch_module_submodules(
                     def _rms_fwd(x: Any) -> Any:
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
-                                return triton_rmsnorm(x, m.weight, eps=float(getattr(m, "eps", 1e-6)))
+                                rms_eps = float(getattr(m, "eps", getattr(m, "variance_epsilon", 1e-6)))
+                                return triton_rmsnorm(x, m.weight, eps=rms_eps)
                             except Exception as exc:  # noqa: BLE001
                                 if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:
                                     raise
@@ -629,6 +642,21 @@ def enable_custom_kernels_on_module(
     return n
 
 
+def _has_explicit_kernels_override(cfg: OptimizeConfig) -> bool:
+    """Return True if user CLI/env explicitly set `kernels.enabled`."""
+    raw_explicit = os.environ.get("PTOPT_EXPLICIT_OVERRIDES", "")
+    if raw_explicit:
+        keys = {k.strip() for k in raw_explicit.split(",") if k.strip()}
+        if "kernels.enabled" in keys:
+            return True
+    for entry in getattr(cfg, "rule_trace", None) or ():
+        if isinstance(entry, dict) and entry.get("name") in ("cli_overrides", "env_overrides", "explicit_override"):
+            changes = entry.get("changes")
+            if isinstance(changes, dict) and "kernels.enabled" in changes:
+                return True
+    return False
+
+
 def install_custom_kernels_hooks(
     cfg: OptimizeConfig,
     manager: "HookManager",
@@ -642,8 +670,10 @@ def install_custom_kernels_hooks(
     if _KERNELS_INSTALLED or torch_mod is None or not hasattr(torch_mod, "nn"):
         return None
     hybrid_lce_env = os.environ.get("PTOPT_HYBRID_LCE", "1") == "1"
+    explicit_kernels = _has_explicit_kernels_override(cfg)
     hybrid_balanced_only = (
         not cfg.kernels.enabled
+        and not explicit_kernels
         and os.environ.get("PTOPT_FORCE_KERNELS") != "1"
         and cfg.profile == "balanced"
         and cfg.compile.enabled
@@ -758,8 +788,10 @@ def apply_custom_kernels_pass(
     """Enable gated custom Triton kernels or balanced Hybrid FusedLinearCE when eligible."""
     tmod = torch_mod if torch_mod is not None else sys.modules.get("torch")
     hybrid_lce_env = os.environ.get("PTOPT_HYBRID_LCE", "1") == "1"
+    explicit_kernels = _has_explicit_kernels_override(cfg)
     hybrid_balanced_eligible = (
         not cfg.kernels.enabled
+        and not explicit_kernels
         and os.environ.get("PTOPT_FORCE_KERNELS") != "1"
         and cfg.profile == "balanced"
         and cfg.compile.enabled

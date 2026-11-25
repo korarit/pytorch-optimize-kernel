@@ -57,25 +57,35 @@ def apply_prelaunch_env(cfg: OptimizeConfig, env: MutableMapping[str, str]) -> l
 
     if (cfg.compile.enabled or cfg.kernels.enabled or cfg.inference.cuda_graphs) and cfg.compile.cache_dir:
         key_info = detect_runtime_cache_key()
-        validated = validate_or_scope_cache_dir(
-            cfg.compile.cache_dir,
-            key_info,
-            write_meta=False,
-            emit_warnings=False,
-        )
-        cache_dir = str(validated.cache_dir)
-        if "TORCHINDUCTOR_CACHE_DIR" not in env or validated.rotated:
-            env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
-            notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
+        existing_inductor_dir = env.get("TORCHINDUCTOR_CACHE_DIR")
+        same_as_cfg_cache = False
+        if existing_inductor_dir is not None:
+            try:
+                same_as_cfg_cache = (
+                    Path(existing_inductor_dir).resolve() == Path(cfg.compile.cache_dir).resolve()
+                )
+            except OSError:
+                same_as_cfg_cache = existing_inductor_dir == cfg.compile.cache_dir
+        if existing_inductor_dir is None or same_as_cfg_cache:
+            validated = validate_or_scope_cache_dir(
+                cfg.compile.cache_dir,
+                key_info,
+                write_meta=False,
+                emit_warnings=False,
+            )
+            cache_dir = str(validated.cache_dir)
+            if existing_inductor_dir is None or validated.rotated:
+                env["TORCHINDUCTOR_CACHE_DIR"] = cache_dir
+                notes.append(f"TORCHINDUCTOR_CACHE_DIR={cache_dir}")
+            triton_dir = str(validated.triton_dir)
+            if "TRITON_CACHE_DIR" not in env or validated.rotated:
+                env["TRITON_CACHE_DIR"] = triton_dir
+                notes.append(f"TRITON_CACHE_DIR={triton_dir}")
+            if validated.rotated:
+                notes.append(f"cache_rotated={key_info.cache_key}")
         env.setdefault("TORCHINDUCTOR_FX_GRAPH_CACHE", "1")
         env.setdefault("TORCHINDUCTOR_AUTOGRAD_CACHE", "1")
         env.setdefault("PTOPT_CACHE_KEY", key_info.cache_key)
-        triton_dir = str(validated.triton_dir)
-        if "TRITON_CACHE_DIR" not in env or validated.rotated:
-            env["TRITON_CACHE_DIR"] = triton_dir
-            notes.append(f"TRITON_CACHE_DIR={triton_dir}")
-        if validated.rotated:
-            notes.append(f"cache_rotated={key_info.cache_key}")
 
     return notes
 

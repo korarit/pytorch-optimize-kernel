@@ -113,6 +113,28 @@ def convert_module_channels_last(module: Any, torch_mod: Any) -> bool:
     return True
 
 
+def _is_conv_dominated_architecture(mod_self: Any, torch_mod: Any) -> bool:
+    """Skip ViT/Attention architectures that only use 1-2 Conv2d layers as patch embeddings."""
+    nn_ns = getattr(torch_mod, "nn", None)
+    if nn_ns is None or not hasattr(mod_self, "modules"):
+        return True
+    c2d_cls = getattr(nn_ns, "Conv2d", None)
+    c3d_cls = getattr(nn_ns, "Conv3d", None)
+    mha_cls = getattr(nn_ns, "MultiheadAttention", None)
+    conv_count = 0
+    has_attention = False
+    for sub in mod_self.modules():
+        if (c2d_cls is not None and isinstance(sub, c2d_cls)) or (c3d_cls is not None and isinstance(sub, c3d_cls)):
+            conv_count += 1
+        elif mha_cls is not None and isinstance(sub, mha_cls):
+            has_attention = True
+        else:
+            cls_name = type(sub).__name__.lower()
+            if "attention" in cls_name or "attn" in cls_name:
+                has_attention = True
+    return not (has_attention and conv_count <= 2)
+
+
 def _has_large_4d_input(
     args: tuple[Any, ...],
     kwargs: dict[str, Any],
@@ -163,6 +185,14 @@ def install_channels_last_hook(
             is_c2d = has_conv2d(mod_self, torch_mod)
             is_c3d = has_conv3d(mod_self, torch_mod)
             if is_c2d or is_c3d:
+                if not _is_conv_dominated_architecture(mod_self, torch_mod):
+                    if manager is not None:
+                        manager.record_event(
+                            "runtime.channels_last",
+                            "SKIPPED",
+                            "Skipped channels_last for Attention/ViT module with <= 2 Conv layers (patch embed)",
+                        )
+                    return next_fn(mod_self, *args, **kwargs)
                 should_convert = min_spatial_area <= 0 or _has_large_4d_input(
                     args,
                     kwargs,

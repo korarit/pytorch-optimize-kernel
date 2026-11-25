@@ -61,20 +61,64 @@ def iter_nested_tensors(
 
 def has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
     """Return True if any module parameter or (possibly nested) input tensor resides on CUDA."""
-    tensor_cls = getattr(torch_mod, "Tensor", None)
-    if tensor_cls is not None:
-        for item in (*args, *kwargs.values()):
-            for tensor in iter_nested_tensors(item, tensor_cls):
-                if getattr(tensor, "is_cuda", False):
-                    return True
     if hasattr(mod_self, "parameters"):
         try:
             first_param = next(mod_self.parameters(), None)
-            if first_param is not None and getattr(first_param, "is_cuda", False):
+            if first_param is not None:
+                if getattr(first_param, "is_cuda", False):
+                    return True
+                # Fast-path: parameterized module on CPU only needs input check if inputs could be CUDA
+        except Exception:  # noqa: BLE001
+            pass
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is not None:
+        for item in args:
+            for tensor in iter_nested_tensors(item, tensor_cls):
+                if getattr(tensor, "is_cuda", False):
+                    return True
+        if kwargs:
+            for item in kwargs.values():
+                for tensor in iter_nested_tensors(item, tensor_cls):
+                    if getattr(tensor, "is_cuda", False):
+                        return True
+    return False
+
+
+def has_float64_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
+    """Return True if module parameters or inputs explicitly use `float64` (double precision)."""
+    fp64 = getattr(torch_mod, "float64", None)
+    if fp64 is None:
+        return False
+    if hasattr(mod_self, "parameters"):
+        try:
+            first_param = next(mod_self.parameters(), None)
+            if first_param is not None and getattr(first_param, "dtype", None) == fp64:
                 return True
         except Exception:  # noqa: BLE001
             pass
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is not None:
+        for item in (*args, *kwargs.values()):
+            for tensor in iter_nested_tensors(item, tensor_cls, max_items=16):
+                if getattr(tensor, "dtype", None) == fp64:
+                    return True
     return False
+
+
+def estimate_module_depth(mod_self: Any) -> int:
+    """Count non-container leaf modules (op depth) for launch-bound compile profitability."""
+    if not hasattr(mod_self, "modules"):
+        return 0
+    try:
+        depth = 0
+        for sub in mod_self.modules():
+            if sub is mod_self:
+                continue
+            if hasattr(sub, "children") and not any(True for _ in sub.children()):
+                depth += 1
+        return depth
+    except Exception:  # noqa: BLE001
+        return 0
 
 
 def has_requires_grad_tensor(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
@@ -164,21 +208,24 @@ class ModuleCallDispatcher:
             return
         dispatcher = self
         orig_call = self._orig_call
+        tls = self._tls
         is_compiling_fn = getattr(getattr(self.torch, "compiler", None), "is_compiling", None)
+        has_is_compiling = callable(is_compiling_fn)
 
         @functools.wraps(orig_call)
         def _unified_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
+            depth = getattr(tls, "depth", 0)
             if (
-                (callable(is_compiling_fn) and is_compiling_fn())
-                or dispatcher._depth > 0
-                or dispatcher._recompute_depth > 0
+                depth > 0
+                or getattr(tls, "recompute_depth", 0) > 0
+                or (has_is_compiling and is_compiling_fn())
             ):
                 return orig_call(mod_self, *args, **kwargs)
-            dispatcher._depth += 1
+            tls.depth = depth + 1
             try:
                 return dispatcher._chain(mod_self, *args, **kwargs)
             finally:
-                dispatcher._depth -= 1
+                tls.depth = depth
 
         self._unified_fn = _unified_mod_call
         self._nn_mod._ptopt_dispatcher_orig_call = orig_call  # type: ignore[attr-defined]

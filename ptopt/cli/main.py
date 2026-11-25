@@ -175,6 +175,7 @@ def build_child_env(
     telemetry_only: bool = False,
     telemetry_out: str | Path | None = None,
     events_out: str | Path | None = None,
+    explicit_overrides: Sequence[str] | None = None,
     base_env: Mapping[str, str] | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, str]:
@@ -196,6 +197,8 @@ def build_child_env(
     env["PTOPT_STRICT"] = "1" if strict else "0"
     env["PTOPT_VERBOSE"] = "1" if verbose else "0"
     env["PTOPT_FALLBACK_REPORT"] = "1" if fallback_report else "0"
+    if explicit_overrides:
+        env["PTOPT_EXPLICIT_OVERRIDES"] = ",".join(dict.fromkeys(explicit_overrides))
     if telemetry_out is not None:
         env["PTOPT_TELEMETRY_OUT"] = str(telemetry_out)
     if events_out is not None:
@@ -268,6 +271,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         events_tmp = Path(raw_tmp)
 
     try:
+        explicit_fields = [t.field_path for t in result.trace if t.layer == "explicit_override"]
         child_env = build_child_env(
             result.config.to_dict(),
             strict=args.strict,
@@ -276,6 +280,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             telemetry_only=args.telemetry_only,
             telemetry_out=args.telemetry_out,
             events_out=events_tmp,
+            explicit_overrides=explicit_fields,
         )
         rc = _launch_subprocess(parsed.command, child_env)
         if args.save_report is not None and events_tmp is not None:

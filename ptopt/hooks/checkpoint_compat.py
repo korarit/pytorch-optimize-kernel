@@ -187,6 +187,31 @@ def sync_all_live_optimizers(torch_mod: Any) -> int:
     return total
 
 
+def _restore_dropped_fp8_weights(mod_self: Any, state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
+    """Reconstruct dequantized weights if `PTOPT_FP8_DROP_BF16_EVAL=1` emptied `.weight.data` before save."""
+    out: OrderedDict[str, Any] = OrderedDict()
+    named_mods = dict(mod_self.named_modules()) if hasattr(mod_self, "named_modules") else {}
+    for key, val in state_dict.items():
+        if (
+            isinstance(key, str)
+            and (key == "weight" or key.endswith(".weight"))
+            and hasattr(val, "numel")
+            and val.numel() == 0
+        ):
+            mod_name = "" if key == "weight" else key[: -len(".weight")]
+            sub = mod_self if mod_name == "" else named_mods.get(mod_name)
+            w_cache = getattr(sub, "_ptopt_fp8_w_cache", None) if sub is not None else None
+            if w_cache is not None and len(w_cache) >= 3:
+                _, w_t, w_scale = w_cache[0], w_cache[1], w_cache[2]
+                out[key] = (w_t.t().float() * w_scale.float()).to(val.dtype)
+                continue
+        out[key] = val
+    metadata = getattr(state_dict, "_metadata", None)
+    if isinstance(metadata, dict):
+        out._metadata = dict(metadata)  # type: ignore[attr-defined]
+    return out
+
+
 def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
     """Install idempotent state_dict/load_state_dict compatibility hooks on `nn.Module` and `optim.Optimizer`."""
     global _COMPAT_INSTALLED  # noqa: PLW0603
@@ -202,6 +227,13 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
         sd = orig_state_dict(mod_self, *args, **kwargs)
         if hasattr(mod_self, "_orig_mod") or any(isinstance(k, str) and _ORIG_MOD_TOKEN in k for k in sd.keys()):
             sd = strip_orig_mod_prefix(sd)
+        has_dropped_fp8 = any(
+            getattr(sub, "_ptopt_fp8_w_cache", None) is not None
+            and getattr(getattr(sub, "weight", None), "numel", lambda: 1)() == 0
+            for sub in (mod_self.modules() if hasattr(mod_self, "modules") else (mod_self,))
+        )
+        if has_dropped_fp8:
+            sd = _restore_dropped_fp8_weights(mod_self, sd)
         has_cl_mod = bool(getattr(mod_self, "_ptopt_channels_last_done", False)) or (
             hasattr(mod_self, "modules")
             and any(getattr(sub, "_ptopt_channels_last_done", False) for sub in mod_self.modules())
