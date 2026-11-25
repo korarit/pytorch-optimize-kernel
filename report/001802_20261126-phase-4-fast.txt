@@ -1,0 +1,48 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.3 AUTOMATED REGRESSION GATE REPORT (FAST CPU / CI GATE)
+==============================================================================
+Timestamp          : 2026-11-26 00:18:02 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize/kernel-pytorch-optimize
+Git Branch/Commit  : main @ c85d6dc
+Gate Mode          : fast
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+
+[Regression Gate Suites]
+------------------------------------------------------------------------------
+Stage                                        | Scope                                             | Duration | Status | Details                        
+---------------------------------------------+---------------------------------------------------+----------+--------+--------------------------------
+CLI: ptopt --doctor                          | Hardware probe & diagnostics                      | 0.11s    | PASS   | Checks & summary OK            
+CLI: ptopt --explain                         | Hardware probe & diagnostics                      | 0.11s    | PASS   | Checks & summary OK            
+Unit Suite (tests/unit)                      | Config, detect, passes, kernels, doctor, migrator | 103.06s  | PASS   | Ran 197 tests in 100.335s -> OK
+Migrate: test_checkpoint_compat.py           | fast gate                                         | 16.33s   | PASS   | Ran 2 tests in 15.102s -> OK   
+Migrate: test_checkpoint_migration_matrix.py | fast gate                                         | 25.01s   | PASS   | Ran 1 test in 23.771s -> OK    
+Migrate: test_code_migration_matrix.py       | fast gate                                         | 24.51s   | PASS   | Ran 1 test in 23.270s -> OK    
+Migrate: test_config_cache_migration.py      | fast gate                                         | 6.23s    | PASS   | Ran 2 tests in 4.950s -> OK    
+Migrate: test_phase3_1_runtime_channels.py   | fast gate                                         | 17.76s   | PASS   | Ran 2 tests in 16.484s -> OK   
+Migrate: test_phase3_2_dataloader.py         | fast gate                                         | 11.98s   | PASS   | Ran 1 test in 10.689s -> OK    
+Migrate: test_phase3_3_amp_fusion.py         | fast gate                                         | 18.46s   | PASS   | Ran 2 tests in 17.208s -> OK   
+Migrate: test_phase3_6_inference.py          | fast gate                                         | 16.79s   | PASS   | Ran 2 tests in 15.521s -> OK   
+Migrate: test_phase3_7_kernels.py            | fast gate                                         | 12.72s   | PASS   | Ran 1 test in 11.412s -> OK    
+Migrate: test_phase5_4_train_cudagraphs.py   | fast gate                                         | 20.75s   | PASS   | Ran 2 tests in 19.432s -> OK   
+Migrate: test_script_migration.py            | fast gate                                         | 24.19s   | PASS   | Ran 1 test in 22.928s -> OK    
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+None — all regression gate checks passed cleanly.
+
+[Final Gate Verdict]
+------------------------------------------------------------------------------
+Gate Mode             : fast
+Stages Passed         : 14/14
+Smoke Benchmark       : SKIPPED (fast mode)
+Suite Wall Time       : 298.02s
+Overall Verdict       : PASS
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Fast CI gate complete)
+==============================================================================

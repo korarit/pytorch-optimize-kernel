@@ -1,0 +1,74 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | PHASE 4.3 AUTOMATED REGRESSION GATE REPORT (FAST CPU / CI GATE)
+==============================================================================
+Timestamp          : 2026-11-25 23:48:50 +07
+Repo Root          : /home/korarit/Desktop/kernel-pytouch-optimize/kernel-pytorch-optimize
+Git Branch/Commit  : main @ 9eb11f7
+Gate Mode          : fast
+Google Colab       : False
+GPU / Backend      : CPU-only | cpu
+Python / PyTorch   : 3.12.3 | 2.15.0+cpu
+CUDA / Triton      : N/A | N/A
+Runtime Cache Key  : cpu-pt2.15.0_cpu-trnone-aafeeb5092dc
+
+[Regression Gate Suites]
+------------------------------------------------------------------------------
+Stage                                        | Scope                                             | Duration | Status | Details                                      
+---------------------------------------------+---------------------------------------------------+----------+--------+----------------------------------------------
+CLI: ptopt --doctor                          | Hardware probe & diagnostics                      | 0.10s    | PASS   | Checks & summary OK                          
+CLI: ptopt --explain                         | Hardware probe & diagnostics                      | 0.09s    | PASS   | Checks & summary OK                          
+Unit Suite (tests/unit)                      | Config, detect, passes, kernels, doctor, migrator | 102.05s  | FAIL   | Ran 190 tests in 99.293s -> FAILED (errors=1)
+Migrate: test_checkpoint_compat.py           | fast gate                                         | 16.67s   | PASS   | Ran 2 tests in 15.417s -> OK                 
+Migrate: test_checkpoint_migration_matrix.py | fast gate                                         | 26.16s   | PASS   | Ran 1 test in 24.951s -> OK                  
+Migrate: test_code_migration_matrix.py       | fast gate                                         | 24.94s   | PASS   | Ran 1 test in 23.690s -> OK                  
+Migrate: test_config_cache_migration.py      | fast gate                                         | 6.07s    | PASS   | Ran 2 tests in 4.813s -> OK                  
+Migrate: test_phase3_1_runtime_channels.py   | fast gate                                         | 16.96s   | PASS   | Ran 2 tests in 15.757s -> OK                 
+Migrate: test_phase3_2_dataloader.py         | fast gate                                         | 11.63s   | PASS   | Ran 1 test in 10.405s -> OK                  
+Migrate: test_phase3_3_amp_fusion.py         | fast gate                                         | 17.35s   | PASS   | Ran 2 tests in 16.131s -> OK                 
+Migrate: test_phase3_6_inference.py          | fast gate                                         | 16.13s   | PASS   | Ran 2 tests in 14.834s -> OK                 
+Migrate: test_phase3_7_kernels.py            | fast gate                                         | 12.53s   | PASS   | Ran 1 test in 11.215s -> OK                  
+Migrate: test_phase5_4_train_cudagraphs.py   | fast gate                                         | 21.76s   | PASS   | Ran 2 tests in 20.410s -> OK                 
+Migrate: test_script_migration.py            | fast gate                                         | 25.95s   | PASS   | Ran 1 test in 24.677s -> OK                  
+
+[Failure Diagnostics & Traces]
+------------------------------------------------------------------------------
+t_and_full_formats) ... ok
+test_discover_migrate_files_fast_excludes_heavy_cpu_compile (test_run_gate.TestRegressionGate.test_discover_migrate_files_fast_excludes_heavy_cpu_compile) ... ok
+test_run_gate_cli_help (test_run_gate.TestRegressionGate.test_run_gate_cli_help) ... ok
+test_smoke_benchmark_merges_telemetry_without_signature_error (test_run_gate.TestRegressionGate.test_smoke_benchmark_merges_telemetry_without_signature_error) ... ok
+test_report_generation_handles_pass_and_fail (test_telemetry_and_bench.TestBenchmarkReportFormatter.test_report_generation_handles_pass_and_fail) ... ok
+test_collector_captures_steps_and_losses (test_telemetry_and_bench.TestTelemetryHookDummyLoop.test_collector_captures_steps_and_losses) ... ok
+test_collector_unscales_grad_scaler_losses (test_telemetry_and_bench.TestTelemetryHookDummyLoop.test_collector_unscales_grad_scaler_losses) ... ok
+test_parity_pass_fail_and_nan (test_telemetry_and_bench.TestTelemetryMathAndParity.test_parity_pass_fail_and_nan) ... ok
+test_percentile_and_step_stats (test_telemetry_and_bench.TestTelemetryMathAndParity.test_percentile_and_step_stats) ... ok
+test_speedup_and_vram_delta (test_telemetry_and_bench.TestTelemetryMathAndParity.test_speedup_and_vram_delta) ... ok
+test_all_workloads_cpu_smoke_and_determinism (test_workloads.TestWorkloadsPureAndDeterministic.test_all_workloads_cpu_smoke_and_determinism) ... ok
+test_checkpoint_save_and_resume_roundtrip (test_workloads.TestWorkloadsPureAndDeterministic.test_checkpoint_save_and_resume_roundtrip) ... ok
+test_workloads_do_not_import_wrapper (test_workloads.TestWorkloadsPureAndDeterministic.test_workloads_do_not_import_wrapper) ... ok
+
+======================================================================
+ERROR: test_zero_sync_async_watchdog_flushes_at_optimizer_step_without_backward_sync (test_pass_optimizer_amp.TestAutoAmpPass.test_zero_sync_async_watchdog_flushes_at_optimizer_step_without_backward_sync)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/korarit/Desktop/kernel-pytouch-optimize/kernel-pytorch-optimize/tests/unit/test_pass_optimizer_amp.py", line 455, in test_zero_sync_async_watchdog_flushes_at_optimizer_step_without_backward_sync
+    self.assertFalse(events_created[-1].synced)
+                     ~~~~~~~~~~~~~~^^^^
+IndexError: list index out of range
+
+----------------------------------------------------------------------
+Ran 190 tests in 99.293s
+
+FAILED (errors=1)
+
+[Final Gate Verdict]
+------------------------------------------------------------------------------
+Gate Mode             : fast
+Stages Passed         : 13/14
+Smoke Benchmark       : SKIPPED (fast mode)
+Suite Wall Time       : 298.38s
+Overall Verdict       : FAIL
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : NEEDS_FIX (Fast CI gate complete)
+==============================================================================
