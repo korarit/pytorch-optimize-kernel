@@ -1,0 +1,5 @@
+[ptopt fallback/hook summary]
+  profile=baseline | exit_code=0 | cmd=/usr/bin/python3 train.py --data-dir /tmp/timm_dummy_data --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --output /tmp/timm_out
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)

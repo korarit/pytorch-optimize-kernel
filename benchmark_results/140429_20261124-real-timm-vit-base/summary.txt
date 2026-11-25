@@ -1,0 +1,433 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-24 14:04:29 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 40554b6
+Targets            : 1
+Total Runs         : 9
+Comparisons        : 8
+Overall Status     : PASS
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target        | Arm               | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)         | VRAM MB (B->A/d)         | LossRel      | Stdout Metrics | Audit        | Status
+--------------+-------------------+-------+-------+----------------+----------+-------------------------+--------------------------+--------------+----------------+--------------+-------
+timm-vit-base | safe              | none  | train | 479.24->484.93 | 0.99x    | 61.68s->61.11s (1.01x)  | 8092.0->8121.4 (+29.4)   | 2.8e-05      | loss=4.71      | A:10 S:4 F:0 | PASS  
+timm-vit-base | balanced          | cold  | train | 479.24->222.83 | 2.15x    | 61.68s->81.46s (0.76x)  | 8092.0->5016.1 (-3076.0) | 0.000249     | loss=4.71      | A:17 S:1 F:0 | PASS  
+timm-vit-base | balanced          | warm  | train | 479.24->225.58 | 2.12x    | 61.68s->43.73s (1.41x)  | 8092.0->5016.1 (-3076.0) | 0.000249     | loss=4.71      | A:17 S:1 F:0 | PASS  
+timm-vit-base | aggressive        | cold  | train | 479.24->226.13 | 2.12x    | 61.68s->342.54s (0.18x) | 8092.0->5016.1 (-3076.0) | 0.000376     | loss=4.71      | A:18 S:6 F:0 | PASS  
+timm-vit-base | aggressive        | warm  | train | 479.24->222.50 | 2.15x    | 61.68s->44.07s (1.40x)  | 8092.0->5016.1 (-3076.0) | 0.000359     | loss=4.71      | A:18 S:6 F:0 | PASS  
+timm-vit-base | native_opt        | none  | train | 479.24->252.84 | 1.90x    | 61.68s->52.02s (1.19x)  | 8092.0->5059.1 (-3032.9) | 65537.243652 | loss=4.71      | A:0 S:1 F:0  | PASS  
+timm-vit-base | conflict:balanced | cold  | train | 479.24->239.75 | 2.00x    | 61.68s->82.19s (0.75x)  | 8092.0->5039.6 (-3052.4) | 65536.616415 | loss=4.71      | A:16 S:3 F:0 | PASS  
+timm-vit-base | conflict:balanced | warm  | train | 479.24->240.05 | 2.00x    | 61.68s->45.51s (1.35x)  | 8092.0->5039.6 (-3052.4) | 65536.616415 | loss=4.71      | A:16 S:3 F:0 | PASS  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target        | Arm/Cache              | Step0 ms | Data/Other | Forward      | Loss/Clip | Backward     | Optim      | Steady Tot
+--------------+------------------------+----------+------------+--------------+-----------+--------------+------------+-----------
+timm-vit-base | baseline/none          | 6102.6   | 6.98 (1%)  | 141.59 (28%) | 0.65 (0%) | 328.49 (66%) | 22.09 (4%) | 499.81    
+timm-vit-base | safe/none              | 6050.9   | 2.28 (0%)  | 146.22 (30%) | 0.65 (0%) | 326.31 (67%) | 8.39 (2%)  | 483.84    
+timm-vit-base | balanced/cold          | 38890.0  | 2.44 (1%)  | 71.11 (32%)  | 0.41 (0%) | 143.01 (63%) | 8.48 (4%)  | 225.46    
+timm-vit-base | balanced/warm          | 10950.9  | 2.35 (1%)  | 71.21 (32%)  | 0.41 (0%) | 143.10 (64%) | 8.44 (4%)  | 225.52    
+timm-vit-base | aggressive/cold        | 281452.9 | 2.37 (1%)  | 71.73 (32%)  | 0.43 (0%) | 141.71 (63%) | 8.54 (4%)  | 224.79    
+timm-vit-base | aggressive/warm        | 11211.2  | 2.31 (1%)  | 71.37 (32%)  | 0.40 (0%) | 140.54 (63%) | 8.43 (4%)  | 223.06    
+timm-vit-base | native_opt/none        | 10612.4  | 7.49 (3%)  | 67.77 (27%)  | 4.38 (2%) | 152.19 (60%) | 21.90 (9%) | 253.72    
+timm-vit-base | conflict:balanced/cold | 38343.9  | 2.54 (1%)  | 71.78 (30%)  | 4.25 (2%) | 150.57 (63%) | 9.96 (4%)  | 239.09    
+timm-vit-base | conflict:balanced/warm | 11234.6  | 2.66 (1%)  | 71.49 (30%)  | 4.22 (2%) | 150.97 (63%) | 9.92 (4%)  | 239.26    
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target        | Arm/Cache              | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+--------------+------------------------+----------------+--------+--------+------------+--------------------+--------------
+timm-vit-base | balanced/cold          | 3/3            | 3      | 0      | 0          | 0/4                | 0/3          
+timm-vit-base | balanced/warm          | 3/3            | 3      | 0      | 0          | 4/0                | 3/0          
+timm-vit-base | aggressive/cold        | 3/3            | 3      | 0      | 0          | 0/4                | 0/3          
+timm-vit-base | aggressive/warm        | 3/3            | 3      | 0      | 0          | 4/0                | 3/0          
+timm-vit-base | native_opt/none        | 2/2            | 2      | 0      | 0          | 3/0                | 2/0          
+timm-vit-base | conflict:balanced/cold | 3/3            | 3      | 0      | 0          | 0/3                | 0/3          
+timm-vit-base | conflict:balanced/warm | 3/3            | 3      | 0      | 0          | 3/0                | 2/1          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target        | Arm/Cache              | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+--------------+------------------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+timm-vit-base | baseline/none          | 8092.0/8756.0 | 664.0       | 13807.1     | 38.8%     | 0/0         | 9024.0   | 83.2%       
+timm-vit-base | safe/none              | 8121.4/8360.0 | 238.6       | 14203.1     | 37.0%     | 0/0         | 8628.0   | 84.0%       
+timm-vit-base | balanced/cold          | 5016.1/5338.0 | 321.9       | 17225.1     | 23.7%     | 0/0         | 5612.0   | 33.1%       
+timm-vit-base | balanced/warm          | 5016.1/5378.0 | 361.9       | 17185.1     | 23.8%     | 0/0         | 5652.0   | 54.1%       
+timm-vit-base | aggressive/cold        | 5016.1/5318.0 | 301.9       | 17245.1     | 23.6%     | 0/0         | 5950.0   | 17.0%       
+timm-vit-base | aggressive/warm        | 5016.1/5398.0 | 381.9       | 17165.1     | 23.9%     | 0/0         | 5672.0   | 53.6%       
+timm-vit-base | native_opt/none        | 5059.1/5532.0 | 465.2       | 17041.1     | 24.5%     | 0/0         | 5854.0   | 49.2%       
+timm-vit-base | conflict:balanced/cold | 5039.6/5338.0 | 298.4       | 17225.1     | 23.7%     | 0/0         | 5612.0   | 34.3%       
+timm-vit-base | conflict:balanced/warm | 5039.6/5378.0 | 318.4       | 17205.1     | 23.8%     | 0/0         | 5652.0   | 54.7%       
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target        | Arm/Cache              | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+--------------+------------------------+-----------------+--------------------+-------------+-----------+------------------
+timm-vit-base | baseline/none          | -               | -                  | -           | -         | 13807.1 (38.8%)  
+timm-vit-base | safe/none              | -               | -                  | -           | -         | 14203.1 (37.0%)  
+timm-vit-base | balanced/cold          | -               | -                  | off         | -         | 17225.1 (23.7%)  
+timm-vit-base | balanced/warm          | -               | -                  | off         | -         | 17185.1 (23.8%)  
+timm-vit-base | aggressive/cold        | -               | -                  | off         | -         | 21233.1 (5.9%)   
+timm-vit-base | aggressive/warm        | -               | -                  | off         | -         | 21313.1 (5.5%)   
+timm-vit-base | native_opt/none        | -               | -                  | -           | -         | 17041.1 (24.5%)  
+timm-vit-base | conflict:balanced/cold | -               | -                  | off         | -         | 17225.1 (23.7%)  
+timm-vit-base | conflict:balanced/warm | -               | -                  | off         | -         | 17205.1 (23.8%)  
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- timm-vit-base [baseline/none] (total_cuda=2964.468ms, total_cpu=1442.582ms) ---
+  CUDA  15.0% | self= 445.943ms | calls=  294 | aten::mm
+  CUDA   7.7% | self= 229.142ms | calls=  147 | aten::addmm
+  CUDA   7.4% | self= 219.307ms | calls=   36 | aten::_efficient_attention_backward
+  CUDA   7.4% | self= 219.307ms | calls=   36 | fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch
+  CUDA   7.3% | self= 217.286ms | calls=  144 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   5.2% | self= 152.685ms | calls=  108 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   4.5% | self= 134.758ms | calls=   72 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   3.2% | self=  94.335ms | calls=   72 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CPU   90.8% | self=1309.401ms | calls=   18 | cudaDeviceSynchronize
+  CPU    0.8% | self=  11.248ms | calls= 1083 | cudaLaunchKernel
+  CPU    0.7% | self=   9.689ms | calls=  294 | aten::mm
+  CPU    0.5% | self=   7.538ms | calls=  147 | aten::addmm
+  CPU    0.4% | self=   6.107ms | calls=  826 | aten::empty
+  CPU    0.4% | self=   5.276ms | calls=  192 | aten::sum
+  CPU    0.4% | self=   5.273ms | calls=    9 | cudaMemcpyAsync
+  CPU    0.3% | self=   4.385ms | calls= 1281 | aten::transpose
+--- timm-vit-base [safe/none] (total_cuda=2828.915ms, total_cpu=1386.059ms) ---
+  CUDA  15.5% | self= 438.720ms | calls=  294 | aten::mm
+  CUDA   8.2% | self= 231.664ms | calls=  147 | aten::addmm
+  CUDA   7.6% | self= 214.781ms | calls=   36 | aten::_efficient_attention_backward
+  CUDA   7.6% | self= 214.781ms | calls=   36 | fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch
+  CUDA   7.6% | self= 213.715ms | calls=  144 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   5.3% | self= 149.942ms | calls=  108 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   4.8% | self= 136.319ms | calls=   72 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CUDA   3.4% | self=  95.298ms | calls=   72 | void cutlass::Kernel2<cutlass_80_tensorop_s1688g
+  CPU   90.7% | self=1256.810ms | calls=   18 | cudaDeviceSynchronize
+  CPU    0.9% | self=  11.791ms | calls= 1068 | cudaLaunchKernel
+  CPU    0.7% | self=   9.398ms | calls=  294 | aten::mm
+  CPU    0.6% | self=   8.446ms | calls=  147 | aten::addmm
+  CPU    0.5% | self=   6.513ms | calls=  825 | aten::empty
+  CPU    0.4% | self=   6.194ms | calls=    3 | Activity Buffer Request
+  CPU    0.4% | self=   5.379ms | calls=  192 | aten::sum
+  CPU    0.3% | self=   4.681ms | calls= 1281 | aten::transpose
+--- timm-vit-base [balanced/cold] (total_cuda=1920.352ms, total_cpu=656.533ms) ---
+  CUDA  21.9% | self= 421.230ms | calls=    3 | ## Call CompiledFxGraph fixami2f2lceuoljsgmz37jc
+  CUDA  11.8% | self= 225.774ms | calls=  294 | aten::mm
+  CUDA  10.2% | self= 196.607ms | calls=    3 | ## Call CompiledFxGraph fxrqdvi6c4nvrrozeyxn7k5u
+  CUDA   6.0% | self= 115.790ms | calls=  144 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   5.4% | self= 104.285ms | calls=  147 | aten::addmm
+  CUDA   3.8% | self=  72.199ms | calls=   72 | ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta
+  CUDA   3.6% | self=  69.374ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f
+  CUDA   3.1% | self=  60.307ms | calls=   36 | aten::_flash_attention_backward
+  CPU   75.3% | self= 494.168ms | calls=   18 | cudaDeviceSynchronize
+  CPU    6.1% | self=  40.141ms | calls=    3 | ## Call CompiledFxGraph fixami2f2lceuoljsgmz37jc
+  CPU    3.6% | self=  23.773ms | calls=    3 | ## Call CompiledFxGraph fxrqdvi6c4nvrrozeyxn7k5u
+  CPU    1.6% | self=  10.295ms | calls= 1158 | cuLaunchKernel
+  CPU    1.5% | self=   9.606ms | calls=  294 | aten::mm
+  CPU    1.1% | self=   6.901ms | calls=  714 | cudaLaunchKernel
+  CPU    1.0% | self=   6.421ms | calls=    3 | Activity Buffer Request
+  CPU    0.8% | self=   5.415ms | calls=  147 | aten::addmm
+--- timm-vit-base [balanced/warm] (total_cuda=1915.967ms, total_cpu=657.656ms) ---
+  CUDA  21.8% | self= 418.407ms | calls=    3 | ## Call CompiledFxGraph fixami2f2lceuoljsgmz37jc
+  CUDA  11.7% | self= 223.432ms | calls=  294 | aten::mm
+  CUDA  10.3% | self= 198.280ms | calls=    3 | ## Call CompiledFxGraph fxrqdvi6c4nvrrozeyxn7k5u
+  CUDA   6.0% | self= 114.588ms | calls=  144 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   5.6% | self= 106.428ms | calls=  147 | aten::addmm
+  CUDA   3.7% | self=  71.405ms | calls=   72 | ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta
+  CUDA   3.7% | self=  70.832ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f
+  CUDA   3.1% | self=  60.309ms | calls=   36 | aten::_flash_attention_backward
+  CPU   73.9% | self= 486.039ms | calls=   18 | cudaDeviceSynchronize
+  CPU    6.7% | self=  43.862ms | calls=    3 | ## Call CompiledFxGraph fixami2f2lceuoljsgmz37jc
+  CPU    3.8% | self=  24.847ms | calls=    3 | ## Call CompiledFxGraph fxrqdvi6c4nvrrozeyxn7k5u
+  CPU    1.6% | self=  10.828ms | calls= 1158 | cuLaunchKernel
+  CPU    1.6% | self=  10.373ms | calls=  294 | aten::mm
+  CPU    1.1% | self=   7.412ms | calls=  714 | cudaLaunchKernel
+  CPU    0.9% | self=   6.053ms | calls=    3 | Activity Buffer Request
+  CPU    0.9% | self=   5.684ms | calls=  147 | aten::addmm
+--- timm-vit-base [aggressive/cold] (total_cuda=1905.828ms, total_cpu=654.632ms) ---
+  CUDA  21.9% | self= 417.709ms | calls=    3 | ## Call CompiledFxGraph f3ytmombrfudqh7wvvqmnm3v
+  CUDA  12.1% | self= 230.229ms | calls=  294 | aten::mm
+  CUDA  10.3% | self= 196.268ms | calls=    3 | ## Call CompiledFxGraph fsoftvvcetvvqzn7goxs42vj
+  CUDA   6.2% | self= 118.126ms | calls=  144 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   5.5% | self= 104.024ms | calls=  147 | aten::addmm
+  CUDA   3.9% | self=  73.523ms | calls=   72 | ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta
+  CUDA   3.6% | self=  69.321ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f
+  CUDA   3.2% | self=  60.395ms | calls=   36 | aten::_flash_attention_backward
+  CPU   70.4% | self= 461.028ms | calls=   18 | cudaDeviceSynchronize
+  CPU    8.1% | self=  53.042ms | calls=    3 | ## Call CompiledFxGraph f3ytmombrfudqh7wvvqmnm3v
+  CPU    3.9% | self=  25.638ms | calls=    3 | ## Call CompiledFxGraph fsoftvvcetvvqzn7goxs42vj
+  CPU    2.0% | self=  12.774ms | calls= 1158 | cuLaunchKernel
+  CPU    1.8% | self=  11.521ms | calls=  294 | aten::mm
+  CPU    1.3% | self=   8.533ms | calls=  714 | cudaLaunchKernel
+  CPU    0.9% | self=   5.706ms | calls=    3 | Activity Buffer Request
+  CPU    0.8% | self=   5.493ms | calls=  147 | aten::addmm
+--- timm-vit-base [aggressive/warm] (total_cuda=1896.025ms, total_cpu=650.223ms) ---
+  CUDA  21.7% | self= 411.420ms | calls=    3 | ## Call CompiledFxGraph f3ytmombrfudqh7wvvqmnm3v
+  CUDA  11.9% | self= 226.214ms | calls=  294 | aten::mm
+  CUDA  10.5% | self= 198.648ms | calls=    3 | ## Call CompiledFxGraph fsoftvvcetvvqzn7goxs42vj
+  CUDA   6.1% | self= 115.969ms | calls=  144 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   5.6% | self= 106.337ms | calls=  147 | aten::addmm
+  CUDA   3.8% | self=  72.210ms | calls=   72 | ampere_bf16_s16816gemm_bf16_128x128_ldg8_f2f_sta
+  CUDA   3.7% | self=  70.899ms | calls=  108 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_relu_f2f
+  CUDA   3.2% | self=  60.078ms | calls=   36 | aten::_flash_attention_backward
+  CPU   73.3% | self= 476.731ms | calls=   18 | cudaDeviceSynchronize
+  CPU    7.0% | self=  45.613ms | calls=    3 | ## Call CompiledFxGraph f3ytmombrfudqh7wvvqmnm3v
+  CPU    3.7% | self=  24.125ms | calls=    3 | ## Call CompiledFxGraph fsoftvvcetvvqzn7goxs42vj
+  CPU    1.7% | self=  11.155ms | calls= 1158 | cuLaunchKernel
+  CPU    1.6% | self=  10.595ms | calls=  294 | aten::mm
+  CPU    1.1% | self=   7.473ms | calls=  714 | cudaLaunchKernel
+  CPU    0.8% | self=   5.365ms | calls=  147 | aten::addmm
+  CPU    0.7% | self=   4.817ms | calls=  150 | aten::sum
+--- timm-vit-base [native_opt/none] (total_cuda=2095.688ms, total_cpu=725.059ms) ---
+  CUDA  20.7% | self= 433.840ms | calls=    3 | ## Call CompiledFxGraph fxvtm7hbujllh45q5swlkik5
+  CUDA  11.4% | self= 238.030ms | calls=  294 | aten::mm
+  CUDA   9.3% | self= 194.914ms | calls=    3 | ## Call CompiledFxGraph fvayki4jhypy32u3urjpaan4
+  CUDA   5.8% | self= 122.265ms | calls=  144 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_f2f_stag
+  CUDA   4.9% | self= 103.436ms | calls=  147 | aten::addmm
+  CUDA   3.6% | self=  76.098ms | calls=   72 | ampere_fp16_s16816gemm_fp16_128x128_ldg8_f2f_sta
+  CUDA   3.3% | self=  68.228ms | calls=  108 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_relu_f2f
+  CUDA   3.1% | self=  64.871ms | calls=    3 | Optimizer.step#SGD.step
+  CPU   74.5% | self= 540.386ms | calls=   18 | cudaDeviceSynchronize
+  CPU    5.9% | self=  42.874ms | calls=    3 | ## Call CompiledFxGraph fxvtm7hbujllh45q5swlkik5
+  CPU    2.9% | self=  21.113ms | calls=    3 | ## Call CompiledFxGraph fvayki4jhypy32u3urjpaan4
+  CPU    1.5% | self=  10.608ms | calls=  294 | aten::mm
+  CPU    1.5% | self=  10.559ms | calls= 1140 | cuLaunchKernel
+  CPU    1.2% | self=   8.672ms | calls=  814 | cudaLaunchKernel
+  CPU    1.2% | self=   8.517ms | calls=    8 | cudaStreamSynchronize
+  CPU    0.8% | self=   5.544ms | calls=  147 | aten::addmm
+--- timm-vit-base [conflict:balanced/cold] (total_cuda=2009.227ms, total_cpu=688.362ms) ---
+  CUDA  21.7% | self= 436.546ms | calls=    3 | ## Call CompiledFxGraph flycyp64vgixjgdxct6e6kjz
+  CUDA  12.0% | self= 240.493ms | calls=  294 | aten::mm
+  CUDA  10.0% | self= 200.979ms | calls=    3 | ## Call CompiledFxGraph fty6dtgne7rpdfjfqv4sqcph
+  CUDA   6.2% | self= 123.611ms | calls=  144 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_f2f_stag
+  CUDA   5.4% | self= 108.757ms | calls=  147 | aten::addmm
+  CUDA   3.8% | self=  76.830ms | calls=   72 | ampere_fp16_s16816gemm_fp16_128x128_ldg8_f2f_sta
+  CUDA   3.6% | self=  72.265ms | calls=  108 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_relu_f2f
+  CUDA   3.0% | self=  60.641ms | calls=   36 | aten::_flash_attention_backward
+  CPU   76.9% | self= 529.174ms | calls=   18 | cudaDeviceSynchronize
+  CPU    5.8% | self=  39.956ms | calls=    3 | ## Call CompiledFxGraph flycyp64vgixjgdxct6e6kjz
+  CPU    3.2% | self=  21.853ms | calls=    3 | ## Call CompiledFxGraph fty6dtgne7rpdfjfqv4sqcph
+  CPU    1.5% | self=  10.190ms | calls= 1155 | cuLaunchKernel
+  CPU    1.4% | self=   9.746ms | calls=  294 | aten::mm
+  CPU    1.0% | self=   7.184ms | calls=  739 | cudaLaunchKernel
+  CPU    0.9% | self=   6.164ms | calls=    3 | Activity Buffer Request
+  CPU    0.8% | self=   5.478ms | calls=  147 | aten::addmm
+--- timm-vit-base [conflict:balanced/warm] (total_cuda=2010.899ms, total_cpu=689.28ms) ---
+  CUDA  21.8% | self= 437.861ms | calls=    3 | ## Call CompiledFxGraph flycyp64vgixjgdxct6e6kjz
+  CUDA  12.0% | self= 241.848ms | calls=  294 | aten::mm
+  CUDA  10.0% | self= 200.328ms | calls=    3 | ## Call CompiledFxGraph fty6dtgne7rpdfjfqv4sqcph
+  CUDA   6.2% | self= 124.255ms | calls=  144 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_f2f_stag
+  CUDA   5.4% | self= 108.076ms | calls=  147 | aten::addmm
+  CUDA   3.8% | self=  77.270ms | calls=   72 | ampere_fp16_s16816gemm_fp16_128x128_ldg8_f2f_sta
+  CUDA   3.6% | self=  71.682ms | calls=  108 | ampere_fp16_s1688gemm_fp16_128x128_ldg8_relu_f2f
+  CUDA   3.0% | self=  60.816ms | calls=   36 | aten::_flash_attention_backward
+  CPU   77.1% | self= 531.579ms | calls=   18 | cudaDeviceSynchronize
+  CPU    5.7% | self=  39.350ms | calls=    3 | ## Call CompiledFxGraph flycyp64vgixjgdxct6e6kjz
+  CPU    3.1% | self=  21.558ms | calls=    3 | ## Call CompiledFxGraph fty6dtgne7rpdfjfqv4sqcph
+  CPU    1.5% | self=  10.238ms | calls= 1155 | cuLaunchKernel
+  CPU    1.4% | self=   9.567ms | calls=  294 | aten::mm
+  CPU    1.1% | self=   7.310ms | calls=  739 | cudaLaunchKernel
+  CPU    0.9% | self=   6.267ms | calls=    3 | Activity Buffer Request
+  CPU    0.8% | self=   5.457ms | calls=  147 | aten::addmm
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+timm-vit-base [baseline/none] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [baseline/none] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [baseline/none] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [safe/none] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [safe/none] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [safe/none] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [balanced/cold] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [balanced/cold] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [balanced/cold] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [balanced/warm] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [balanced/warm] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [balanced/warm] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [aggressive/cold] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [aggressive/cold] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [aggressive/cold] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [aggressive/warm] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [aggressive/warm] VisionTransformer: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [aggressive/warm] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [native_opt/none] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [native_opt/none] OptimizedModule: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [native_opt/none] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [conflict:balanced/cold] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [conflict:balanced/cold] OptimizedModule: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [conflict:balanced/cold] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [conflict:balanced/warm] ClassificationTask: params=85875556, train_calls=100, eval_calls=0, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+timm-vit-base [conflict:balanced/warm] OptimizedModule: params=85875556, train_calls=0, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+timm-vit-base [conflict:balanced/warm] CrossEntropyLoss: params=0, train_calls=20, eval_calls=0, unique_shapes=1 -> ["(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] timm-vit-base (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/01_timm-vit-base__baseline__none
+[SKIPPED] timm-vit-base (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] timm-vit-base (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/02_timm-vit-base__safe__none
+[APPLIED] timm-vit-base (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] timm-vit-base (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] timm-vit-base (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] timm-vit-base (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] timm-vit-base (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] timm-vit-base (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] timm-vit-base (safe/none) -> kernels.auto: kernels.enabled is False
+[APPLIED] timm-vit-base (safe/none) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (safe/none) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (safe/none) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (safe/none) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[ARTIFACTS] timm-vit-base (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/03_timm-vit-base__balanced__cold
+[APPLIED] timm-vit-base (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/balanced)
+[APPLIED] timm-vit-base (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] timm-vit-base (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] timm-vit-base (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] timm-vit-base (balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (balanced/cold) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (balanced/cold) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (balanced/cold) -> compile.auto: Compiled ClassificationTask (mode=default, dynamic=False)
+[APPLIED] timm-vit-base (balanced/cold) -> compile.auto: Compiled VisionTransformer (mode=default, dynamic=False)
+[ARTIFACTS] timm-vit-base (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/04_timm-vit-base__balanced__warm
+[APPLIED] timm-vit-base (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/balanced)
+[APPLIED] timm-vit-base (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] timm-vit-base (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] timm-vit-base (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] timm-vit-base (balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (balanced/warm) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (balanced/warm) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (balanced/warm) -> compile.auto: Compiled ClassificationTask (mode=default, dynamic=False)
+[APPLIED] timm-vit-base (balanced/warm) -> compile.auto: Compiled VisionTransformer (mode=default, dynamic=False)
+[ARTIFACTS] timm-vit-base (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/05_timm-vit-base__aggressive__cold
+[APPLIED] timm-vit-base (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/aggressive)
+[APPLIED] timm-vit-base (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] timm-vit-base (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] timm-vit-base (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] timm-vit-base (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] timm-vit-base (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] timm-vit-base (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] timm-vit-base (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] timm-vit-base (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] timm-vit-base (aggressive/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (aggressive/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (aggressive/cold) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (aggressive/cold) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (aggressive/cold) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on ClassificationTask: params=85875556 > 15000000 (large compute-bound module)
+[SKIPPED] timm-vit-base (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (aggressive/cold) -> compile.auto: Compiled ClassificationTask (mode=max-autotune-no-cudagraphs, dynamic=False)
+[APPLIED] timm-vit-base (aggressive/cold) -> inference.cuda_graphs: Compiled eval VisionTransformer with mode=reduce-overhead (CUDA Graphs)
+[ARTIFACTS] timm-vit-base (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/06_timm-vit-base__aggressive__warm
+[APPLIED] timm-vit-base (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/aggressive)
+[APPLIED] timm-vit-base (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] timm-vit-base (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] timm-vit-base (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] timm-vit-base (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] timm-vit-base (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] timm-vit-base (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] timm-vit-base (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] timm-vit-base (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] timm-vit-base (aggressive/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (aggressive/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (aggressive/warm) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (aggressive/warm) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (aggressive/warm) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on ClassificationTask: params=85875556 > 15000000 (large compute-bound module)
+[SKIPPED] timm-vit-base (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (aggressive/warm) -> compile.auto: Compiled ClassificationTask (mode=max-autotune-no-cudagraphs, dynamic=False)
+[APPLIED] timm-vit-base (aggressive/warm) -> inference.cuda_graphs: Compiled eval VisionTransformer with mode=reduce-overhead (CUDA Graphs)
+[ARTIFACTS] timm-vit-base (native_opt/none) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/07_timm-vit-base__native_opt__none
+[SKIPPED] timm-vit-base (native_opt/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] timm-vit-base (conflict:balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/08_timm-vit-base__conflict_balanced__cold
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/conflict_balanced)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] timm-vit-base (conflict:balanced/cold) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (conflict:balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (conflict:balanced/cold) -> compile.auto: Compiled ClassificationTask (mode=default, dynamic=False)
+[SKIPPED] timm-vit-base (conflict:balanced/cold) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+[ARTIFACTS] timm-vit-base (conflict:balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/140429_20261124-real-timm-vit-base/runs/09_timm-vit-base__conflict_balanced__warm
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/conflict_balanced)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[SKIPPED] timm-vit-base (conflict:balanced/warm) -> amp.auto: Pre-existing user AMP detected (GradScaler); yielding to user code
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> optimizer.SGD: fused=True
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] timm-vit-base (conflict:balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] timm-vit-base (conflict:balanced/warm) -> compile.auto: Compiled ClassificationTask (mode=default, dynamic=False)
+[SKIPPED] timm-vit-base (conflict:balanced/warm) -> compile.auto: Pre-existing torch.compile detected on OptimizedModule; yielding
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[VRAM:FRAGMENTATION] timm-vit-base (baseline/none): reserved overhead is 663.97 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] timm-vit-base (balanced/cold): avg GPU utilization is 33.1% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (balanced/warm): avg GPU utilization is 54.1% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (aggressive/cold): avg GPU utilization is 17.0% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (aggressive/warm): avg GPU utilization is 53.6% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (native_opt/none): avg GPU utilization is 49.2% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (conflict:balanced/cold): avg GPU utilization is 34.3% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[GPU:UNDERUTILIZED] timm-vit-base (conflict:balanced/warm): avg GPU utilization is 54.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================

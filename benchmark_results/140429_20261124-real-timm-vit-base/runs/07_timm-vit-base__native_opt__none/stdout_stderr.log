@@ -1,0 +1,45 @@
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.711678829193115
+        },
+        "validation": {
+            "loss": 4.649971938133239,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+Using native Torch AMP. Training in mixed precision.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: None
+Compiling task components with backend=inductor, mode=None
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+W1124 14:35:36.545000 185551 torch/_inductor/utils.py:1806] [0/0] Not enough SMs to use max_autotune_gemm mode
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 30.277s,    2.11/s  (30.277s,    2.11/s)  LR: 1.000e-05  Data: 0.332 (0.332)
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.253s,  252.64/s  (0.840s,   76.19/s)  LR: 1.000e-05  Data: 0.006 (0.012)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.250s,  255.63/s  (0.553s,  115.75/s)  LR: 1.000e-05  Data: 0.000 (0.009)
+Test: [   0/19]  Time: 11.204 (11.204)  loss: 4.5439  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.072 (0.631)  loss: 4.6500  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6500  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-143525-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+

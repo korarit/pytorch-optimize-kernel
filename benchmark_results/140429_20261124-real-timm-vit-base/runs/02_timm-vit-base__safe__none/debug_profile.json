@@ -1,0 +1,449 @@
+{
+  "phase_breakdown": {
+    "num_steps": 100,
+    "step_0_cold": {
+      "data_other_ms": 4791.943,
+      "forward_ms": 691.654,
+      "loss_clip_ms": 0.701,
+      "backward_ms": 555.527,
+      "optim_ms": 11.072,
+      "total_ms": 6050.905
+    },
+    "steady_mean_ms": {
+      "data_other_ms": 2.284,
+      "forward_ms": 146.216,
+      "loss_clip_ms": 0.645,
+      "backward_ms": 326.305,
+      "optim_ms": 8.392,
+      "total_ms": 483.843
+    },
+    "steady_median_ms": {
+      "data_other_ms": 2.299,
+      "forward_ms": 146.82,
+      "loss_clip_ms": 0.639,
+      "backward_ms": 326.258,
+      "optim_ms": 8.378,
+      "total_ms": 484.43
+    },
+    "steady_shares_pct": {
+      "data_other": 0.5,
+      "forward": 30.2,
+      "loss_clip": 0.1,
+      "backward": 67.4,
+      "optim": 1.7
+    },
+    "per_step_trace": [
+      {
+        "step": 0,
+        "data_other_ms": 4791.943,
+        "forward_ms": 691.654,
+        "loss_clip_ms": 0.701,
+        "backward_ms": 555.527,
+        "optim_ms": 11.072,
+        "total_ms": 6050.905
+      },
+      {
+        "step": 1,
+        "data_other_ms": 3.079,
+        "forward_ms": 133.197,
+        "loss_clip_ms": 0.664,
+        "backward_ms": 319.854,
+        "optim_ms": 8.303,
+        "total_ms": 465.101
+      },
+      {
+        "step": 2,
+        "data_other_ms": 2.246,
+        "forward_ms": 135.904,
+        "loss_clip_ms": 0.959,
+        "backward_ms": 324.869,
+        "optim_ms": 8.427,
+        "total_ms": 472.409
+      },
+      {
+        "step": 3,
+        "data_other_ms": 2.51,
+        "forward_ms": 139.653,
+        "loss_clip_ms": 0.787,
+        "backward_ms": 323.016,
+        "optim_ms": 8.524,
+        "total_ms": 474.492
+      },
+      {
+        "step": 4,
+        "data_other_ms": 2.606,
+        "forward_ms": 144.316,
+        "loss_clip_ms": 0.781,
+        "backward_ms": 323.055,
+        "optim_ms": 8.386,
+        "total_ms": 479.146
+      },
+      {
+        "step": 5,
+        "data_other_ms": 2.38,
+        "forward_ms": 132.742,
+        "loss_clip_ms": 0.675,
+        "backward_ms": 317.992,
+        "optim_ms": 8.328,
+        "total_ms": 462.118
+      },
+      {
+        "step": 6,
+        "data_other_ms": 2.187,
+        "forward_ms": 138.601,
+        "loss_clip_ms": 0.6,
+        "backward_ms": 324.763,
+        "optim_ms": 8.347,
+        "total_ms": 474.5
+      },
+      {
+        "step": 7,
+        "data_other_ms": 2.219,
+        "forward_ms": 146.82,
+        "loss_clip_ms": 0.627,
+        "backward_ms": 324.584,
+        "optim_ms": 8.378,
+        "total_ms": 482.629
+      }
+    ]
+  },
+  "module_summary": {
+    "ClassificationTask": {
+      "train_calls": 100,
+      "eval_calls": 0,
+      "params": 85875556,
+      "input_shapes": [
+        "(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"
+      ]
+    },
+    "VisionTransformer": {
+      "train_calls": 0,
+      "eval_calls": 20,
+      "params": 85875556,
+      "input_shapes": [
+        "(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"
+      ]
+    },
+    "CrossEntropyLoss": {
+      "train_calls": 20,
+      "eval_calls": 0,
+      "params": 0,
+      "input_shapes": [
+        "(((64, 100), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"
+      ]
+    }
+  },
+  "cuda_memory_debug": {
+    "total_vram_mb": 22563.12,
+    "peak_allocated_mb": 8121.41,
+    "peak_reserved_mb": 8360.0,
+    "reserved_overhead_mb": 238.59,
+    "active_peak_mb": 8121.41,
+    "headroom_mb": 14203.12,
+    "utilization_pct": 37.05,
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "torch_profiler": {
+    "sort_by": "self_cuda_time_total",
+    "total_self_cuda_ms": 2828.915,
+    "total_self_cpu_ms": 1386.059,
+    "top_cuda_ops": [
+      {
+        "name": "aten::mm",
+        "calls": 294,
+        "self_cuda_ms": 438.72,
+        "total_cuda_ms": 438.72,
+        "pct": 15.5
+      },
+      {
+        "name": "aten::addmm",
+        "calls": 147,
+        "self_cuda_ms": 231.664,
+        "total_cuda_ms": 231.664,
+        "pct": 8.2
+      },
+      {
+        "name": "aten::_efficient_attention_backward",
+        "calls": 36,
+        "self_cuda_ms": 214.781,
+        "total_cuda_ms": 239.411,
+        "pct": 7.6
+      },
+      {
+        "name": "fmha_cutlassB_f32_aligned_64x64_k64_sm80(PyTorch",
+        "calls": 36,
+        "self_cuda_ms": 214.781,
+        "total_cuda_ms": 214.781,
+        "pct": 7.6
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 144,
+        "self_cuda_ms": 213.715,
+        "total_cuda_ms": 213.715,
+        "pct": 7.6
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 108,
+        "self_cuda_ms": 149.942,
+        "total_cuda_ms": 149.942,
+        "pct": 5.3
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 72,
+        "self_cuda_ms": 136.319,
+        "total_cuda_ms": 136.319,
+        "pct": 4.8
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 72,
+        "self_cuda_ms": 95.298,
+        "total_cuda_ms": 95.298,
+        "pct": 3.4
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 36,
+        "self_cuda_ms": 74.876,
+        "total_cuda_ms": 74.876,
+        "pct": 2.6
+      },
+      {
+        "name": "aten::_efficient_attention_forward",
+        "calls": 36,
+        "self_cuda_ms": 74.443,
+        "total_cuda_ms": 74.608,
+        "pct": 2.6
+      },
+      {
+        "name": "fmha_cutlassF_f32_aligned_64x64_rf_sm80(PyTorchM",
+        "calls": 36,
+        "self_cuda_ms": 74.443,
+        "total_cuda_ms": 74.443,
+        "pct": 2.6
+      },
+      {
+        "name": "aten::gelu_backward",
+        "calls": 36,
+        "self_cuda_ms": 66.625,
+        "total_cuda_ms": 66.625,
+        "pct": 2.4
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 36,
+        "self_cuda_ms": 66.625,
+        "total_cuda_ms": 66.625,
+        "pct": 2.4
+      },
+      {
+        "name": "aten::native_layer_norm_backward",
+        "calls": 75,
+        "self_cuda_ms": 59.768,
+        "total_cuda_ms": 59.768,
+        "pct": 2.1
+      },
+      {
+        "name": "aten::sum",
+        "calls": 192,
+        "self_cuda_ms": 58.313,
+        "total_cuda_ms": 58.313,
+        "pct": 2.1
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 150,
+        "self_cuda_ms": 57.916,
+        "total_cuda_ms": 57.916,
+        "pct": 2.0
+      },
+      {
+        "name": "void at::native::reduce_kernel<128, 4, at::nativ",
+        "calls": 156,
+        "self_cuda_ms": 51.559,
+        "total_cuda_ms": 51.559,
+        "pct": 1.8
+      },
+      {
+        "name": "aten::gelu",
+        "calls": 36,
+        "self_cuda_ms": 46.767,
+        "total_cuda_ms": 46.767,
+        "pct": 1.7
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 36,
+        "self_cuda_ms": 46.767,
+        "total_cuda_ms": 46.767,
+        "pct": 1.7
+      },
+      {
+        "name": "aten::cat",
+        "calls": 39,
+        "self_cuda_ms": 39.207,
+        "total_cuda_ms": 39.207,
+        "pct": 1.4
+      }
+    ],
+    "top_cpu_ops": [
+      {
+        "name": "cudaDeviceSynchronize",
+        "calls": 18,
+        "self_cpu_ms": 1256.81,
+        "total_cpu_ms": 1259.025,
+        "pct": 90.7
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 1068,
+        "self_cpu_ms": 11.791,
+        "total_cpu_ms": 11.791,
+        "pct": 0.9
+      },
+      {
+        "name": "aten::mm",
+        "calls": 294,
+        "self_cpu_ms": 9.398,
+        "total_cpu_ms": 13.044,
+        "pct": 0.7
+      },
+      {
+        "name": "aten::addmm",
+        "calls": 147,
+        "self_cpu_ms": 8.446,
+        "total_cpu_ms": 10.814,
+        "pct": 0.6
+      },
+      {
+        "name": "aten::empty",
+        "calls": 825,
+        "self_cpu_ms": 6.513,
+        "total_cpu_ms": 6.513,
+        "pct": 0.5
+      },
+      {
+        "name": "Activity Buffer Request",
+        "calls": 3,
+        "self_cpu_ms": 6.194,
+        "total_cpu_ms": 6.194,
+        "pct": 0.4
+      },
+      {
+        "name": "aten::sum",
+        "calls": 192,
+        "self_cpu_ms": 5.379,
+        "total_cpu_ms": 8.071,
+        "pct": 0.4
+      },
+      {
+        "name": "aten::transpose",
+        "calls": 1281,
+        "self_cpu_ms": 4.681,
+        "total_cpu_ms": 6.465,
+        "pct": 0.3
+      },
+      {
+        "name": "cuLaunchKernel",
+        "calls": 441,
+        "self_cpu_ms": 4.567,
+        "total_cpu_ms": 4.567,
+        "pct": 0.3
+      },
+      {
+        "name": "aten::view",
+        "calls": 1020,
+        "self_cpu_ms": 3.728,
+        "total_cpu_ms": 3.728,
+        "pct": 0.3
+      },
+      {
+        "name": "autograd::engine::evaluate_function: AddmmBackwa",
+        "calls": 147,
+        "self_cpu_ms": 3.5,
+        "total_cpu_ms": 29.491,
+        "pct": 0.3
+      },
+      {
+        "name": "aten::native_layer_norm",
+        "calls": 75,
+        "self_cpu_ms": 2.909,
+        "total_cpu_ms": 6.08,
+        "pct": 0.2
+      },
+      {
+        "name": "aten::t",
+        "calls": 735,
+        "self_cpu_ms": 2.86,
+        "total_cpu_ms": 6.774,
+        "pct": 0.2
+      },
+      {
+        "name": "autograd::engine::evaluate_function: torch::auto",
+        "calls": 456,
+        "self_cpu_ms": 2.698,
+        "total_cpu_ms": 5.552,
+        "pct": 0.2
+      },
+      {
+        "name": "Optimizer.step#SGD.step",
+        "calls": 3,
+        "self_cpu_ms": 2.574,
+        "total_cpu_ms": 26.14,
+        "pct": 0.2
+      },
+      {
+        "name": "AddmmBackward0",
+        "calls": 147,
+        "self_cpu_ms": 2.455,
+        "total_cpu_ms": 19.028,
+        "pct": 0.2
+      },
+      {
+        "name": "autograd::engine::evaluate_function: ViewBackwar",
+        "calls": 360,
+        "self_cpu_ms": 2.289,
+        "total_cpu_ms": 6.63,
+        "pct": 0.2
+      },
+      {
+        "name": "aten::div",
+        "calls": 6,
+        "self_cpu_ms": 2.268,
+        "total_cpu_ms": 2.407,
+        "pct": 0.2
+      },
+      {
+        "name": "aten::as_strided",
+        "calls": 1551,
+        "self_cpu_ms": 2.258,
+        "total_cpu_ms": 2.258,
+        "pct": 0.2
+      },
+      {
+        "name": "aten::linear",
+        "calls": 147,
+        "self_cpu_ms": 2.256,
+        "total_cpu_ms": 16.949,
+        "pct": 0.2
+      }
+    ],
+    "window_steps": [
+      2,
+      5
+    ]
+  },
+  "bandwidth_vram_booster": {
+    "vram_headroom": {
+      "total_mb": 22563.12,
+      "allocated_mb": 16.25,
+      "reserved_mb": 8360.0,
+      "free_mb": 14203.12,
+      "used_ratio": 0.3705
+    }
+  }
+}

@@ -1,0 +1,85 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+AMP not enabled. Training in torch.float32.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: True
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+W1124 14:28:00.176000 181862 torch/_inductor/utils.py:1806] [1/0] Not enough SMs to use max_autotune_gemm mode
+I1124 14:28:00.247000 181862 torch/_inductor/graph.py:1045] [1/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention.default
+I1124 14:28:39.413000 181862 torch/_inductor/graph.py:1045] [1/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention_backward.default
+I1124 14:28:40.733000 181862 torch/_inductor/graph.py:1045] [1/0] [__perf_hints] Using FallbackKernel: torch.ops.aten.convolution_backward.default
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 278.404s,    0.23/s  (278.404s,    0.23/s)  LR: 1.000e-05  Data: 0.697 (0.697)
+USDT:2026-11-24 14:32:22 181862:181862 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-24 14:32:23 181862:181862 SyncActivityProfilerHandler.cpp:46] profiler_stop
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.224s,  285.32/s  (5.708s,   11.21/s)  LR: 1.000e-05  Data: 0.001 (0.014)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.228s,  280.46/s  (3.022s,   21.18/s)  LR: 1.000e-05  Data: 0.000 (0.008)
+I1124 14:32:52.035000 181862 torch/_inductor/graph.py:1045] [2/0] [__perf_hints] Using FallbackKernel: torch.ops.aten._scaled_dot_product_flash_attention.default
+I1124 14:32:53.463000 181862 torch/_inductor/codegen/simd.py:4909] [2/0] [__perf_hints] possibly bad tiling: [{'y': 192, 'x': 50176, 'r0_': 1}, {'x': 9633792, 'r0_': 1}]
+I1124 14:32:53.465000 181862 torch/_inductor/codegen/simd.py:4909] [2/0] [__perf_hints] possibly bad tiling: [{'y': 192, 'x': 50176, 'r0_': 1}, {'x': 9633792, 'r0_': 1}]
+I1124 14:32:54.994000 181862 torch/_inductor/codegen/simd.py:4909] [2/0] [__perf_hints] possibly bad tiling: [{'y': 192, 'x': 50176, 'r0_': 1}, {'x': 9633792, 'r0_': 1}]
+Test: [   0/19]  Time: 13.168 (13.168)  loss: 4.5429  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.069 (0.727)  loss: 4.6502  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6502  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-142743-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+[ptopt fallback/hook summary]
+  profile=aggressive
+  Counts: APPLIED=18 | SKIPPED=6 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpwwjhc8f9/timm-vit-base/aggressive_diag_cold)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.cross_entropy: sm_89, triton=True
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] optimizer.SGD: fused=True
+  - [APPLIED] runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+  - [APPLIED] compile.auto: Compiled ClassificationTask (mode=max-autotune-no-cudagraphs, dynamic=False)
+  - [APPLIED] inference.cuda_graphs: Compiled eval VisionTransformer with mode=reduce-overhead (CUDA Graphs)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+  - [SKIPPED (by arch/config)] compile.train_cuda_graphs: Training CUDA Graphs skipped on ClassificationTask: params=85875556 > 15000000 (large compute-bound module)
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+
+
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.71175108909607
+        },
+        "validation": {
+            "loss": 4.6502001762390135,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+

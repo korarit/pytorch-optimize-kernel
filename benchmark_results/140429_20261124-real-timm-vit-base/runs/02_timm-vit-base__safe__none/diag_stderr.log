@@ -1,0 +1,67 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+AMP not enabled. Training in torch.float32.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: True
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 1.937s,   33.04/s  (1.937s,   33.04/s)  LR: 1.000e-05  Data: 0.676 (0.676)
+USDT:2026-11-24 14:09:49 170605:170605 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-24 14:09:50 170605:170605 SyncActivityProfilerHandler.cpp:46] profiler_stop
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.490s,  130.71/s  (0.541s,  118.22/s)  LR: 1.000e-05  Data: 0.001 (0.014)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.485s,  131.93/s  (0.515s,  124.38/s)  LR: 1.000e-05  Data: 0.000 (0.007)
+Test: [   0/19]  Time: 0.459 (0.459)  loss: 4.5439  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.152 (0.165)  loss: 4.6500  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6500  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-140946-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+[ptopt fallback/hook summary]
+  profile=safe
+  Counts: APPLIED=10 | SKIPPED=4 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] dataloader.auto_tune: Preserved user num_workers=2; enabled pin_memory=True
+  - [APPLIED] optimizer.SGD: fused=True
+  - [APPLIED] runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.auto: compile.enabled is False
+  - [SKIPPED (by arch/config)] amp.auto: amp.enabled is False or dtype is fp32
+  - [SKIPPED (by arch/config)] runtime.activation_checkpointing: runtime.activation_checkpointing is off
+  - [SKIPPED (by arch/config)] kernels.auto: kernels.enabled is False
+
+
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.711672267913818
+        },
+        "validation": {
+            "loss": 4.6499792575836185,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+

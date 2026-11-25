@@ -1,0 +1,43 @@
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.711783351898194
+        },
+        "validation": {
+            "loss": 4.650109648704529,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+AMP not enabled. Training in torch.float32.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: True
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 7.942s,    8.06/s  (7.942s,    8.06/s)  LR: 1.000e-05  Data: 0.681 (0.681)
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.227s,  281.92/s  (0.375s,  170.71/s)  LR: 1.000e-05  Data: 0.001 (0.014)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.228s,  281.09/s  (0.302s,  211.79/s)  LR: 1.000e-05  Data: 0.000 (0.007)
+Test: [   0/19]  Time: 3.607 (3.607)  loss: 4.5440  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.070 (0.247)  loss: 4.6501  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6501  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-141456-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+

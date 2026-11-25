@@ -1,0 +1,57 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+Using native Torch AMP. Training in mixed precision.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: None
+Compiling task components with backend=inductor, mode=None
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 5.496s,   11.64/s  (5.496s,   11.64/s)  LR: 1.000e-05  Data: 0.340 (0.340)
+USDT:2026-11-24 14:37:42 186744:186744 SyncActivityProfilerHandler.cpp:39] profiler_start
+USDT:2026-11-24 14:37:42 186744:186744 SyncActivityProfilerHandler.cpp:46] profiler_stop
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.256s,  249.93/s  (0.377s,  169.64/s)  LR: 1.000e-05  Data: 0.006 (0.013)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.248s,  257.78/s  (0.318s,  201.56/s)  LR: 1.000e-05  Data: 0.000 (0.009)
+V1124 14:38:08.372000 186744 torch/_dynamo/guards.py:5621] [0/1] [__recompiles] Recompiling function _wrapped_mod_call in /content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py:367
+V1124 14:38:08.372000 186744 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     triggered by the following guard failure(s):
+V1124 14:38:08.372000 186744 torch/_dynamo/guards.py:5621] [0/1] [__recompiles]     - 0/0: GLOBAL_STATE changed: grad_mode 
+Test: [   0/19]  Time: 2.039 (2.039)  loss: 4.5439  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.074 (0.173)  loss: 4.6500  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6500  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-143736-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+
+
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.711678829193115
+        },
+        "validation": {
+            "loss": 4.649971938133239,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+

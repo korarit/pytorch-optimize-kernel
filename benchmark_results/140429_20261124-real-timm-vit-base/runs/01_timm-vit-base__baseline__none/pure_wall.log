@@ -1,0 +1,47 @@
+CMD: /usr/bin/python3 train.py --data-dir /tmp/timm_dummy_data --num-classes 100 --model vit_base_patch16_224 --epochs 1 --batch-size 64 --workers 2 --output /tmp/timm_out
+RC: 0
+WALL_SEC: 61.6767
+
+=== STDOUT ===
+--result
+[
+    {
+        "epoch": 0,
+        "train": {
+            "loss": 4.711680240631104
+        },
+        "validation": {
+            "loss": 4.649981188774109,
+            "top1": 1.015625,
+            "top5": 5.078125
+        }
+    }
+]
+
+
+=== STDERR ===
+Training with a single process on 1 device (cuda).
+Model vit_base_patch16_224 created, param count:85875556
+Data processing configuration for current model + dataset:
+	input_size: (3, 224, 224)
+	interpolation: bicubic
+	mean: (0.5, 0.5, 0.5)
+	std: (0.5, 0.5, 0.5)
+	crop_pct: 0.9
+	crop_mode: center
+AMP not enabled. Training in torch.float32.
+Learning rate (0.025) calculated from base learning rate (0.1) and effective global batch size (64) with linear scaling.
+ClassificationTask: criterion=LabelSmoothingCrossEntropy
+Created SGD (sgd) optimizer: lr: 0.025, momentum: 0.9, dampening: 0, weight_decay: 2e-05, nesterov: True, maximize: False, foreach: None, differentiable: False, fused: None
+Scheduled epochs: 1 (epochs + cooldown_epochs). Warmup within epochs when warmup_prefix=False. LR stepped per epoch.
+Train: 0 [   0/100 (  1%)]  Loss: 4.87 (4.87)  Time: 1.520s,   42.10/s  (1.520s,   42.10/s)  LR: 1.000e-05  Data: 0.340 (0.340)
+Train: 0 [  50/100 ( 51%)]  Loss: 4.73 (4.75)  Time: 0.489s,  130.87/s  (0.505s,  126.84/s)  LR: 1.000e-05  Data: 0.006 (0.013)
+Train: 0 [  99/100 (100%)]  Loss: 4.64 (4.71)  Time: 0.491s,  130.33/s  (0.498s,  128.42/s)  LR: 1.000e-05  Data: 0.000 (0.009)
+Test: [   0/19]  Time: 0.726 (0.726)  loss: 4.5438  top1: 0.0000  top5: 0.0000
+Test: [  19/19]  Time: 0.150 (0.179)  loss: 4.6500  top1: 1.0156  top5: 5.0781
+Test: loss: 4.6500  top1: 1.0156  top5: 5.0781
+Current checkpoints:
+ ('/tmp/timm_out/20261124-140536-vit_base_patch16_224-224/checkpoint-0.pth.tar', 1.015625)
+
+*** Best metric: 1.015625 (epoch 0)
+
