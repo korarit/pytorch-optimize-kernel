@@ -1,0 +1,28 @@
+CMD: /usr/bin/python3 -m ptopt.cli.main --profile balanced --override compile.cache_dir=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/balanced --override dataloader.cuda_prefetch=true -- /usr/bin/python3 -c import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')
+RC: 0
+WALL_SEC: 37.6767
+
+=== STDOUT ===
+Using device: cuda
+=> creating model 'resnet50'
+=> Dummy data is used!
+Epoch: [0][  1/100]	Time 11.682 (11.682)	Data  0.371 ( 0.371)	Loss 7.0283e+00 (7.0283e+00)	Acc@1   0.00 (  0.00)	Acc@5   3.12 (  3.12)
+Epoch: [0][ 11/100]	Time  0.121 ( 1.165)	Data  0.001 ( 0.035)	Loss 1.1113e+01 (1.1229e+01)	Acc@1   0.00 (  0.14)	Acc@5   1.56 (  1.28)
+Epoch: [0][ 21/100]	Time  0.114 ( 0.667)	Data  0.001 ( 0.023)	Loss 7.8975e+00 (1.0026e+01)	Acc@1   0.00 (  0.15)	Acc@5   1.56 (  1.12)
+Epoch: [0][ 31/100]	Time  0.119 ( 0.491)	Data  0.001 ( 0.018)	Loss 7.1597e+00 (9.4635e+00)	Acc@1   0.00 (  0.10)	Acc@5   0.00 (  0.86)
+Epoch: [0][ 41/100]	Time  0.122 ( 0.400)	Data  0.002 ( 0.015)	Loss 7.0063e+00 (8.9024e+00)	Acc@1   0.00 (  0.08)	Acc@5   0.00 (  0.72)
+Epoch: [0][ 51/100]	Time  0.123 ( 0.345)	Data  0.001 ( 0.014)	Loss 7.0239e+00 (8.5275e+00)	Acc@1   0.00 (  0.06)	Acc@5   0.00 (  0.67)
+Epoch: [0][ 61/100]	Time  0.120 ( 0.308)	Data  0.001 ( 0.013)	Loss 6.9287e+00 (8.2771e+00)	Acc@1   0.00 (  0.08)	Acc@5   1.56 (  0.69)
+Epoch: [0][ 71/100]	Time  0.118 ( 0.282)	Data  0.001 ( 0.012)	Loss 6.9849e+00 (8.0955e+00)	Acc@1   0.00 (  0.07)	Acc@5   1.56 (  0.64)
+Epoch: [0][ 81/100]	Time  0.118 ( 0.262)	Data  0.001 ( 0.012)	Loss 6.8940e+00 (7.9531e+00)	Acc@1   0.00 (  0.12)	Acc@5   0.00 (  0.68)
+Epoch: [0][ 91/100]	Time  0.129 ( 0.247)	Data  0.006 ( 0.012)	Loss 7.1206e+00 (7.8406e+00)	Acc@1   0.00 (  0.12)	Acc@5   0.00 (  0.69)
+Test: [ 1/20]	Time  5.271 ( 5.271)	Loss 6.8862e+00 (6.8862e+00)	Acc@1   0.00 (  0.00)	Acc@5   1.56 (  1.56)
+Test: [11/20]	Time  0.030 ( 0.551)	Loss 6.8955e+00 (6.9118e+00)	Acc@1   0.00 (  0.28)	Acc@5   1.56 (  1.42)
+ *   Acc@1 0.234 Acc@5 1.172
+
+
+=== STDERR ===
+main.py:121: UserWarning: nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'
+  warnings.warn("nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'")
+W1124 13:10:57.999000 144554 torch/_logging/_internal.py:1394] [0/0] Profiler record function <class 'torch.autograd.profiler.record_function'> will be ignored
+

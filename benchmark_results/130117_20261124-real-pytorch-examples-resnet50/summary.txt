@@ -1,0 +1,314 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-24 13:01:17 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 4ee2ff3
+Targets            : 1
+Total Runs         : 6
+Comparisons        : 5
+Overall Status     : FAIL
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target                    | Arm        | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)         | VRAM MB (B->A/d)         | LossRel  | Stdout Metrics | Audit        | Status
+--------------------------+------------+-------+-------+----------------+----------+-------------------------+--------------------------+----------+----------------+--------------+-------
+pytorch-examples-resnet50 | safe       | none  | train | 304.91->268.62 | 1.14x    | 39.42s->35.84s (1.10x)  | 5581.6->5626.7 (+45.1)   | 0.517248 | -              | A:10 S:4 F:0 | FAIL  
+pytorch-examples-resnet50 | balanced   | cold  | train | 304.91->122.25 | 2.49x    | 39.42s->99.73s (0.40x)  | 5581.6->2949.2 (-2632.4) | 1.127603 | -              | A:16 S:1 F:0 | FAIL  
+pytorch-examples-resnet50 | balanced   | warm  | train | 304.91->122.17 | 2.50x    | 39.42s->37.68s (1.05x)  | 5581.6->2949.2 (-2632.4) | 0.88944  | -              | A:16 S:1 F:0 | FAIL  
+pytorch-examples-resnet50 | aggressive | cold  | train | 304.91->118.35 | 2.58x    | 39.42s->398.14s (0.10x) | 5581.6->2949.2 (-2632.4) | 0.454323 | -              | A:18 S:6 F:0 | FAIL  
+pytorch-examples-resnet50 | aggressive | warm  | train | 304.91->118.89 | 2.56x    | 39.42s->46.00s (0.86x)  | 5581.6->2949.2 (-2632.4) | 0.588487 | -              | A:18 S:6 F:0 | FAIL  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target                    | Arm/Cache       | Step0 ms | Data/Other | Forward      | Loss/Clip | Backward     | Optim     | Steady Tot
+--------------------------+-----------------+----------+------------+--------------+-----------+--------------+-----------+-----------
+pytorch-examples-resnet50 | baseline/none   | 3431.1   | 3.59 (1%)  | 102.00 (33%) | 1.74 (1%) | 197.46 (63%) | 6.40 (2%) | 311.33    
+pytorch-examples-resnet50 | safe/none       | 3139.1   | 4.17 (2%)  | 95.52 (35%)  | 1.73 (1%) | 168.50 (62%) | 2.89 (1%) | 272.96    
+pytorch-examples-resnet50 | balanced/cold   | 62647.4  | 4.15 (3%)  | 35.32 (28%)  | 1.57 (1%) | 82.77 (65%)  | 3.20 (2%) | 127.11    
+pytorch-examples-resnet50 | balanced/warm   | 12805.7  | 4.13 (3%)  | 35.32 (28%)  | 1.50 (1%) | 82.52 (65%)  | 3.21 (2%) | 126.80    
+pytorch-examples-resnet50 | aggressive/cold | 344119.5 | 4.33 (4%)  | 35.57 (29%)  | 1.60 (1%) | 77.85 (63%)  | 3.49 (3%) | 122.95    
+pytorch-examples-resnet50 | aggressive/warm | 20581.2  | 4.17 (3%)  | 35.44 (29%)  | 1.57 (1%) | 77.60 (64%)  | 3.32 (3%) | 122.22    
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target                    | Arm/Cache       | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+--------------------------+-----------------+----------------+--------+--------+------------+--------------------+--------------
+pytorch-examples-resnet50 | balanced/cold   | 29/32          | 4      | 5      | 0          | 1/4                | 0/4          
+pytorch-examples-resnet50 | balanced/warm   | 29/32          | 4      | 5      | 0          | 5/0                | 4/0          
+pytorch-examples-resnet50 | aggressive/cold | 29/32          | 4      | 5      | 0          | 0/5                | 0/4          
+pytorch-examples-resnet50 | aggressive/warm | 29/32          | 4      | 5      | 0          | 5/0                | 4/0          
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target                    | Arm/Cache       | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+--------------------------+-----------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+pytorch-examples-resnet50 | baseline/none   | 5581.6/6328.0 | 746.4       | 16235.1     | 28.1%     | 0/0         | 6576.0   | 81.8%       
+pytorch-examples-resnet50 | safe/none       | 5626.7/5760.0 | 133.3       | 16803.1     | 25.5%     | 0/0         | 6028.0   | 78.4%       
+pytorch-examples-resnet50 | balanced/cold   | 2949.2/3028.0 | 78.8        | 19535.1     | 13.4%     | 0/0         | 3310.0   | 24.7%       
+pytorch-examples-resnet50 | balanced/warm   | 2949.2/3028.0 | 118.8       | 19495.1     | 13.6%     | 0/0         | 3350.0   | 31.8%       
+pytorch-examples-resnet50 | aggressive/cold | 2949.2/3028.0 | 78.8        | 19535.1     | 13.4%     | 0/0         | 3316.0   | 22.1%       
+pytorch-examples-resnet50 | aggressive/warm | 2949.2/3028.0 | 78.8        | 19535.1     | 13.4%     | 0/0         | 3314.0   | 26.5%       
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target                    | Arm/Cache       | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+--------------------------+-----------------+-----------------+--------------------+-------------+-----------+------------------
+pytorch-examples-resnet50 | baseline/none   | -               | -                  | -           | -         | 16235.1 (28.1%)  
+pytorch-examples-resnet50 | safe/none       | 1/1/1           | 120/0              | -           | -         | 16803.1 (25.5%)  
+pytorch-examples-resnet50 | balanced/cold   | 1/1/1           | 120/0              | off         | -         | 19535.1 (13.4%)  
+pytorch-examples-resnet50 | balanced/warm   | 1/1/1           | 120/0              | off         | -         | 19495.1 (13.6%)  
+pytorch-examples-resnet50 | aggressive/cold | 1/1/1           | 120/0              | off         | -         | 21495.1 (4.7%)   
+pytorch-examples-resnet50 | aggressive/warm | 1/1/1           | 120/0              | off         | -         | 21455.1 (4.9%)   
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- pytorch-examples-resnet50 [baseline/none] (total_cuda=2133.068ms, total_cpu=922.85ms) ---
+  CUDA  14.1% | self= 301.597ms | calls=    3 | DataParallel.forward
+  CUDA  13.1% | self= 279.940ms | calls=  159 | aten::convolution_backward
+  CUDA   7.5% | self= 159.579ms | calls=  159 | aten::cudnn_batch_norm_backward
+  CUDA   5.0% | self= 105.625ms | calls=  159 | aten::cudnn_convolution
+  CUDA   4.7% | self= 100.098ms | calls=  261 | aten::add_
+  CUDA   4.7% | self=  99.681ms | calls=  102 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   4.2% | self=  89.157ms | calls=  147 | aten::threshold_backward
+  CUDA   4.2% | self=  89.157ms | calls=  147 | void at::native::vectorized_elementwise_kernel<4
+  CPU   84.0% | self= 774.921ms | calls=   24 | cudaDeviceSynchronize
+  CPU    2.2% | self=  20.692ms | calls=    3 | DataParallel.forward
+  CPU    1.7% | self=  15.586ms | calls=  159 | aten::convolution_backward
+  CPU    1.6% | self=  14.879ms | calls= 1647 | cudaLaunchKernel
+  CPU    1.1% | self=  10.224ms | calls=  159 | aten::cudnn_convolution
+  CPU    1.0% | self=   9.123ms | calls= 1593 | aten::empty
+  CPU    0.8% | self=   7.739ms | calls=  159 | aten::cudnn_batch_norm
+  CPU    0.7% | self=   6.188ms | calls=    3 | Activity Buffer Request
+--- pytorch-examples-resnet50 [safe/none] (total_cuda=1876.485ms, total_cpu=804.959ms) ---
+  CUDA  15.0% | self= 281.451ms | calls=    3 | DataParallel.forward
+  CUDA  11.9% | self= 223.804ms | calls=  159 | aten::convolution_backward
+  CUDA   7.0% | self= 131.146ms | calls=  159 | aten::cudnn_batch_norm_backward
+  CUDA   6.7% | self= 126.338ms | calls=  132 | void cudnn::batchnorm_bwtr_nhwc_semiPersist<floa
+  CUDA   5.5% | self= 102.590ms | calls=  159 | aten::cudnn_convolution
+  CUDA   5.3% | self=  98.944ms | calls=  261 | aten::add_
+  CUDA   5.2% | self=  98.463ms | calls=  102 | void at::native::vectorized_elementwise_kernel<4
+  CUDA   4.6% | self=  87.124ms | calls=  147 | aten::threshold_backward
+  CPU   80.1% | self= 644.795ms | calls=   24 | cudaDeviceSynchronize
+  CPU    3.0% | self=  24.155ms | calls=    3 | DataParallel.forward
+  CPU    2.0% | self=  16.020ms | calls=  159 | aten::convolution_backward
+  CPU    1.4% | self=  11.260ms | calls= 1107 | cudaLaunchKernel
+  CPU    1.4% | self=  11.199ms | calls= 1599 | aten::empty
+  CPU    1.4% | self=  11.085ms | calls=  159 | aten::cudnn_convolution
+  CPU    1.2% | self=   9.421ms | calls=  159 | aten::cudnn_batch_norm
+  CPU    0.8% | self=   6.156ms | calls=    3 | Activity Buffer Request
+--- pytorch-examples-resnet50 [balanced/cold] (total_cuda=1038.638ms, total_cpu=374.65ms) ---
+  CUDA  23.7% | self= 246.308ms | calls=    3 | ## Call CompiledFxGraph ff5hrg5bpukr4jbhwj2v3ypb
+  CUDA   8.9% | self=  91.997ms | calls=    3 | ## Call CompiledFxGraph fqkl5osan25uwwr2df5dgssp
+  CUDA   8.7% | self=  89.935ms | calls=  159 | aten::convolution_backward
+  CUDA   3.8% | self=  39.051ms | calls=  159 | aten::cudnn_convolution
+  CUDA   0.9% | self=   8.992ms | calls=    3 | triton_red_fused__native_batch_norm_legit_functi
+  CUDA   0.9% | self=   8.992ms | calls=    3 | triton_red_fused__native_batch_norm_legit_functi
+  CUDA   0.8% | self=   8.617ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CUDA   0.8% | self=   8.617ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CPU   45.8% | self= 171.575ms | calls=   24 | cudaDeviceSynchronize
+  CPU   11.7% | self=  43.764ms | calls=    3 | ## Call CompiledFxGraph ff5hrg5bpukr4jbhwj2v3ypb
+  CPU    9.0% | self=  33.543ms | calls=    3 | ## Call CompiledFxGraph fqkl5osan25uwwr2df5dgssp
+  CPU    4.8% | self=  18.041ms | calls=  159 | aten::convolution_backward
+  CPU    4.1% | self=  15.545ms | calls= 1686 | cuLaunchKernel
+  CPU    2.2% | self=   8.414ms | calls=  159 | aten::cudnn_convolution
+  CPU    1.8% | self=   6.770ms | calls=    3 | Activity Buffer Request
+  CPU    1.2% | self=   4.451ms | calls=    3 | DataParallel.forward
+--- pytorch-examples-resnet50 [balanced/warm] (total_cuda=1035.579ms, total_cpu=371.413ms) ---
+  CUDA  23.6% | self= 244.134ms | calls=    3 | ## Call CompiledFxGraph ff5hrg5bpukr4jbhwj2v3ypb
+  CUDA   8.9% | self=  92.087ms | calls=    3 | ## Call CompiledFxGraph fqkl5osan25uwwr2df5dgssp
+  CUDA   8.7% | self=  89.753ms | calls=  159 | aten::convolution_backward
+  CUDA   3.8% | self=  39.136ms | calls=  159 | aten::cudnn_convolution
+  CUDA   0.9% | self=   8.991ms | calls=    3 | triton_red_fused__native_batch_norm_legit_functi
+  CUDA   0.9% | self=   8.991ms | calls=    3 | triton_red_fused__native_batch_norm_legit_functi
+  CUDA   0.8% | self=   8.566ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CUDA   0.8% | self=   8.566ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CPU   48.0% | self= 178.253ms | calls=   24 | cudaDeviceSynchronize
+  CPU   10.8% | self=  40.023ms | calls=    3 | ## Call CompiledFxGraph ff5hrg5bpukr4jbhwj2v3ypb
+  CPU    8.6% | self=  31.977ms | calls=    3 | ## Call CompiledFxGraph fqkl5osan25uwwr2df5dgssp
+  CPU    4.8% | self=  17.953ms | calls=  159 | aten::convolution_backward
+  CPU    3.9% | self=  14.462ms | calls= 1686 | cuLaunchKernel
+  CPU    2.3% | self=   8.676ms | calls=  159 | aten::cudnn_convolution
+  CPU    1.7% | self=   6.161ms | calls=    3 | Activity Buffer Request
+  CPU    1.2% | self=   4.335ms | calls=    3 | DataParallel.forward
+--- pytorch-examples-resnet50 [aggressive/cold] (total_cuda=997.832ms, total_cpu=356.364ms) ---
+  CUDA  23.2% | self= 231.313ms | calls=    3 | ## Call CompiledFxGraph fb2pn2mdqgxplqesjk6ntr4j
+  CUDA   9.3% | self=  92.745ms | calls=    3 | ## Call CompiledFxGraph fz6bmv6krl3yeflw6kt55sqv
+  CUDA   8.5% | self=  84.702ms | calls=  159 | aten::convolution_backward
+  CUDA   2.4% | self=  23.656ms | calls=  105 | aten::mm
+  CUDA   1.5% | self=  15.282ms | calls=   60 | aten::cudnn_convolution
+  CUDA   0.9% | self=   9.433ms | calls=   24 | sm80_xmma_wgrad_implicit_gemm_indexed_bf16bf16_b
+  CUDA   0.9% | self=   8.509ms | calls=   27 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   0.8% | self=   8.458ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CPU   46.9% | self= 167.142ms | calls=   24 | cudaDeviceSynchronize
+  CPU   11.5% | self=  40.846ms | calls=    3 | ## Call CompiledFxGraph fb2pn2mdqgxplqesjk6ntr4j
+  CPU   10.3% | self=  36.814ms | calls=    3 | ## Call CompiledFxGraph fz6bmv6krl3yeflw6kt55sqv
+  CPU    4.5% | self=  15.871ms | calls=  159 | aten::convolution_backward
+  CPU    4.1% | self=  14.451ms | calls= 1692 | cuLaunchKernel
+  CPU    1.3% | self=   4.744ms | calls=    3 | Activity Buffer Request
+  CPU    1.2% | self=   4.374ms | calls=    3 | DataParallel.forward
+  CPU    1.1% | self=   3.999ms | calls=  381 | cudaLaunchKernel
+--- pytorch-examples-resnet50 [aggressive/warm] (total_cuda=994.182ms, total_cpu=354.28ms) ---
+  CUDA  23.2% | self= 230.338ms | calls=    3 | ## Call CompiledFxGraph fb2pn2mdqgxplqesjk6ntr4j
+  CUDA   9.3% | self=  92.269ms | calls=    3 | ## Call CompiledFxGraph fz6bmv6krl3yeflw6kt55sqv
+  CUDA   8.5% | self=  84.030ms | calls=  159 | aten::convolution_backward
+  CUDA   2.4% | self=  23.561ms | calls=  105 | aten::mm
+  CUDA   1.5% | self=  15.119ms | calls=   60 | aten::cudnn_convolution
+  CUDA   0.9% | self=   8.467ms | calls=   27 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_stag
+  CUDA   0.8% | self=   8.427ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CUDA   0.8% | self=   8.427ms | calls=    3 | triton_poi_fused_add_max_pool2d_with_indices_max
+  CPU   49.2% | self= 174.344ms | calls=   24 | cudaDeviceSynchronize
+  CPU   10.6% | self=  37.567ms | calls=    3 | ## Call CompiledFxGraph fb2pn2mdqgxplqesjk6ntr4j
+  CPU    9.3% | self=  33.092ms | calls=    3 | ## Call CompiledFxGraph fz6bmv6krl3yeflw6kt55sqv
+  CPU    4.4% | self=  15.535ms | calls=  159 | aten::convolution_backward
+  CPU    4.0% | self=  14.344ms | calls= 1692 | cuLaunchKernel
+  CPU    1.3% | self=   4.710ms | calls=    3 | Activity Buffer Request
+  CPU    1.2% | self=   4.367ms | calls=    3 | DataParallel.forward
+  CPU    1.1% | self=   3.961ms | calls=  387 | cudaLaunchKernel
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+pytorch-examples-resnet50 [baseline/none] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [baseline/none] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-examples-resnet50 [safe/none] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [safe/none] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-examples-resnet50 [balanced/cold] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [balanced/cold] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.bfloat16, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-examples-resnet50 [balanced/warm] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [balanced/warm] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.bfloat16, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-examples-resnet50 [aggressive/cold] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [aggressive/cold] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.bfloat16, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+pytorch-examples-resnet50 [aggressive/warm] DataParallel: params=25557032, train_calls=100, eval_calls=20, unique_shapes=1 -> ["(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"]
+pytorch-examples-resnet50 [aggressive/warm] CrossEntropyLoss: params=0, train_calls=120, eval_calls=0, unique_shapes=1 -> ["(((64, 1000), torch.bfloat16, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] pytorch-examples-resnet50 (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/01_pytorch-examples-resnet50__baseline__none
+[SKIPPED] pytorch-examples-resnet50 (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] pytorch-examples-resnet50 (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/02_pytorch-examples-resnet50__safe__none
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] pytorch-examples-resnet50 (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] pytorch-examples-resnet50 (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] pytorch-examples-resnet50 (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] pytorch-examples-resnet50 (safe/none) -> kernels.auto: kernels.enabled is False
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> optimizer.SGD: fused=True
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (safe/none) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[ARTIFACTS] pytorch-examples-resnet50 (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/03_pytorch-examples-resnet50__balanced__cold
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/balanced)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> optimizer.SGD: fused=True
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] pytorch-examples-resnet50 (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-examples-resnet50 (balanced/cold) -> compile.auto: Compiled DataParallel (mode=default, dynamic=False)
+[ARTIFACTS] pytorch-examples-resnet50 (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/04_pytorch-examples-resnet50__balanced__warm
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/balanced)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> optimizer.SGD: fused=True
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] pytorch-examples-resnet50 (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-examples-resnet50 (balanced/warm) -> compile.auto: Compiled DataParallel (mode=default, dynamic=False)
+[ARTIFACTS] pytorch-examples-resnet50 (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/05_pytorch-examples-resnet50__aggressive__cold
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/aggressive)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> optimizer.SGD: fused=True
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on DataParallel: params=25557032 > 15000000 (large compute-bound module)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> compile.auto: Compiled DataParallel (mode=max-autotune-no-cudagraphs, dynamic=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/cold) -> inference.cuda_graphs: Compiled eval DataParallel with mode=reduce-overhead (CUDA Graphs)
+[ARTIFACTS] pytorch-examples-resnet50 (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/130117_20261124-real-pytorch-examples-resnet50/runs/06_pytorch-examples-resnet50__aggressive__warm
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/aggressive)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> optimizer.SGD: fused=True
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> dataloader.cuda_prefetch: Adaptive CUDA copy-stream prefetch enabled (depth=1, free_vram=22445.1MB (0.5% used))
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> runtime.channels_last: Converted Conv2d channels_last module (min_spatial_area=16384)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> compile.train_cuda_graphs: Training CUDA Graphs skipped on DataParallel: params=25557032 > 15000000 (large compute-bound module)
+[SKIPPED] pytorch-examples-resnet50 (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> compile.auto: Compiled DataParallel (mode=max-autotune-no-cudagraphs, dynamic=False)
+[APPLIED] pytorch-examples-resnet50 (aggressive/warm) -> inference.cuda_graphs: Compiled eval DataParallel with mode=reduce-overhead (CUDA Graphs)
+[FAIL] pytorch-examples-resnet50 (safe): max_rel_diff=0.517248 > threshold=0.01
+[FAIL] pytorch-examples-resnet50 (balanced): max_rel_diff=1.127603 > threshold=0.02
+[FAIL] pytorch-examples-resnet50 (balanced): max_rel_diff=0.88944 > threshold=0.02
+[FAIL] pytorch-examples-resnet50 (aggressive): max_rel_diff=0.454323 > threshold=0.03
+[FAIL] pytorch-examples-resnet50 (aggressive): max_rel_diff=0.588487 > threshold=0.03
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[VRAM:FRAGMENTATION] pytorch-examples-resnet50 (baseline/none): reserved overhead is 746.39 MB -> inspect `expandable_segments` & allocator settings.
+[COMPILE:GRAPH_BREAK] pytorch-examples-resnet50 (balanced/cold): 5 graph breaks (unique_graphs=4) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-examples-resnet50 (balanced/cold): avg GPU utilization is 24.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] pytorch-examples-resnet50 (balanced/warm): 5 graph breaks (unique_graphs=4) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-examples-resnet50 (balanced/warm): avg GPU utilization is 31.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] pytorch-examples-resnet50 (aggressive/cold): 5 graph breaks (unique_graphs=4) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-examples-resnet50 (aggressive/cold): avg GPU utilization is 22.1% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] pytorch-examples-resnet50 (aggressive/warm): 5 graph breaks (unique_graphs=4) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] pytorch-examples-resnet50 (aggressive/warm): avg GPU utilization is 26.5% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : FAILED_NEEDS_ATTENTION (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================

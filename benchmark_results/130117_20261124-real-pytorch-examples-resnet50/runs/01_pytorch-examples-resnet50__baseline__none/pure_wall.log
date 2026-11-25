@@ -1,0 +1,27 @@
+CMD: /usr/bin/python3 -c import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')
+RC: 0
+WALL_SEC: 39.4222
+
+=== STDOUT ===
+Using device: cuda
+=> creating model 'resnet50'
+=> Dummy data is used!
+Epoch: [0][  1/100]	Time  1.321 ( 1.321)	Data  0.324 ( 0.324)	Loss 7.2673e+00 (7.2673e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 11/100]	Time  0.306 ( 0.381)	Data  0.000 ( 0.030)	Loss 1.5609e+01 (1.3682e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.43)
+Epoch: [0][ 21/100]	Time  0.307 ( 0.345)	Data  0.000 ( 0.025)	Loss 8.2250e+00 (1.2351e+01)	Acc@1   0.00 (  0.07)	Acc@5   0.00 (  0.45)
+Epoch: [0][ 31/100]	Time  0.307 ( 0.332)	Data  0.000 ( 0.023)	Loss 7.4176e+00 (1.1064e+01)	Acc@1   0.00 (  0.05)	Acc@5   1.56 (  0.45)
+Epoch: [0][ 41/100]	Time  0.305 ( 0.326)	Data  0.000 ( 0.022)	Loss 6.9363e+00 (1.0086e+01)	Acc@1   0.00 (  0.04)	Acc@5   1.56 (  0.53)
+Epoch: [0][ 51/100]	Time  0.305 ( 0.322)	Data  0.000 ( 0.021)	Loss 7.1708e+00 (9.4884e+00)	Acc@1   0.00 (  0.06)	Acc@5   0.00 (  0.52)
+Epoch: [0][ 61/100]	Time  0.306 ( 0.319)	Data  0.000 ( 0.021)	Loss 6.9384e+00 (9.0774e+00)	Acc@1   0.00 (  0.05)	Acc@5   0.00 (  0.51)
+Epoch: [0][ 71/100]	Time  0.306 ( 0.317)	Data  0.000 ( 0.021)	Loss 6.9131e+00 (8.7755e+00)	Acc@1   0.00 (  0.04)	Acc@5   0.00 (  0.53)
+Epoch: [0][ 81/100]	Time  0.305 ( 0.316)	Data  0.000 ( 0.020)	Loss 7.3660e+00 (8.5543e+00)	Acc@1   0.00 (  0.04)	Acc@5   0.00 (  0.46)
+Epoch: [0][ 91/100]	Time  0.306 ( 0.315)	Data  0.000 ( 0.020)	Loss 6.9132e+00 (8.3736e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.45)
+Test: [ 1/20]	Time  0.415 ( 0.415)	Loss 6.8677e+00 (6.8677e+00)	Acc@1   1.56 (  1.56)	Acc@5   1.56 (  1.56)
+Test: [11/20]	Time  0.131 ( 0.139)	Loss 8.3310e+00 (7.0320e+00)	Acc@1   0.00 (  0.28)	Acc@5   0.00 (  0.99)
+ *   Acc@1 0.156 Acc@5 1.328
+
+
+=== STDERR ===
+main.py:121: UserWarning: nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'
+  warnings.warn("nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'")
+

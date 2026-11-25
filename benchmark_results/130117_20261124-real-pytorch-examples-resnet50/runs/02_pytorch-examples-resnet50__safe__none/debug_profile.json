@@ -1,0 +1,452 @@
+{
+  "phase_breakdown": {
+    "num_steps": 100,
+    "step_0_cold": {
+      "data_other_ms": 2250.799,
+      "forward_ms": 592.372,
+      "loss_clip_ms": 85.273,
+      "backward_ms": 204.402,
+      "optim_ms": 6.079,
+      "total_ms": 3139.089
+    },
+    "steady_mean_ms": {
+      "data_other_ms": 4.17,
+      "forward_ms": 95.524,
+      "loss_clip_ms": 1.731,
+      "backward_ms": 168.501,
+      "optim_ms": 2.886,
+      "total_ms": 272.962
+    },
+    "steady_median_ms": {
+      "data_other_ms": 3.949,
+      "forward_ms": 95.515,
+      "loss_clip_ms": 1.707,
+      "backward_ms": 168.56,
+      "optim_ms": 2.882,
+      "total_ms": 272.852
+    },
+    "steady_shares_pct": {
+      "data_other": 1.5,
+      "forward": 35.0,
+      "loss_clip": 0.6,
+      "backward": 61.7,
+      "optim": 1.1
+    },
+    "per_step_trace": [
+      {
+        "step": 0,
+        "data_other_ms": 2250.799,
+        "forward_ms": 592.372,
+        "loss_clip_ms": 85.273,
+        "backward_ms": 204.402,
+        "optim_ms": 6.079,
+        "total_ms": 3139.089
+      },
+      {
+        "step": 1,
+        "data_other_ms": 4.423,
+        "forward_ms": 94.495,
+        "loss_clip_ms": 1.644,
+        "backward_ms": 166.557,
+        "optim_ms": 2.895,
+        "total_ms": 270.153
+      },
+      {
+        "step": 2,
+        "data_other_ms": 3.919,
+        "forward_ms": 97.336,
+        "loss_clip_ms": 2.088,
+        "backward_ms": 169.666,
+        "optim_ms": 3.047,
+        "total_ms": 276.196
+      },
+      {
+        "step": 3,
+        "data_other_ms": 4.211,
+        "forward_ms": 95.522,
+        "loss_clip_ms": 2.06,
+        "backward_ms": 169.827,
+        "optim_ms": 3.012,
+        "total_ms": 274.826
+      },
+      {
+        "step": 4,
+        "data_other_ms": 4.103,
+        "forward_ms": 96.297,
+        "loss_clip_ms": 2.149,
+        "backward_ms": 168.099,
+        "optim_ms": 2.978,
+        "total_ms": 273.832
+      },
+      {
+        "step": 5,
+        "data_other_ms": 4.1,
+        "forward_ms": 94.55,
+        "loss_clip_ms": 1.688,
+        "backward_ms": 167.369,
+        "optim_ms": 2.84,
+        "total_ms": 270.723
+      },
+      {
+        "step": 6,
+        "data_other_ms": 3.926,
+        "forward_ms": 95.043,
+        "loss_clip_ms": 1.697,
+        "backward_ms": 167.34,
+        "optim_ms": 2.93,
+        "total_ms": 271.075
+      },
+      {
+        "step": 7,
+        "data_other_ms": 3.961,
+        "forward_ms": 94.721,
+        "loss_clip_ms": 1.782,
+        "backward_ms": 167.042,
+        "optim_ms": 2.848,
+        "total_ms": 270.505
+      }
+    ]
+  },
+  "module_summary": {
+    "DataParallel": {
+      "train_calls": 100,
+      "eval_calls": 20,
+      "params": 25557032,
+      "input_shapes": [
+        "(((64, 3, 224, 224), torch.float32, device(type='cuda', index=0)),)"
+      ]
+    },
+    "CrossEntropyLoss": {
+      "train_calls": 120,
+      "eval_calls": 0,
+      "params": 0,
+      "input_shapes": [
+        "(((64, 1000), torch.float32, device(type='cuda', index=0)), ((64,), torch.int64, device(type='cuda', index=0)))"
+      ]
+    }
+  },
+  "cuda_memory_debug": {
+    "total_vram_mb": 22563.12,
+    "peak_allocated_mb": 5626.7,
+    "peak_reserved_mb": 5760.0,
+    "reserved_overhead_mb": 133.3,
+    "active_peak_mb": 5626.7,
+    "headroom_mb": 16803.12,
+    "utilization_pct": 25.53,
+    "num_alloc_retries": 0,
+    "num_ooms": 0
+  },
+  "torch_profiler": {
+    "sort_by": "self_cuda_time_total",
+    "total_self_cuda_ms": 1876.485,
+    "total_self_cpu_ms": 804.959,
+    "top_cuda_ops": [
+      {
+        "name": "DataParallel.forward",
+        "calls": 3,
+        "self_cuda_ms": 281.451,
+        "total_cuda_ms": 281.451,
+        "pct": 15.0
+      },
+      {
+        "name": "aten::convolution_backward",
+        "calls": 159,
+        "self_cuda_ms": 223.804,
+        "total_cuda_ms": 223.804,
+        "pct": 11.9
+      },
+      {
+        "name": "aten::cudnn_batch_norm_backward",
+        "calls": 159,
+        "self_cuda_ms": 131.146,
+        "total_cuda_ms": 131.146,
+        "pct": 7.0
+      },
+      {
+        "name": "void cudnn::batchnorm_bwtr_nhwc_semiPersist<floa",
+        "calls": 132,
+        "self_cuda_ms": 126.338,
+        "total_cuda_ms": 126.338,
+        "pct": 6.7
+      },
+      {
+        "name": "aten::cudnn_convolution",
+        "calls": 159,
+        "self_cuda_ms": 102.59,
+        "total_cuda_ms": 102.59,
+        "pct": 5.5
+      },
+      {
+        "name": "aten::add_",
+        "calls": 261,
+        "self_cuda_ms": 98.944,
+        "total_cuda_ms": 98.944,
+        "pct": 5.3
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 102,
+        "self_cuda_ms": 98.463,
+        "total_cuda_ms": 98.463,
+        "pct": 5.2
+      },
+      {
+        "name": "aten::threshold_backward",
+        "calls": 147,
+        "self_cuda_ms": 87.124,
+        "total_cuda_ms": 87.124,
+        "pct": 4.6
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 144,
+        "self_cuda_ms": 86.162,
+        "total_cuda_ms": 86.162,
+        "pct": 4.6
+      },
+      {
+        "name": "aten::cudnn_batch_norm",
+        "calls": 159,
+        "self_cuda_ms": 76.327,
+        "total_cuda_ms": 76.327,
+        "pct": 4.1
+      },
+      {
+        "name": "void cudnn::batchnorm_fwtr_nhwc_semiPersist<floa",
+        "calls": 75,
+        "self_cuda_ms": 62.857,
+        "total_cuda_ms": 62.857,
+        "pct": 3.3
+      },
+      {
+        "name": "void cudnn::engines_precompiled::convertTensor_k",
+        "calls": 318,
+        "self_cuda_ms": 48.074,
+        "total_cuda_ms": 48.074,
+        "pct": 2.6
+      },
+      {
+        "name": "aten::clamp_min_",
+        "calls": 147,
+        "self_cuda_ms": 46.156,
+        "total_cuda_ms": 46.156,
+        "pct": 2.5
+      },
+      {
+        "name": "void at::native::vectorized_elementwise_kernel<4",
+        "calls": 147,
+        "self_cuda_ms": 46.156,
+        "total_cuda_ms": 46.156,
+        "pct": 2.5
+      },
+      {
+        "name": "sm80_xmma_wgrad_implicit_gemm_indexed_tf32f32_tf",
+        "calls": 45,
+        "self_cuda_ms": 27.421,
+        "total_cuda_ms": 27.421,
+        "pct": 1.5
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 21,
+        "self_cuda_ms": 20.608,
+        "total_cuda_ms": 20.608,
+        "pct": 1.1
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 18,
+        "self_cuda_ms": 18.96,
+        "total_cuda_ms": 18.96,
+        "pct": 1.0
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 42,
+        "self_cuda_ms": 18.851,
+        "total_cuda_ms": 18.851,
+        "pct": 1.0
+      },
+      {
+        "name": "sm80_xmma_dgrad_implicit_gemm_tf32f32_tf32f32_f3",
+        "calls": 33,
+        "self_cuda_ms": 18.802,
+        "total_cuda_ms": 18.802,
+        "pct": 1.0
+      },
+      {
+        "name": "void cutlass::Kernel2<cutlass_80_tensorop_s1688g",
+        "calls": 21,
+        "self_cuda_ms": 18.708,
+        "total_cuda_ms": 18.708,
+        "pct": 1.0
+      }
+    ],
+    "top_cpu_ops": [
+      {
+        "name": "cudaDeviceSynchronize",
+        "calls": 24,
+        "self_cpu_ms": 644.795,
+        "total_cpu_ms": 646.938,
+        "pct": 80.1
+      },
+      {
+        "name": "DataParallel.forward",
+        "calls": 3,
+        "self_cpu_ms": 24.155,
+        "total_cpu_ms": 80.777,
+        "pct": 3.0
+      },
+      {
+        "name": "aten::convolution_backward",
+        "calls": 159,
+        "self_cpu_ms": 16.02,
+        "total_cpu_ms": 24.411,
+        "pct": 2.0
+      },
+      {
+        "name": "cudaLaunchKernel",
+        "calls": 1107,
+        "self_cpu_ms": 11.26,
+        "total_cpu_ms": 11.26,
+        "pct": 1.4
+      },
+      {
+        "name": "aten::empty",
+        "calls": 1599,
+        "self_cpu_ms": 11.199,
+        "total_cpu_ms": 13.252,
+        "pct": 1.4
+      },
+      {
+        "name": "aten::cudnn_convolution",
+        "calls": 159,
+        "self_cpu_ms": 11.085,
+        "total_cpu_ms": 14.813,
+        "pct": 1.4
+      },
+      {
+        "name": "aten::cudnn_batch_norm",
+        "calls": 159,
+        "self_cpu_ms": 9.421,
+        "total_cpu_ms": 20.47,
+        "pct": 1.2
+      },
+      {
+        "name": "Activity Buffer Request",
+        "calls": 3,
+        "self_cpu_ms": 6.156,
+        "total_cpu_ms": 6.156,
+        "pct": 0.8
+      },
+      {
+        "name": "aten::cudnn_batch_norm_backward",
+        "calls": 159,
+        "self_cpu_ms": 5.831,
+        "total_cpu_ms": 13.122,
+        "pct": 0.7
+      },
+      {
+        "name": "aten::add_",
+        "calls": 261,
+        "self_cpu_ms": 5.066,
+        "total_cpu_ms": 7.98,
+        "pct": 0.6
+      },
+      {
+        "name": "cudaMemsetAsync",
+        "calls": 564,
+        "self_cpu_ms": 4.733,
+        "total_cpu_ms": 4.733,
+        "pct": 0.6
+      },
+      {
+        "name": "cudaLaunchCooperativeKernel",
+        "calls": 318,
+        "self_cpu_ms": 3.345,
+        "total_cpu_ms": 3.345,
+        "pct": 0.4
+      },
+      {
+        "name": "cuLaunchKernel",
+        "calls": 306,
+        "self_cpu_ms": 3.224,
+        "total_cpu_ms": 3.224,
+        "pct": 0.4
+      },
+      {
+        "name": "autograd::engine::evaluate_function: Convolution",
+        "calls": 159,
+        "self_cpu_ms": 2.937,
+        "total_cpu_ms": 29.897,
+        "pct": 0.4
+      },
+      {
+        "name": "autograd::engine::evaluate_function: CudnnBatchN",
+        "calls": 159,
+        "self_cpu_ms": 2.883,
+        "total_cpu_ms": 17.177,
+        "pct": 0.4
+      },
+      {
+        "name": "aten::threshold_backward",
+        "calls": 147,
+        "self_cpu_ms": 2.852,
+        "total_cpu_ms": 4.467,
+        "pct": 0.4
+      },
+      {
+        "name": "aten::relu_",
+        "calls": 147,
+        "self_cpu_ms": 2.801,
+        "total_cpu_ms": 6.638,
+        "pct": 0.3
+      },
+      {
+        "name": "autograd::engine::evaluate_function: torch::auto",
+        "calls": 483,
+        "self_cpu_ms": 2.761,
+        "total_cpu_ms": 5.94,
+        "pct": 0.3
+      },
+      {
+        "name": "aten::convolution",
+        "calls": 159,
+        "self_cpu_ms": 2.261,
+        "total_cpu_ms": 18.866,
+        "pct": 0.3
+      },
+      {
+        "name": "aten::fill_",
+        "calls": 12,
+        "self_cpu_ms": 2.194,
+        "total_cpu_ms": 2.391,
+        "pct": 0.3
+      }
+    ],
+    "window_steps": [
+      2,
+      5
+    ]
+  },
+  "bandwidth_vram_booster": {
+    "prefetch_stats": {
+      "loaders_wrapped": 2,
+      "batches_prefetched": 120,
+      "batches_served": 120,
+      "initial_depth": 1,
+      "current_depth": 1,
+      "max_queue_depth": 1,
+      "backoff_events": 0,
+      "last_vram_used_ratio": 0.2552,
+      "last_vram_free_mb": 16805.12
+    },
+    "vram_headroom": {
+      "total_mb": 22563.12,
+      "allocated_mb": 16.25,
+      "reserved_mb": 5760.0,
+      "free_mb": 16803.12,
+      "used_ratio": 0.2553
+    }
+  }
+}

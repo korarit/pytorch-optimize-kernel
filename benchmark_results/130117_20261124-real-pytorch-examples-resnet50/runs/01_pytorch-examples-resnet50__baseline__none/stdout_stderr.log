@@ -1,0 +1,23 @@
+=== STDOUT ===
+Using device: cuda
+=> creating model 'resnet50'
+=> Dummy data is used!
+Epoch: [0][  1/100]	Time  2.480 ( 2.480)	Data  0.330 ( 0.330)	Loss 7.0907e+00 (7.0907e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 11/100]	Time  0.304 ( 0.503)	Data  0.000 ( 0.030)	Loss 1.3268e+01 (1.2854e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 21/100]	Time  0.304 ( 0.408)	Data  0.000 ( 0.016)	Loss 7.6002e+00 (1.2067e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 31/100]	Time  0.305 ( 0.375)	Data  0.000 ( 0.011)	Loss 7.4762e+00 (1.0710e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.15)
+Epoch: [0][ 41/100]	Time  0.304 ( 0.358)	Data  0.000 ( 0.008)	Loss 7.1205e+00 (9.8937e+00)	Acc@1   0.00 (  0.04)	Acc@5   0.00 (  0.30)
+Epoch: [0][ 51/100]	Time  0.304 ( 0.347)	Data  0.000 ( 0.007)	Loss 6.8792e+00 (9.3614e+00)	Acc@1   0.00 (  0.03)	Acc@5   1.56 (  0.34)
+Epoch: [0][ 61/100]	Time  0.304 ( 0.340)	Data  0.000 ( 0.006)	Loss 6.9385e+00 (8.9675e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.36)
+Epoch: [0][ 71/100]	Time  0.306 ( 0.335)	Data  0.000 ( 0.005)	Loss 6.9424e+00 (8.6862e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.37)
+Epoch: [0][ 81/100]	Time  0.305 ( 0.332)	Data  0.000 ( 0.004)	Loss 6.8932e+00 (8.4715e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.39)
+Epoch: [0][ 91/100]	Time  0.305 ( 0.329)	Data  0.000 ( 0.004)	Loss 6.9146e+00 (8.3008e+00)	Acc@1   0.00 (  0.05)	Acc@5   0.00 (  0.39)
+Test: [ 1/20]	Time  0.414 ( 0.414)	Loss 6.8767e+00 (6.8767e+00)	Acc@1   1.56 (  1.56)	Acc@5   1.56 (  1.56)
+Test: [11/20]	Time  0.129 ( 0.139)	Loss 6.9088e+00 (6.9077e+00)	Acc@1   0.00 (  0.43)	Acc@5   0.00 (  1.56)
+ *   Acc@1 0.312 Acc@5 1.328
+
+
+=== STDERR ===
+main.py:121: UserWarning: nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'
+  warnings.warn("nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'")
+

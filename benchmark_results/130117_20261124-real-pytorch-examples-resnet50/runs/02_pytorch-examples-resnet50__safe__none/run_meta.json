@@ -1,0 +1,36 @@
+{
+  "target": "pytorch-examples-resnet50",
+  "arm": "safe",
+  "cache_state": "none",
+  "cwd": "/content/external_repos/examples/imagenet",
+  "target_cmd": [
+    "/usr/bin/python3",
+    "-c",
+    "import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')"
+  ],
+  "ptopt_cmd": [
+    "/usr/bin/python3",
+    "-m",
+    "ptopt.cli.main",
+    "--profile",
+    "safe",
+    "--telemetry-out",
+    "/tmp/tmpkvmxg0iq/telemetry.json",
+    "--override",
+    "compile.cache_dir=/tmp/tmp8_l5z71l/pytorch-examples-resnet50/safe",
+    "--override",
+    "dataloader.cuda_prefetch=true",
+    "--",
+    "/usr/bin/python3",
+    "-c",
+    "import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')"
+  ],
+  "env_overrides": {},
+  "exit_code": 0,
+  "end_to_end_sec": 36.1777,
+  "pure_wall_sec": 35.8405,
+  "nvsmi_peak_mb": 6028.0,
+  "gpu_util_avg_pct": 78.4,
+  "extracted_metrics": {},
+  "pure_wall_metrics": {}
+}

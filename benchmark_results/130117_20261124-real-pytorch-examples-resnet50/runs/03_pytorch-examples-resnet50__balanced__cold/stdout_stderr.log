@@ -1,0 +1,25 @@
+=== STDOUT ===
+Using device: cuda
+=> creating model 'resnet50'
+=> Dummy data is used!
+Epoch: [0][  1/100]	Time 61.676 (61.676)	Data  0.381 ( 0.381)	Loss 7.0508e+00 (7.0508e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 11/100]	Time  0.122 ( 5.718)	Data  0.001 ( 0.036)	Loss 2.8229e+01 (1.4172e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.28)
+Epoch: [0][ 21/100]	Time  0.122 ( 3.053)	Data  0.001 ( 0.019)	Loss 7.4883e+00 (1.2697e+01)	Acc@1   0.00 (  0.00)	Acc@5   3.12 (  0.37)
+Epoch: [0][ 31/100]	Time  0.122 ( 2.108)	Data  0.001 ( 0.013)	Loss 7.1880e+00 (1.1137e+01)	Acc@1   0.00 (  0.00)	Acc@5   3.12 (  0.40)
+Epoch: [0][ 41/100]	Time  0.122 ( 1.623)	Data  0.001 ( 0.010)	Loss 7.1821e+00 (1.0185e+01)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.42)
+Epoch: [0][ 51/100]	Time  0.122 ( 1.329)	Data  0.001 ( 0.008)	Loss 7.1240e+00 (9.5789e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.37)
+Epoch: [0][ 61/100]	Time  0.122 ( 1.131)	Data  0.001 ( 0.007)	Loss 7.0127e+00 (9.1594e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.38)
+Epoch: [0][ 71/100]	Time  0.122 ( 0.989)	Data  0.001 ( 0.006)	Loss 7.0044e+00 (8.8527e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.37)
+Epoch: [0][ 81/100]	Time  0.123 ( 0.882)	Data  0.001 ( 0.006)	Loss 6.9482e+00 (8.6228e+00)	Acc@1   0.00 (  0.02)	Acc@5   1.56 (  0.41)
+Epoch: [0][ 91/100]	Time  0.123 ( 0.799)	Data  0.001 ( 0.005)	Loss 6.9980e+00 (8.4374e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.46)
+Test: [ 1/20]	Time 17.129 (17.129)	Loss 6.9058e+00 (6.9058e+00)	Acc@1   0.00 (  0.00)	Acc@5   1.56 (  1.56)
+Test: [11/20]	Time  0.032 ( 1.635)	Loss 6.9111e+00 (6.9034e+00)	Acc@1   0.00 (  0.14)	Acc@5   1.56 (  0.85)
+ *   Acc@1 0.156 Acc@5 0.938
+
+
+=== STDERR ===
+main.py:121: UserWarning: nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'
+  warnings.warn("nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'")
+W1124 13:05:16.860000 140746 torch/_logging/_internal.py:1394] [0/0] Profiler record function <class 'torch.autograd.profiler.record_function'> will be ignored
+W1124 13:05:35.303000 140746 torch/_inductor/utils.py:1806] [3/0] Not enough SMs to use max_autotune_gemm mode
+

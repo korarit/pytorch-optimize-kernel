@@ -1,0 +1,24 @@
+=== STDOUT ===
+Using device: cuda
+=> creating model 'resnet50'
+=> Dummy data is used!
+Epoch: [0][  1/100]	Time 12.048 (12.048)	Data  0.366 ( 0.366)	Loss 7.0815e+00 (7.0815e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.00)
+Epoch: [0][ 11/100]	Time  0.122 ( 1.206)	Data  0.001 ( 0.034)	Loss 1.1965e+01 (1.1850e+01)	Acc@1   0.00 (  0.00)	Acc@5   1.56 (  0.14)
+Epoch: [0][ 21/100]	Time  0.121 ( 0.690)	Data  0.001 ( 0.018)	Loss 7.7104e+00 (1.0553e+01)	Acc@1   0.00 (  0.00)	Acc@5   3.12 (  0.37)
+Epoch: [0][ 31/100]	Time  0.122 ( 0.506)	Data  0.001 ( 0.013)	Loss 7.4395e+00 (9.5418e+00)	Acc@1   0.00 (  0.00)	Acc@5   0.00 (  0.35)
+Epoch: [0][ 41/100]	Time  0.122 ( 0.413)	Data  0.001 ( 0.010)	Loss 7.1445e+00 (8.9787e+00)	Acc@1   0.00 (  0.04)	Acc@5   0.00 (  0.42)
+Epoch: [0][ 51/100]	Time  0.123 ( 0.356)	Data  0.001 ( 0.008)	Loss 6.9175e+00 (8.7935e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.37)
+Epoch: [0][ 61/100]	Time  0.122 ( 0.317)	Data  0.001 ( 0.007)	Loss 6.8809e+00 (8.6313e+00)	Acc@1   0.00 (  0.03)	Acc@5   0.00 (  0.41)
+Epoch: [0][ 71/100]	Time  0.121 ( 0.290)	Data  0.001 ( 0.006)	Loss 6.8940e+00 (8.4027e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.35)
+Epoch: [0][ 81/100]	Time  0.122 ( 0.270)	Data  0.001 ( 0.005)	Loss 6.9194e+00 (8.2212e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.33)
+Epoch: [0][ 91/100]	Time  0.124 ( 0.253)	Data  0.001 ( 0.005)	Loss 6.9692e+00 (8.0787e+00)	Acc@1   0.00 (  0.02)	Acc@5   0.00 (  0.31)
+Test: [ 1/20]	Time  5.910 ( 5.910)	Loss 6.8960e+00 (6.8960e+00)	Acc@1   0.00 (  0.00)	Acc@5   3.12 (  3.12)
+Test: [11/20]	Time  0.032 ( 0.608)	Loss 6.8999e+00 (6.8948e+00)	Acc@1   0.00 (  0.43)	Acc@5   0.00 (  1.42)
+ *   Acc@1 0.312 Acc@5 1.484
+
+
+=== STDERR ===
+main.py:121: UserWarning: nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'
+  warnings.warn("nccl backend >=2.5 requires GPU count>1, see https://github.com/NVIDIA/nccl/issues/103 perhaps use 'gloo'")
+W1124 13:10:19.249000 144225 torch/_logging/_internal.py:1394] [0/0] Profiler record function <class 'torch.autograd.profiler.record_function'> will be ignored
+
