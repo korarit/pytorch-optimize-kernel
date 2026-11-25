@@ -1,0 +1,90 @@
+CMD: /usr/bin/python3 -m ptopt.cli.main --profile balanced --override compile.cache_dir=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced -- /usr/bin/python3 trl/scripts/sft.py --model_name_or_path Qwen/Qwen2-0.5B --dataset_name trl-lib/Capybara --max_steps 30 --per_device_train_batch_size 4 --logging_steps 5 --save_strategy no --output_dir /tmp/qwen_sft_out
+RC: 0
+WALL_SEC: 259.8248
+
+=== STDOUT ===
+{'loss': '1.885', 'grad_norm': '8.563', 'learning_rate': '1.733e-05', 'entropy': '1.856', 'mean_token_accuracy': '0.5769', 'num_tokens': '1.36e+04', 'epoch': '0.001265'}
+{'loss': '1.499', 'grad_norm': '7.208', 'learning_rate': '1.4e-05', 'entropy': '1.509', 'mean_token_accuracy': '0.6302', 'num_tokens': '2.842e+04', 'epoch': '0.00253'}
+{'loss': '1.673', 'grad_norm': '5.955', 'learning_rate': '1.067e-05', 'entropy': '1.696', 'mean_token_accuracy': '0.6231', 'num_tokens': '4.249e+04', 'epoch': '0.003796'}
+{'loss': '1.655', 'grad_norm': '5.581', 'learning_rate': '7.333e-06', 'entropy': '1.64', 'mean_token_accuracy': '0.6107', 'num_tokens': '5.949e+04', 'epoch': '0.005061'}
+{'loss': '1.817', 'grad_norm': '6.158', 'learning_rate': '4e-06', 'entropy': '1.781', 'mean_token_accuracy': '0.5945', 'num_tokens': '7.414e+04', 'epoch': '0.006326'}
+{'loss': '1.511', 'grad_norm': '7.092', 'learning_rate': '6.667e-07', 'entropy': '1.483', 'mean_token_accuracy': '0.6411', 'num_tokens': '8.667e+04', 'epoch': '0.007591'}
+{'train_runtime': '233', 'train_samples_per_second': '0.515', 'train_steps_per_second': '0.129', 'train_loss': '1.673', 'epoch': '0.007591'}
+✅ Training completed.
+💾 Model saved to /tmp/qwen_sft_out.
+
+
+=== STDERR ===
+Using the latest cached version of the dataset since trl-lib/Capybara couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'default' at /root/.cache/huggingface/datasets/trl-lib___capybara/default/0.0.0/e235e846458bff3398a88aed812347f7f0756520 (last modified on Wed Nov 25 05:55:26 2026).
+
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]
+Loading weights:   0%|          | 1/290 [00:00<00:48,  5.91it/s]
+Loading weights:  39%|███▊      | 112/290 [00:00<00:00, 495.10it/s]
+Loading weights:  67%|██████▋   | 195/290 [00:00<00:00, 615.46it/s]
+Loading weights:  97%|█████████▋| 280/290 [00:00<00:00, 688.56it/s]
+Loading weights: 100%|██████████| 290/290 [00:00<00:00, 594.70it/s]
+
+  0%|          | 0/30 [00:00<?, ?it/s]
+  3%|▎         | 1/30 [02:02<59:10, 122.44s/it]
+  7%|▋         | 2/30 [02:03<23:48, 51.03s/it] 
+ 10%|█         | 3/30 [02:04<12:41, 28.21s/it]
+ 13%|█▎        | 4/30 [02:06<07:41, 17.75s/it]
+ 17%|█▋        | 5/30 [02:07<04:53, 11.72s/it]
+                                              
+
+ 17%|█▋        | 5/30 [02:07<04:53, 11.72s/it]
+ 20%|██        | 6/30 [02:08<03:14,  8.12s/it]
+ 23%|██▎       | 7/30 [02:09<02:13,  5.82s/it]
+ 27%|██▋       | 8/30 [02:10<01:34,  4.32s/it]W1125 06:38:48.128000 19052 torch/_dynamo/convert_frame.py:2008] [3/8] torch._dynamo hit config.recompile_limit (8)
+W1125 06:38:48.128000 19052 torch/_dynamo/convert_frame.py:2008] [3/8]    function: 'torch_dynamo_resume_in__fused_forward_at_1712' (/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712)
+W1125 06:38:48.128000 19052 torch/_dynamo/convert_frame.py:2008] [3/8]    last reason: 3/0: Cache line invalidated because L['___stack2'] got deallocated
+W1125 06:38:48.128000 19052 torch/_dynamo/convert_frame.py:2008] [3/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+W1125 06:38:48.128000 19052 torch/_dynamo/convert_frame.py:2008] [3/8] To diagnose recompilation issues, see https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.recompilation.html
+
+ 30%|███       | 9/30 [03:40<10:51, 31.03s/it]
+ 33%|███▎      | 10/30 [03:40<07:12, 21.64s/it]
+                                               
+
+ 33%|███▎      | 10/30 [03:41<07:12, 21.64s/it]
+ 37%|███▋      | 11/30 [03:41<04:48, 15.20s/it]
+ 40%|████      | 12/30 [03:42<03:13, 10.74s/it]
+ 43%|████▎     | 13/30 [03:42<02:10,  7.69s/it]
+ 47%|████▋     | 14/30 [03:43<01:28,  5.54s/it]
+ 50%|█████     | 15/30 [03:44<01:01,  4.07s/it]
+                                               
+
+ 50%|█████     | 15/30 [03:44<01:01,  4.07s/it]
+ 53%|█████▎    | 16/30 [03:44<00:42,  3.04s/it]
+ 57%|█████▋    | 17/30 [03:45<00:29,  2.30s/it]
+ 60%|██████    | 18/30 [03:45<00:21,  1.80s/it]
+ 63%|██████▎   | 19/30 [03:46<00:15,  1.45s/it]
+ 67%|██████▋   | 20/30 [03:47<00:12,  1.21s/it]
+                                               
+
+ 67%|██████▋   | 20/30 [03:47<00:12,  1.21s/it]
+ 70%|███████   | 21/30 [03:47<00:09,  1.04s/it]
+ 73%|███████▎  | 22/30 [03:48<00:07,  1.10it/s]
+ 77%|███████▋  | 23/30 [03:49<00:05,  1.21it/s]
+ 80%|████████  | 24/30 [03:49<00:04,  1.32it/s]
+ 83%|████████▎ | 25/30 [03:50<00:03,  1.41it/s]
+                                               
+
+ 83%|████████▎ | 25/30 [03:50<00:03,  1.41it/s]
+ 87%|████████▋ | 26/30 [03:50<00:02,  1.46it/s]
+ 90%|█████████ | 27/30 [03:51<00:01,  1.52it/s]
+ 93%|█████████▎| 28/30 [03:52<00:01,  1.54it/s]
+ 97%|█████████▋| 29/30 [03:52<00:00,  1.74it/s]
+100%|██████████| 30/30 [03:52<00:00,  1.84it/s]
+                                               
+
+100%|██████████| 30/30 [03:53<00:00,  1.84it/s]
+                                               
+
+100%|██████████| 30/30 [03:53<00:00,  1.84it/s]
+100%|██████████| 30/30 [03:53<00:00,  7.77s/it]
+
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]
+Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.06s/it]
+Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.06s/it]
+

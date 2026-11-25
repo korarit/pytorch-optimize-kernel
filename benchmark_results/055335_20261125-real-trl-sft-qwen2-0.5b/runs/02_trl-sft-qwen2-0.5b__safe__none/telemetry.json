@@ -1,0 +1,175 @@
+{
+  "telemetry_schema_version": 1,
+  "mode": "safe",
+  "telemetry_only": false,
+  "end_to_end_sec": 36.1042,
+  "step_times_ms": [
+    10873.4958,
+    694.9259,
+    705.1085,
+    736.1125,
+    681.6307,
+    702.085,
+    720.7458,
+    722.454,
+    507.2806,
+    707.9733,
+    693.4643,
+    657.4281,
+    687.8114,
+    688.3055,
+    741.2233,
+    747.2827,
+    673.3914,
+    726.1241,
+    745.9155,
+    744.8902,
+    725.4748,
+    702.1215,
+    726.3356,
+    683.7101,
+    697.2326,
+    724.1305,
+    682.539,
+    726.4435,
+    474.7802,
+    606.2013
+  ],
+  "train_step_times_ms": [
+    10873.4958,
+    694.9259,
+    705.1085,
+    736.1125,
+    681.6307,
+    702.085,
+    720.7458,
+    722.454,
+    507.2806,
+    707.9733,
+    693.4643,
+    657.4281,
+    687.8114,
+    688.3055,
+    741.2233,
+    747.2827,
+    673.3914,
+    726.1241,
+    745.9155,
+    744.8902,
+    725.4748,
+    702.1215,
+    726.3356,
+    683.7101,
+    697.2326,
+    724.1305,
+    682.539,
+    726.4435,
+    474.7802,
+    606.2013
+  ],
+  "eval_step_times_ms": [],
+  "losses": [
+    1.852596,
+    2.569948,
+    1.488688,
+    1.544595,
+    1.977814,
+    1.540672,
+    1.425544,
+    1.537397,
+    1.400686,
+    1.595554,
+    1.390309,
+    1.718608,
+    2.036153,
+    1.084749,
+    2.142632,
+    1.449331,
+    1.869436,
+    1.544496,
+    1.575444,
+    1.839107,
+    1.772467,
+    2.209022,
+    2.005383,
+    2.129852,
+    0.969877,
+    1.842234,
+    1.030988,
+    1.745005,
+    1.919063,
+    1.020897
+  ],
+  "memory_mb": {
+    "peak_allocated": 8103.73,
+    "peak_reserved": 8652.0
+  },
+  "fallback_events": [
+    {
+      "pass_name": "runtime.memory_allocator",
+      "status": "APPLIED",
+      "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.flags",
+      "status": "APPLIED",
+      "reason": "tf32=on, flash_sdp=True, mem_sdp=True",
+      "error": null
+    },
+    {
+      "pass_name": "dataloader.auto_tune",
+      "status": "APPLIED",
+      "reason": "DataLoader auto-tune hook installed",
+      "error": null
+    },
+    {
+      "pass_name": "optimizer.fusion",
+      "status": "APPLIED",
+      "reason": "Optimizer fusion hook installed",
+      "error": null
+    },
+    {
+      "pass_name": "compile.auto",
+      "status": "SKIPPED",
+      "reason": "compile.enabled is False",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.channels_last",
+      "status": "APPLIED",
+      "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+      "error": null
+    },
+    {
+      "pass_name": "amp.auto",
+      "status": "SKIPPED",
+      "reason": "amp.enabled is False or dtype is fp32",
+      "error": null
+    },
+    {
+      "pass_name": "inference.opt",
+      "status": "APPLIED",
+      "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.activation_checkpointing",
+      "status": "SKIPPED",
+      "reason": "runtime.activation_checkpointing is off",
+      "error": null
+    },
+    {
+      "pass_name": "kernels.auto",
+      "status": "SKIPPED",
+      "reason": "kernels.enabled is False",
+      "error": null
+    },
+    {
+      "pass_name": "dataloader.auto_tune",
+      "status": "APPLIED",
+      "reason": "Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True",
+      "error": null
+    }
+  ]
+}

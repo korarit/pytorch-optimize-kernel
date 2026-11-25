@@ -1,0 +1,16 @@
+[ptopt fallback/hook summary]
+  profile=safe | exit_code=0 | cmd=/usr/bin/python3 trl/scripts/sft.py --model_name_or_path Qwen/Qwen2-0.5B --dataset_name trl-lib/Capybara --max_steps 30 --per_device_train_batch_size 4 --logging_steps 5 --save_strategy no --output_dir /tmp/qwen_sft_out
+  Counts: APPLIED=7 | SKIPPED=4 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.auto: compile.enabled is False
+  - [SKIPPED (by arch/config)] amp.auto: amp.enabled is False or dtype is fp32
+  - [SKIPPED (by arch/config)] runtime.activation_checkpointing: runtime.activation_checkpointing is off
+  - [SKIPPED (by arch/config)] kernels.auto: kernels.enabled is False

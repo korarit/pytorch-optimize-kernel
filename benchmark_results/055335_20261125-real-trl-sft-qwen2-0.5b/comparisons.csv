@@ -1,0 +1,6 @@
+target,arm,cache_state,kind,base_step_ms,arm_step_ms,arm_p95_ms,step_speedup,eval_base_ms,eval_arm_ms,eval_speedup,base_e2e_s,arm_e2e_s,e2e_speedup,pure_wall_base_s,pure_wall_arm_s,pure_wall_speedup,base_vram_mb,arm_vram_mb,vram_delta_mb,max_rel_diff,metrics_summary,audit_summary,status,note
+trl-sft-qwen2-0.5b,safe,none,train,695.809,705.047,745.762,0.987,0.0,0.0,0.0,144.3903,42.3959,3.406,42.3213,42.7067,0.991,8111.96,8103.73,-8.23,0.001057,-,A:7 S:4 F:0,PASS,Within tolerance
+trl-sft-qwen2-0.5b,balanced,cold,train,695.809,630.731,1074.348,1.103,0.0,0.0,0.0,144.3903,613.9888,0.235,42.3213,600.2335,0.071,8111.96,8157.68,45.72,0.003959,-,A:14 S:1 F:0,PASS,Within tolerance
+trl-sft-qwen2-0.5b,balanced,warm,train,695.809,657.94,1086.981,1.058,0.0,0.0,0.0,144.3903,264.4961,0.546,42.3213,259.8248,0.163,8111.96,8123.2,11.24,0.003906,-,A:14 S:1 F:0,PASS,Within tolerance
+trl-sft-qwen2-0.5b,aggressive,cold,train,695.809,628.429,1091.106,1.107,0.0,0.0,0.0,144.3903,613.7669,0.235,42.3213,603.9456,0.07,8111.96,8157.68,45.72,0.003414,-,A:15 S:6 F:0,PASS,Within tolerance
+trl-sft-qwen2-0.5b,aggressive,warm,train,695.809,661.014,1089.413,1.053,0.0,0.0,0.0,144.3903,270.3526,0.534,42.3213,264.1185,0.16,8111.96,8123.2,11.24,0.004723,-,A:15 S:6 F:0,PASS,Within tolerance

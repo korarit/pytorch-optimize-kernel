@@ -1,0 +1,90 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+Using the latest cached version of the dataset since trl-lib/Capybara couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'default' at /root/.cache/huggingface/datasets/trl-lib___capybara/default/0.0.0/e235e846458bff3398a88aed812347f7f0756520 (last modified on Wed Nov 25 05:55:26 2026).
+
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]
+Loading weights:   0%|          | 1/290 [00:00<00:49,  5.83it/s]
+Loading weights:  43%|████▎     | 124/290 [00:00<00:00, 554.98it/s]
+Loading weights:  72%|███████▏  | 208/290 [00:00<00:00, 655.41it/s]
+Loading weights: 100%|██████████| 290/290 [00:00<00:00, 619.09it/s]
+
+  0%|          | 0/30 [00:00<?, ?it/s]
+  3%|▎         | 1/30 [00:02<01:21,  2.83s/it]
+  7%|▋         | 2/30 [00:03<00:44,  1.57s/it]USDT:2026-11-25 05:56:57 2592:2592 SyncActivityProfilerHandler.cpp:39] profiler_start
+
+ 10%|█         | 3/30 [00:04<00:32,  1.21s/it]
+ 13%|█▎        | 4/30 [00:05<00:26,  1.03s/it]USDT:2026-11-25 05:57:00 2592:2592 SyncActivityProfilerHandler.cpp:46] profiler_stop
+
+ 17%|█▋        | 5/30 [00:18<02:13,  5.36s/it]
+                                              
+
+ 17%|█▋        | 5/30 [00:18<02:13,  5.36s/it]
+ 20%|██        | 6/30 [00:18<01:30,  3.77s/it]
+ 23%|██▎       | 7/30 [00:19<01:03,  2.78s/it]
+ 27%|██▋       | 8/30 [00:20<00:46,  2.13s/it]
+ 30%|███       | 9/30 [00:20<00:34,  1.63s/it]
+ 33%|███▎      | 10/30 [00:21<00:26,  1.35s/it]
+                                               
+
+ 33%|███▎      | 10/30 [00:21<00:26,  1.35s/it]
+ 37%|███▋      | 11/30 [00:22<00:21,  1.15s/it]
+ 40%|████      | 12/30 [00:22<00:18,  1.00s/it]
+ 43%|████▎     | 13/30 [00:23<00:15,  1.09it/s]
+ 47%|████▋     | 14/30 [00:24<00:13,  1.18it/s]
+ 50%|█████     | 15/30 [00:25<00:12,  1.21it/s]
+                                               
+
+ 50%|█████     | 15/30 [00:25<00:12,  1.21it/s]
+ 53%|█████▎    | 16/30 [00:25<00:11,  1.24it/s]
+ 57%|█████▋    | 17/30 [00:26<00:10,  1.30it/s]
+ 60%|██████    | 18/30 [00:27<00:09,  1.31it/s]
+ 63%|██████▎   | 19/30 [00:27<00:08,  1.31it/s]
+ 67%|██████▋   | 20/30 [00:28<00:07,  1.31it/s]
+                                               
+
+ 67%|██████▋   | 20/30 [00:28<00:07,  1.31it/s]
+ 70%|███████   | 21/30 [00:29<00:06,  1.32it/s]
+ 73%|███████▎  | 22/30 [00:30<00:05,  1.34it/s]
+ 77%|███████▋  | 23/30 [00:30<00:05,  1.34it/s]
+ 80%|████████  | 24/30 [00:31<00:04,  1.36it/s]
+ 83%|████████▎ | 25/30 [00:32<00:03,  1.37it/s]
+                                               
+
+ 83%|████████▎ | 25/30 [00:32<00:03,  1.37it/s]
+ 87%|████████▋ | 26/30 [00:33<00:02,  1.36it/s]
+ 90%|█████████ | 27/30 [00:33<00:02,  1.38it/s]
+ 93%|█████████▎| 28/30 [00:34<00:01,  1.36it/s]
+ 97%|█████████▋| 29/30 [00:35<00:00,  1.50it/s]
+100%|██████████| 30/30 [00:35<00:00,  1.54it/s]
+                                               
+
+100%|██████████| 30/30 [00:35<00:00,  1.54it/s]
+                                               
+
+100%|██████████| 30/30 [00:35<00:00,  1.54it/s]
+100%|██████████| 30/30 [00:35<00:00,  1.19s/it]
+
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]
+Writing model shards: 100%|██████████| 1/1 [00:07<00:00,  7.80s/it]
+Writing model shards: 100%|██████████| 1/1 [00:07<00:00,  7.80s/it]
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=0 | SKIPPED=1 | FALLBACK=0
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+
+
+=== STDOUT ===
+{'loss': '1.886', 'grad_norm': '8.156', 'learning_rate': '1.733e-05', 'entropy': '1.856', 'mean_token_accuracy': '0.5775', 'num_tokens': '1.36e+04', 'epoch': '0.001265'}
+{'loss': '1.5', 'grad_norm': '7.244', 'learning_rate': '1.4e-05', 'entropy': '1.512', 'mean_token_accuracy': '0.6308', 'num_tokens': '2.842e+04', 'epoch': '0.00253'}
+{'loss': '1.675', 'grad_norm': '5.986', 'learning_rate': '1.067e-05', 'entropy': '1.696', 'mean_token_accuracy': '0.6225', 'num_tokens': '4.249e+04', 'epoch': '0.003796'}
+{'loss': '1.656', 'grad_norm': '5.592', 'learning_rate': '7.333e-06', 'entropy': '1.641', 'mean_token_accuracy': '0.6105', 'num_tokens': '5.949e+04', 'epoch': '0.005061'}
+{'loss': '1.817', 'grad_norm': '6.2', 'learning_rate': '4e-06', 'entropy': '1.78', 'mean_token_accuracy': '0.5938', 'num_tokens': '7.414e+04', 'epoch': '0.006326'}
+{'loss': '1.512', 'grad_norm': '7.199', 'learning_rate': '6.667e-07', 'entropy': '1.482', 'mean_token_accuracy': '0.6414', 'num_tokens': '8.667e+04', 'epoch': '0.007591'}
+{'train_runtime': '35.72', 'train_samples_per_second': '3.359', 'train_steps_per_second': '0.84', 'train_loss': '1.674', 'epoch': '0.007591'}
+✅ Training completed.
+💾 Model saved to /tmp/qwen_sft_out.
+

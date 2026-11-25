@@ -1,0 +1,738 @@
+DIAG_RC: 0
+TORCH_LOGS: graph_breaks,recompiles,perf_hints
+
+=== STDERR ===
+Using the latest cached version of the dataset since trl-lib/Capybara couldn't be found on the Hugging Face Hub (offline mode is enabled).
+Found the latest cached dataset configuration 'default' at /root/.cache/huggingface/datasets/trl-lib___capybara/default/0.0.0/e235e846458bff3398a88aed812347f7f0756520 (last modified on Wed Nov 25 05:55:26 2026).
+
+Loading weights:   0%|          | 0/290 [00:00<?, ?it/s]
+Loading weights:   0%|          | 1/290 [00:00<00:50,  5.68it/s]
+Loading weights:  39%|███▊      | 112/290 [00:00<00:00, 485.05it/s]
+Loading weights:  68%|██████▊   | 196/290 [00:00<00:00, 615.27it/s]
+Loading weights:  96%|█████████▌| 279/290 [00:00<00:00, 684.88it/s]
+Loading weights: 100%|██████████| 290/290 [00:00<00:00, 591.50it/s]
+
+  0%|          | 0/30 [00:00<?, ?it/s]V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] Graph break in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] 
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] Dynamic shape operator
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] 
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] 
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] 
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] User code traceback:
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 145, in <module>
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     main(script_args, training_args, model_args, dataset_args)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 113, in main
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1559, in train
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return inner_training_loop(
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1643, in _inner_training_loop
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     self._run_epoch(
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     ^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1889, in _run_epoch
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 2062, in training_step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/sft_trainer.py", line 1657, in compute_loss
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     outputs = model(**inputs, fused_lm_head=True)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 429, in _amp_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 943, in forward
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return model_forward(*args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 931, in __call__
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return convert_to_fp32(self.model_forward(*args, **kwargs))
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]                            ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     return func(*args, **kwargs)
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1712, in _fused_forward
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     hidden_states[mask] if compact else hidden_states.reshape(-1, hidden_states.size(-1)),
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks]     ~~~~~~~~~~~~~^^^^^^
+V1125 06:39:43.675000 22314 torch/_dynamo/symbolic_convert.py:5368] [0/0] [__graph_breaks] 
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL_FUNCTION_EX: a variadic function call, e.g. f(*args):
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] Dynamic shape operator
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks] 
+V1125 06:39:57.779000 22314 torch/_dynamo/symbolic_convert.py:5375] [1/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] Dynamic shape operator
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks] 
+V1125 06:40:11.277000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] Graph break in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] Dynamic shape operator
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] Stack variable source attribution:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   WithExitFunctionVariable() originated from:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1712
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                     hidden_states[mask] if compact else hidden_states.reshape(-1, hidden_states.size(-1)),
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   LazyVariableTracker(unrealized: <class 'torch.nn.parameter.Parameter'>) originated from:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1713
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                     weight,
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                     ^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   LazyVariableTracker(unrealized: <class 'NoneType'>) originated from:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1714
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                     bias,
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                     ^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] User code traceback:
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 145, in <module>
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     main(script_args, training_args, model_args, dataset_args)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 113, in main
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1559, in train
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return inner_training_loop(
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1643, in _inner_training_loop
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     self._run_epoch(
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     ^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1889, in _run_epoch
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 2062, in training_step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/sft_trainer.py", line 1657, in compute_loss
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     outputs = model(**inputs, fused_lm_head=True)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 429, in _amp_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 943, in forward
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return model_forward(*args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 931, in __call__
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return convert_to_fp32(self.model_forward(*args, **kwargs))
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]                            ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     return func(*args, **kwargs)
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1715, in _fused_forward
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     labels[mask] if compact else labels.clamp(min=0).reshape(-1),
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks]     ~~~~~~^^^^^^
+V1125 06:41:32.923000 22314 torch/_dynamo/symbolic_convert.py:5368] [3/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph break in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] Stack variable source attribution:
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   WithExitFunctionVariable() originated from:
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1715
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]                     labels[mask] if compact else labels.clamp(min=0).reshape(-1),
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] User code traceback:
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 145, in <module>
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     main(script_args, training_args, model_args, dataset_args)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 113, in main
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1559, in train
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return inner_training_loop(
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1643, in _inner_training_loop
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     self._run_epoch(
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     ^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1889, in _run_epoch
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 2062, in training_step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/sft_trainer.py", line 1657, in compute_loss
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     outputs = model(**inputs, fused_lm_head=True)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 429, in _amp_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 943, in forward
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return model_forward(*args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 931, in __call__
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return convert_to_fp32(self.model_forward(*args, **kwargs))
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]                            ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     return func(*args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1711, in _fused_forward
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     per_token = _ChunkedLogProbFunction.apply(
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/_functorch/autograd_function.py", line 890, in inner
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     outs = orig_fwd(*args, **kwargs)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py", line 549, in forward
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     torch.mm(hidden_chunk, weight[start:end].to(compute_dtype).t(), out=tile)
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks]     ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:33.381000 22314 torch/_dynamo/symbolic_convert.py:5368] [4/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] Graph break in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] Graph Break Reason: Failed to handle graph break gracefully. Skipping the function and falling back to eager. Graph break encountered:
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] *** While handling this graph break, another graph break occurred: ***
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] graph break in loop
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Explanation: torch.compile detected a graph break in a for/while loop. Skipping the frame and falling back to eager, as graph breaks in loops are not supported.
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Hint: This graph break may have been caused by an earlier graph break. Resolving the earlier graph break may resolve this one.
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   Developer debug context: frame skipped: forward (/usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py line 490)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb7000.html
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] Stack variable source attribution:
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   RangeIteratorVariable() originated from:
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py", line 542
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]             for token_start in range(0, N, TOKEN_CHUNK_SIZE):
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]                                ~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   RangeIteratorVariable() originated from:
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py", line 546
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]                 for start in range(0, vocab, chunk_size):
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]                              ~~~~~^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] User code traceback:
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 145, in <module>
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     main(script_args, training_args, model_args, dataset_args)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/external_repos/trl/trl/scripts/sft.py", line 113, in main
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     trainer.train(resume_from_checkpoint=training_args.resume_from_checkpoint)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1559, in train
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return inner_training_loop(
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1643, in _inner_training_loop
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     self._run_epoch(
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     ^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 1889, in _run_epoch
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     tr_loss_step = self.training_step(model, inputs, num_items_in_batch)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/transformers/trainer.py", line 2062, in training_step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/sft_trainer.py", line 1657, in compute_loss
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     outputs = model(**inputs, fused_lm_head=True)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/telemetry_hook.py", line 407, in _wrapped_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     out = orig_mod_call(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 179, in _unified_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return dispatcher._chain(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/kernels/registry.py", line 730, in _kernels_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/activation_checkpoint.py", line 440, in _act_ckpt_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/inference_opt.py", line 879, in _inference_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_amp.py", line 429, in _amp_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/channels_last.py", line 193, in _channels_last_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/hooks/module_dispatch.py", line 157, in _step
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return _h(mod_self, args, kwargs, _down)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/content/pytorch-optimize-kernel/ptopt/passes/auto_compile.py", line 779, in _compile_mod_call
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return next_fn(mod_self, *args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1781, in _wrapped_call_impl
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return self._compiled_call_impl(*args, **kwargs)  # type: ignore[misc]
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]            ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return forward_call(*args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 943, in forward
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return model_forward(*args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/accelerate/utils/operations.py", line 931, in __call__
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return convert_to_fp32(self.model_forward(*args, **kwargs))
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]                            ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/torch/amp/autocast_mode.py", line 44, in decorate_autocast
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     return func(*args, **kwargs)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py", line 1711, in _fused_forward
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     per_token = _ChunkedLogProbFunction.apply(
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]   File "/usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py", line 549, in forward
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     torch.mm(hidden_chunk, weight[start:end].to(compute_dtype).t(), out=tile)
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks]     ~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+V1125 06:41:34.058000 22314 torch/_dynamo/symbolic_convert.py:5368] [5/0] [__graph_breaks] 
+V1125 06:41:34.183000 22314 torch/_dynamo/guards.py:5621] [6/1] [__recompiles] Recompiling function _pinned_async_to in /content/pytorch-optimize-kernel/ptopt/passes/dataloader_tune.py:629
+V1125 06:41:34.183000 22314 torch/_dynamo/guards.py:5621] [6/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:34.183000 22314 torch/_dynamo/guards.py:5621] [6/1] [__recompiles]     - 6/0: t_self._base.size()[0] == t_self.size()[0]  # (unknown var s58, please file a bug)
+V1125 06:41:35.017000 22314 torch/_dynamo/guards.py:5621] [7/1] [__recompiles] Recompiling function <lambda> in /usr/local/lib/python3.13/dist-packages/triton/runtime/jit.py:374
+V1125 06:41:35.017000 22314 torch/_dynamo/guards.py:5621] [7/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:35.017000 22314 torch/_dynamo/guards.py:5621] [7/1] [__recompiles]     - 7/0: args[0].stride()[0] == args[0].size()[1]  # (unknown source args[0].stride()[0], please file a bug)
+
+  3%|▎         | 1/30 [02:09<1:02:24, 129.11s/it]V1125 06:41:36.752000 22314 torch/_dynamo/guards.py:5621] [3/1] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:36.752000 22314 torch/_dynamo/guards.py:5621] [3/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:36.752000 22314 torch/_dynamo/guards.py:5621] [3/1] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] 
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] Dynamic shape operator
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] 
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks] 
+V1125 06:41:36.785000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:36.857000 22314 torch/_dynamo/guards.py:5621] [4/1] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:36.857000 22314 torch/_dynamo/guards.py:5621] [4/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:36.857000 22314 torch/_dynamo/guards.py:5621] [4/1] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] 
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] 
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks] 
+V1125 06:41:37.096000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+  7%|▋         | 2/30 [02:10<25:06, 53.79s/it]   USDT:2026-11-25 06:41:37 22314:22314 SyncActivityProfilerHandler.cpp:39] profiler_start
+V1125 06:41:37.848000 22314 torch/_dynamo/guards.py:5621] [3/2] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:37.848000 22314 torch/_dynamo/guards.py:5621] [3/2] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:37.848000 22314 torch/_dynamo/guards.py:5621] [3/2] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:37.848000 22314 torch/_dynamo/guards.py:5621] [3/2] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] 
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] Dynamic shape operator
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] 
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks] 
+V1125 06:41:37.881000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/2] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:37.953000 22314 torch/_dynamo/guards.py:5621] [4/2] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:37.953000 22314 torch/_dynamo/guards.py:5621] [4/2] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:37.953000 22314 torch/_dynamo/guards.py:5621] [4/2] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:37.953000 22314 torch/_dynamo/guards.py:5621] [4/2] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] 
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] 
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks] 
+V1125 06:41:38.193000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/2] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+ 10%|█         | 3/30 [02:11<13:22, 29.73s/it]V1125 06:41:38.918000 22314 torch/_dynamo/guards.py:5621] [3/3] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:38.918000 22314 torch/_dynamo/guards.py:5621] [3/3] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:38.918000 22314 torch/_dynamo/guards.py:5621] [3/3] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:38.918000 22314 torch/_dynamo/guards.py:5621] [3/3] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:38.918000 22314 torch/_dynamo/guards.py:5621] [3/3] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] 
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] Dynamic shape operator
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] 
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks] 
+V1125 06:41:38.952000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/3] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:39.027000 22314 torch/_dynamo/guards.py:5621] [4/3] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:39.027000 22314 torch/_dynamo/guards.py:5621] [4/3] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:39.027000 22314 torch/_dynamo/guards.py:5621] [4/3] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:39.027000 22314 torch/_dynamo/guards.py:5621] [4/3] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:39.027000 22314 torch/_dynamo/guards.py:5621] [4/3] [__recompiles]     - 4/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] 
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] 
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks] 
+V1125 06:41:39.269000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/3] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+ 13%|█▎        | 4/30 [02:12<07:59, 18.43s/it]V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.020000 22314 torch/_dynamo/guards.py:5621] [3/4] [__recompiles]     - 3/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] 
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] Dynamic shape operator
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] 
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks] 
+V1125 06:41:40.054000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/4] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles]     - 4/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.126000 22314 torch/_dynamo/guards.py:5621] [4/4] [__recompiles]     - 4/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] 
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] 
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks] 
+V1125 06:41:40.369000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/4] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+USDT:2026-11-25 06:41:41 22314:22314 SyncActivityProfilerHandler.cpp:46] profiler_stop
+
+ 17%|█▋        | 5/30 [02:18<05:53, 14.15s/it]
+                                              
+
+ 17%|█▋        | 5/30 [02:18<05:53, 14.15s/it]V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     - 3/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.575000 22314 torch/_dynamo/guards.py:5621] [3/5] [__recompiles]     - 3/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] 
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] Dynamic shape operator
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] 
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks] 
+V1125 06:41:46.608000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/5] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     - 4/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     - 4/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.679000 22314 torch/_dynamo/guards.py:5621] [4/5] [__recompiles]     - 4/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] 
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] 
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks] 
+V1125 06:41:46.915000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/5] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+ 20%|██        | 6/30 [02:20<03:53,  9.71s/it]V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.672000 22314 torch/_dynamo/guards.py:5621] [3/6] [__recompiles]     - 3/5: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] 
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] Dynamic shape operator
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] 
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks] 
+V1125 06:41:47.705000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/6] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:47.776000 22314 torch/_dynamo/guards.py:5621] [4/6] [__recompiles]     - 4/5: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] 
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] 
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks] 
+V1125 06:41:48.012000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/6] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+ 23%|██▎       | 7/30 [02:21<02:38,  6.89s/it]V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/5: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.740000 22314 torch/_dynamo/guards.py:5621] [3/7] [__recompiles]     - 3/6: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] 
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] Dynamic shape operator
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] 
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks] 
+V1125 06:41:48.772000 22314 torch/_dynamo/symbolic_convert.py:5375] [3/7] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1715 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1715
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/5: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:48.843000 22314 torch/_dynamo/guards.py:5621] [4/7] [__recompiles]     - 4/6: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/kernels/chunked_logprob.py:549
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace CALL: a function call, e.g. f(x, y):
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] 
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] Attempted to call op with non-contiguous `out=` tensor
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks]   Higher Order Operator: autograd.Function
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks]   Explanation: Dynamo does not support this.
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks]   Hint: It may be possible to write Dynamo tracing rules for this code. Please report an issue to PyTorch if you encounter this graph break often and it is causing performance issues.
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] 
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks]   Developer debug context: self.value=<built-in method mm of type object at 0x78347fdf14e0>, args=[TensorVariable(), TensorVariable()], kwargs={'out': TensorVariable()}
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks] 
+V1125 06:41:49.084000 22314 torch/_dynamo/symbolic_convert.py:5375] [4/7] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0242.html
+
+ 27%|██▋       | 8/30 [02:22<01:50,  5.04s/it]V1125 06:41:49.731000 22314 torch/_dynamo/guards.py:5621] [2/1] [__recompiles] Recompiling function _fused_forward in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1644
+V1125 06:41:49.731000 22314 torch/_dynamo/guards.py:5621] [2/1] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:41:49.731000 22314 torch/_dynamo/guards.py:5621] [2/1] [__recompiles]     - 2/0: (kwargs['input_ids'].size()[1] % 8) == 0  # (_functorch/_aot_autograd/autograd_cache.py:1280 in evaluate_guards)
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] Graph break (user stack suppressed due to duplicate graph break) in user code at /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] Graph Break Reason: Encountered graph break when attempting to trace BINARY_SUBSCR: a binary subscript, e.g. x[attr]:
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] 
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] Dynamic shape operator
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks]   Explanation: Operator `aten.nonzero.default`'s output shape depends on input Tensor data.
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks]   Hint: Enable tracing of dynamic shape operators with `torch._dynamo.config.capture_dynamic_output_shape_ops = True`
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] 
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks]   Developer debug context: aten.nonzero.default
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks] 
+V1125 06:42:03.315000 22314 torch/_dynamo/symbolic_convert.py:5375] [2/1] [__graph_breaks]  For more details about this graph break, please visit: https://meta-pytorch.github.io/compile-graph-break-site/gb/gb0036.html
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles] Recompiling function torch_dynamo_resume_in__fused_forward_at_1712 in /usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     triggered by the following guard failure(s):
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/0: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/1: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/2: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/3: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/4: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/5: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/6: Cache line invalidated because L['___stack2'] got deallocated
+V1125 06:43:24.713000 22314 torch/_dynamo/guards.py:5621] [3/8] [__recompiles]     - 3/7: Cache line invalidated because L['___stack2'] got deallocated
+W1125 06:43:24.713000 22314 torch/_dynamo/convert_frame.py:2008] [3/8] torch._dynamo hit config.recompile_limit (8)
+W1125 06:43:24.713000 22314 torch/_dynamo/convert_frame.py:2008] [3/8]    function: 'torch_dynamo_resume_in__fused_forward_at_1712' (/usr/local/lib/python3.13/dist-packages/trl/trainer/utils.py:1712)
+W1125 06:43:24.713000 22314 torch/_dynamo/convert_frame.py:2008] [3/8]    last reason: 3/0: Cache line invalidated because L['___stack2'] got deallocated
+W1125 06:43:24.713000 22314 torch/_dynamo/convert_frame.py:2008] [3/8] To log all recompilation reasons, use TORCH_LOGS="recompiles".
+W1125 06:43:24.713000 22314 torch/_dynamo/convert_frame.py:2008] [3/8] To diagnose recompilation issues, see https://docs.pytorch.org/docs/main/user_guide/torch_compiler/compile/programming_model.recompilation.html
+
+ 30%|███       | 9/30 [03:57<11:38, 33.27s/it]
+ 33%|███▎      | 10/30 [03:58<07:43, 23.18s/it]
+                                               
+
+ 33%|███▎      | 10/30 [03:58<07:43, 23.18s/it]
+ 37%|███▋      | 11/30 [03:58<05:09, 16.27s/it]
+ 40%|████      | 12/30 [03:59<03:26, 11.49s/it]
+ 43%|████▎     | 13/30 [03:59<02:19,  8.21s/it]
+ 47%|████▋     | 14/30 [04:00<01:34,  5.91s/it]
+ 50%|█████     | 15/30 [04:01<01:04,  4.33s/it]
+                                               
+
+ 50%|█████     | 15/30 [04:01<01:04,  4.33s/it]
+ 53%|█████▎    | 16/30 [04:01<00:45,  3.22s/it]
+ 57%|█████▋    | 17/30 [04:02<00:31,  2.43s/it]
+ 60%|██████    | 18/30 [04:03<00:22,  1.89s/it]
+ 63%|██████▎   | 19/30 [04:03<00:16,  1.52s/it]
+ 67%|██████▋   | 20/30 [04:04<00:12,  1.26s/it]
+                                               
+
+ 67%|██████▋   | 20/30 [04:04<00:12,  1.26s/it]
+ 70%|███████   | 21/30 [04:05<00:09,  1.08s/it]
+ 73%|███████▎  | 22/30 [04:05<00:07,  1.06it/s]
+ 77%|███████▋  | 23/30 [04:06<00:05,  1.18it/s]
+ 80%|████████  | 24/30 [04:06<00:04,  1.29it/s]
+ 83%|████████▎ | 25/30 [04:07<00:03,  1.37it/s]
+                                               
+
+ 83%|████████▎ | 25/30 [04:07<00:03,  1.37it/s]
+ 87%|████████▋ | 26/30 [04:08<00:02,  1.43it/s]
+ 90%|█████████ | 27/30 [04:08<00:02,  1.49it/s]
+ 93%|█████████▎| 28/30 [04:09<00:01,  1.51it/s]
+ 97%|█████████▋| 29/30 [04:09<00:00,  1.72it/s]
+100%|██████████| 30/30 [04:10<00:00,  1.81it/s]
+                                               
+
+100%|██████████| 30/30 [04:10<00:00,  1.81it/s]
+                                               
+
+100%|██████████| 30/30 [04:10<00:00,  1.81it/s]
+100%|██████████| 30/30 [04:10<00:00,  8.34s/it]
+
+Writing model shards:   0%|          | 0/1 [00:00<?, ?it/s]
+Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.81s/it]
+Writing model shards: 100%|██████████| 1/1 [00:08<00:00,  8.81s/it]
+[ptopt fallback/hook summary]
+  profile=balanced
+  Counts: APPLIED=14 | SKIPPED=1 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+  - [APPLIED] kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+  - [APPLIED] compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+
+
+=== STDOUT ===
+{'loss': '1.886', 'grad_norm': '8.338', 'learning_rate': '1.733e-05', 'entropy': '1.855', 'mean_token_accuracy': '0.5767', 'num_tokens': '1.36e+04', 'epoch': '0.001265'}
+{'loss': '1.499', 'grad_norm': '7.234', 'learning_rate': '1.4e-05', 'entropy': '1.51', 'mean_token_accuracy': '0.6308', 'num_tokens': '2.842e+04', 'epoch': '0.00253'}
+{'loss': '1.673', 'grad_norm': '5.965', 'learning_rate': '1.067e-05', 'entropy': '1.696', 'mean_token_accuracy': '0.6232', 'num_tokens': '4.249e+04', 'epoch': '0.003796'}
+{'loss': '1.655', 'grad_norm': '5.581', 'learning_rate': '7.333e-06', 'entropy': '1.64', 'mean_token_accuracy': '0.6106', 'num_tokens': '5.949e+04', 'epoch': '0.005061'}
+{'loss': '1.817', 'grad_norm': '6.168', 'learning_rate': '4e-06', 'entropy': '1.78', 'mean_token_accuracy': '0.5947', 'num_tokens': '7.414e+04', 'epoch': '0.006326'}
+{'loss': '1.511', 'grad_norm': '7.077', 'learning_rate': '6.667e-07', 'entropy': '1.482', 'mean_token_accuracy': '0.641', 'num_tokens': '8.667e+04', 'epoch': '0.007591'}
+{'train_runtime': '250.3', 'train_samples_per_second': '0.479', 'train_steps_per_second': '0.12', 'train_loss': '1.673', 'epoch': '0.007591'}
+✅ Training completed.
+💾 Model saved to /tmp/qwen_sft_out.
+

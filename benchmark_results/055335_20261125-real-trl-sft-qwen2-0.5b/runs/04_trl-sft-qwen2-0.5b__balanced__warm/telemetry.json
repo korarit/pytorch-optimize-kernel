@@ -1,0 +1,205 @@
+{
+  "telemetry_schema_version": 1,
+  "mode": "balanced",
+  "telemetry_only": false,
+  "end_to_end_sec": 255.3482,
+  "step_times_ms": [
+    134513.421,
+    1068.546,
+    1072.8434,
+    1097.7729,
+    1040.8823,
+    1141.2039,
+    1086.692,
+    1087.0321,
+    94224.4991,
+    635.5649,
+    620.3694,
+    584.1297,
+    688.6673,
+    614.2334,
+    673.302,
+    687.1102,
+    594.9031,
+    657.4471,
+    679.9291,
+    685.8331,
+    667.9258,
+    643.2847,
+    658.4324,
+    618.4806,
+    631.5689,
+    661.0562,
+    622.9446,
+    666.4642,
+    401.7664,
+    487.1171
+  ],
+  "train_step_times_ms": [
+    134513.421,
+    1068.546,
+    1072.8434,
+    1097.7729,
+    1040.8823,
+    1141.2039,
+    1086.692,
+    1087.0321,
+    94224.4991,
+    635.5649,
+    620.3694,
+    584.1297,
+    688.6673,
+    614.2334,
+    673.302,
+    687.1102,
+    594.9031,
+    657.4471,
+    679.9291,
+    685.8331,
+    667.9258,
+    643.2847,
+    658.4324,
+    618.4806,
+    631.5689,
+    661.0562,
+    622.9446,
+    666.4642,
+    401.7664,
+    487.1171
+  ],
+  "eval_step_times_ms": [],
+  "losses": [
+    1.853013,
+    2.569089,
+    1.483296,
+    1.545198,
+    1.976255,
+    1.540467,
+    1.424217,
+    1.537449,
+    1.400191,
+    1.595919,
+    1.388944,
+    1.718707,
+    2.036616,
+    1.083737,
+    2.142226,
+    1.448732,
+    1.868183,
+    1.54241,
+    1.575601,
+    1.838647,
+    1.77178,
+    2.209561,
+    2.005835,
+    2.130593,
+    0.96918,
+    1.842965,
+    1.031809,
+    1.745057,
+    1.917611,
+    1.018248
+  ],
+  "memory_mb": {
+    "peak_allocated": 8123.2,
+    "peak_reserved": 8608.0
+  },
+  "fallback_events": [
+    {
+      "pass_name": "runtime.memory_allocator",
+      "status": "APPLIED",
+      "reason": "alloc_conf=expandable_segments:True, torch_threads=6",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.flags",
+      "status": "APPLIED",
+      "reason": "tf32=on, flash_sdp=True, mem_sdp=True",
+      "error": null
+    },
+    {
+      "pass_name": "dataloader.auto_tune",
+      "status": "APPLIED",
+      "reason": "DataLoader auto-tune hook installed",
+      "error": null
+    },
+    {
+      "pass_name": "optimizer.fusion",
+      "status": "APPLIED",
+      "reason": "Optimizer fusion hook installed",
+      "error": null
+    },
+    {
+      "pass_name": "compile.auto",
+      "status": "APPLIED",
+      "reason": "Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced)",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.channels_last",
+      "status": "APPLIED",
+      "reason": "Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)",
+      "error": null
+    },
+    {
+      "pass_name": "amp.auto",
+      "status": "APPLIED",
+      "reason": "Auto-AMP installed (dtype=bf16, grad_scaler=False)",
+      "error": null
+    },
+    {
+      "pass_name": "inference.opt",
+      "status": "APPLIED",
+      "reason": "Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)",
+      "error": null
+    },
+    {
+      "pass_name": "runtime.activation_checkpointing",
+      "status": "APPLIED",
+      "reason": "Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)",
+      "error": null
+    },
+    {
+      "pass_name": "kernels.fused_linear_cross_entropy",
+      "status": "APPLIED",
+      "reason": "sm_89, triton=True; hybrid compile+FusedLCE head enabled",
+      "error": null
+    },
+    {
+      "pass_name": "kernels.auto",
+      "status": "APPLIED",
+      "reason": "Custom kernels active: fused_linear_cross_entropy",
+      "error": null
+    },
+    {
+      "pass_name": "dataloader.auto_tune",
+      "status": "APPLIED",
+      "reason": "Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True",
+      "error": null
+    },
+    {
+      "pass_name": "kernels.patch",
+      "status": "APPLIED",
+      "reason": "Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels",
+      "error": null
+    },
+    {
+      "pass_name": "compile.inductor_bw_tune",
+      "status": "SKIPPED",
+      "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)",
+      "error": null
+    },
+    {
+      "pass_name": "compile.auto",
+      "status": "APPLIED",
+      "reason": "Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)",
+      "error": null
+    }
+  ],
+  "bandwidth_vram_booster": {
+    "inductor_bw_tune": {
+      "enabled": false,
+      "reason": "runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)"
+    }
+  }
+}

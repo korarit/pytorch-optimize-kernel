@@ -1,0 +1,297 @@
+==============================================================================
+KERNEL-PYTOUCH-OPTIMIZE | REAL-WORLD GITHUB PIPELINE BENCHMARK & DEEP OPTIMIZATION REPORT
+==============================================================================
+Timestamp          : 2026-11-25 05:53:35 UTC
+Repo Root          : /content/pytorch-optimize-kernel
+Git Branch/Commit  : main @ 40554b6
+Targets            : 1
+Total Runs         : 6
+Comparisons        : 5
+Overall Status     : PASS
+Bundle Directory   : /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b
+Google Colab       : True
+Backend / GPU      : cuda / NVIDIA L4 (sm_89)
+PyTorch / Triton   : 2.14.1+cu130 / 3.8.0
+
+[4-ARM REAL PIPELINE COMPARISON (Baseline vs ptopt / Native / Conflict)]
+------------------------------------------------------------------------------
+Target             | Arm        | Cache | Kind  | Step ms (B->A) | Step Spd | Wall E2E (B->A)         | VRAM MB (B->A/d)       | LossRel  | Stdout Metrics | Audit        | Status
+-------------------+------------+-------+-------+----------------+----------+-------------------------+------------------------+----------+----------------+--------------+-------
+trl-sft-qwen2-0.5b | safe       | none  | train | 695.81->705.05 | 0.99x    | 42.32s->42.71s (0.99x)  | 8112.0->8103.7 (-8.2)  | 0.001057 | -              | A:7 S:4 F:0  | PASS  
+trl-sft-qwen2-0.5b | balanced   | cold  | train | 695.81->630.73 | 1.10x    | 42.32s->600.23s (0.07x) | 8112.0->8157.7 (+45.7) | 0.003959 | -              | A:14 S:1 F:0 | PASS  
+trl-sft-qwen2-0.5b | balanced   | warm  | train | 695.81->657.94 | 1.06x    | 42.32s->259.82s (0.16x) | 8112.0->8123.2 (+11.2) | 0.003906 | -              | A:14 S:1 F:0 | PASS  
+trl-sft-qwen2-0.5b | aggressive | cold  | train | 695.81->628.43 | 1.11x    | 42.32s->603.95s (0.07x) | 8112.0->8157.7 (+45.7) | 0.003414 | -              | A:15 S:6 F:0 | PASS  
+trl-sft-qwen2-0.5b | aggressive | warm  | train | 695.81->661.01 | 1.05x    | 42.32s->264.12s (0.16x) | 8112.0->8123.2 (+11.2) | 0.004723 | -              | A:15 S:6 F:0 | PASS  
+
+[PHASE BREAKDOWN COMPARISON (Cold Step0 & Steady ms / % Share)]
+------------------------------------------------------------------------------
+Target             | Arm/Cache       | Step0 ms | Data/Other | Forward       | Loss/Clip  | Backward     | Optim      | Steady Tot
+-------------------+-----------------+----------+------------+---------------+------------+--------------+------------+-----------
+trl-sft-qwen2-0.5b | baseline/none   | 10784.8  | 9.47 (1%)  | 143.58 (20%)  | 31.26 (4%) | 463.15 (65%) | 60.34 (8%) | 707.77    
+trl-sft-qwen2-0.5b | safe/none       | 10777.8  | 4.68 (1%)  | 140.46 (20%)  | 31.36 (4%) | 452.41 (66%) | 60.33 (9%) | 689.21    
+trl-sft-qwen2-0.5b | balanced/cold   | 307617.3 | 5.02 (0%)  | 9007.78 (94%) | 30.70 (0%) | 460.45 (5%)  | 60.42 (1%) | 9564.37   
+trl-sft-qwen2-0.5b | balanced/warm   | 135717.5 | 5.35 (0%)  | 3498.69 (88%) | 30.71 (1%) | 392.80 (10%) | 60.45 (2%) | 3988.01   
+trl-sft-qwen2-0.5b | aggressive/cold | 308954.9 | 5.20 (0%)  | 9101.14 (94%) | 30.93 (0%) | 462.03 (5%)  | 60.52 (1%) | 9659.83   
+trl-sft-qwen2-0.5b | aggressive/warm | 135517.0 | 5.15 (0%)  | 3508.53 (87%) | 30.72 (1%) | 415.33 (10%) | 60.52 (2%) | 4020.24   
+
+[TORCH.COMPILE & DYNAMO DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target             | Arm/Cache       | Frames(OK/Tot) | Graphs | Breaks | Recompiles | Inductor(Hit/Miss) | AOT(Hit/Miss)
+-------------------+-----------------+----------------+--------+--------+------------+--------------------+--------------
+trl-sft-qwen2-0.5b | balanced/cold   | 38/41          | 15     | 23     | 0          | 1/9                | 1/25         
+trl-sft-qwen2-0.5b | balanced/warm   | 38/41          | 15     | 23     | 0          | 10/0               | 7/19         
+trl-sft-qwen2-0.5b | aggressive/cold | 38/41          | 15     | 23     | 0          | 1/9                | 1/25         
+trl-sft-qwen2-0.5b | aggressive/warm | 38/41          | 15     | 23     | 0          | 10/0               | 7/19         
+
+[CUDA MEMORY, ALLOCATOR & GPU UTILIZATION DIAGNOSTICS]
+------------------------------------------------------------------------------
+Target             | Arm/Cache       | Alloc/Res MB  | Resv Ovh MB | Headroom MB | VRAM Util | Retries/OOM | NVSMI MB | Avg GPU Util
+-------------------+-----------------+---------------+-------------+-------------+-----------+-------------+----------+-------------
+trl-sft-qwen2-0.5b | baseline/none   | 8112.0/9398.0 | 1286.0      | 13165.1     | 41.6%     | 0/0         | 9648.0   | 47.7%       
+trl-sft-qwen2-0.5b | safe/none       | 8103.7/8652.0 | 548.3       | 13911.1     | 38.4%     | 0/0         | 8902.0   | 47.2%       
+trl-sft-qwen2-0.5b | balanced/cold   | 8157.7/8670.0 | 532.3       | 13873.1     | 38.5%     | 0/0         | 8858.0   | 3.8%        
+trl-sft-qwen2-0.5b | balanced/warm   | 8123.2/8608.0 | 484.8       | 13955.1     | 38.1%     | 0/0         | 8858.0   | 6.7%        
+trl-sft-qwen2-0.5b | aggressive/cold | 8157.7/8670.0 | 532.3       | 13873.1     | 38.5%     | 0/0         | 8858.0   | 3.7%        
+trl-sft-qwen2-0.5b | aggressive/warm | 8123.2/8608.0 | 484.8       | 13955.1     | 38.1%     | 0/0         | 8858.0   | 6.9%        
+
+[VRAM HEADROOM & BANDWIDTH BOOSTER TELEMETRY]
+------------------------------------------------------------------------------
+Target             | Arm/Cache       | Prefetch(I/M/C) | Prefetched/Backoff | Inductor BW | FP8 Cache | Free VRAM (Used%)
+-------------------+-----------------+-----------------+--------------------+-------------+-----------+------------------
+trl-sft-qwen2-0.5b | baseline/none   | -               | -                  | -           | -         | 13165.1 (41.6%)  
+trl-sft-qwen2-0.5b | safe/none       | -               | -                  | -           | -         | 13911.1 (38.4%)  
+trl-sft-qwen2-0.5b | balanced/cold   | -               | -                  | off         | -         | 13873.1 (38.5%)  
+trl-sft-qwen2-0.5b | balanced/warm   | -               | -                  | off         | -         | 13955.1 (38.1%)  
+trl-sft-qwen2-0.5b | aggressive/cold | -               | -                  | off         | -         | 13873.1 (38.5%)  
+trl-sft-qwen2-0.5b | aggressive/warm | -               | -                  | off         | -         | 13955.1 (38.1%)  
+
+[TOP CUDA & CPU OPS HOTSPOTS]
+------------------------------------------------------------------------------
+--- trl-sft-qwen2-0.5b [baseline/none] (total_cuda=4154.44ms, total_cpu=2016.57ms) ---
+  CUDA  14.3% | self= 592.581ms | calls= 1614 | aten::mm
+  CUDA   6.9% | self= 285.851ms | calls= 2934 | aten::mul
+  CUDA   5.1% | self= 212.607ms | calls= 5162 | aten::copy_
+  CUDA   4.3% | self= 178.585ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   4.3% | self= 177.583ms | calls=    6 | aten::_fused_adamw_
+  CUDA   4.3% | self= 177.583ms | calls=   15 | void at::native::(anonymous namespace)::multi_te
+  CUDA   4.3% | self= 176.859ms | calls=  432 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   3.5% | self= 143.598ms | calls=  288 | void at::native::vectorized_elementwise_kernel<4
+  CPU   35.2% | self= 709.646ms | calls=   90 | cudaDeviceSynchronize
+  CPU   11.2% | self= 225.428ms | calls=   48 | cudaStreamSynchronize
+  CPU    7.5% | self= 150.833ms | calls=16042 | cudaLaunchKernel
+  CPU    5.3% | self= 106.707ms | calls=  288 | MmBackward0
+  CPU    3.5% | self=  70.115ms | calls= 1614 | aten::mm
+  CPU    3.5% | self=  69.612ms | calls= 2934 | aten::mul
+  CPU    2.4% | self=  48.895ms | calls= 5162 | aten::copy_
+  CPU    1.8% | self=  36.497ms | calls= 4172 | aten::_to_copy
+--- trl-sft-qwen2-0.5b [safe/none] (total_cuda=4094.304ms, total_cpu=1981.181ms) ---
+  CUDA  14.1% | self= 577.972ms | calls= 1614 | aten::mm
+  CUDA   7.0% | self= 285.183ms | calls= 2934 | aten::mul
+  CUDA   5.1% | self= 209.142ms | calls= 5132 | aten::copy_
+  CUDA   4.4% | self= 178.797ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   4.3% | self= 177.705ms | calls=    6 | aten::_fused_adamw_
+  CUDA   4.3% | self= 177.705ms | calls=   15 | void at::native::(anonymous namespace)::multi_te
+  CUDA   4.2% | self= 172.686ms | calls=  432 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   3.5% | self= 143.480ms | calls=  288 | void at::native::vectorized_elementwise_kernel<4
+  CPU   34.6% | self= 684.899ms | calls=   90 | cudaDeviceSynchronize
+  CPU   11.0% | self= 217.516ms | calls=   48 | cudaStreamSynchronize
+  CPU    7.8% | self= 153.849ms | calls=16042 | cudaLaunchKernel
+  CPU    5.6% | self= 111.065ms | calls=  288 | MmBackward0
+  CPU    3.6% | self=  71.890ms | calls= 1614 | aten::mm
+  CPU    3.6% | self=  71.515ms | calls= 2934 | aten::mul
+  CPU    2.4% | self=  48.187ms | calls= 5132 | aten::copy_
+  CPU    1.9% | self=  36.948ms | calls= 4172 | aten::_to_copy
+--- trl-sft-qwen2-0.5b [balanced/cold] (total_cuda=4946.183ms, total_cpu=3368.796ms) ---
+  CUDA  20.4% | self=1011.357ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CUDA  11.9% | self= 587.578ms | calls= 1575 | aten::mm
+  CUDA   5.3% | self= 262.335ms | calls=    3 | ## Call CompiledFxGraph fbyqedjhtnkudfwrfiivi5tc
+  CUDA   3.8% | self= 189.839ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.8% | self= 189.839ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.6% | self= 178.535ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   3.6% | self= 177.503ms | calls=    6 | aten::_fused_adamw_
+  CUDA   3.6% | self= 177.503ms | calls=   15 | void at::native::(anonymous namespace)::multi_te
+  CPU   25.3% | self= 852.639ms | calls=   18 | cudaDeviceSynchronize
+  CPU   17.6% | self= 593.922ms | calls=   15 | bytecode_tracing (dynamo_timed)
+  CPU    8.0% | self= 270.102ms | calls=   45 | cudaStreamSynchronize
+  CPU    5.6% | self= 190.203ms | calls=  465 | PythonDispatchMode
+  CPU    5.2% | self= 174.334ms | calls=    6 | build_guards (dynamo_timed)
+  CPU    4.3% | self= 145.062ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CPU    3.7% | self= 125.080ms | calls=    6 | compile_attempt_1 (dynamo_timed)
+  CPU    3.7% | self= 124.130ms | calls=  207 | Command Buffer Full
+--- trl-sft-qwen2-0.5b [balanced/warm] (total_cuda=4866.451ms, total_cpu=3303.358ms) ---
+  CUDA  20.2% | self= 984.353ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CUDA  12.0% | self= 584.686ms | calls= 1575 | aten::mm
+  CUDA   5.4% | self= 262.178ms | calls=    3 | ## Call CompiledFxGraph fbyqedjhtnkudfwrfiivi5tc
+  CUDA   3.7% | self= 178.660ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   3.6% | self= 177.601ms | calls=    6 | aten::_fused_adamw_
+  CUDA   3.6% | self= 177.601ms | calls=   15 | void at::native::(anonymous namespace)::multi_te
+  CUDA   3.6% | self= 176.006ms | calls=  432 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   3.5% | self= 168.247ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CPU   25.4% | self= 838.053ms | calls=   18 | cudaDeviceSynchronize
+  CPU   17.6% | self= 580.929ms | calls=   15 | bytecode_tracing (dynamo_timed)
+  CPU    8.3% | self= 274.503ms | calls=   45 | cudaStreamSynchronize
+  CPU    5.7% | self= 187.242ms | calls=  465 | PythonDispatchMode
+  CPU    5.3% | self= 175.519ms | calls=    6 | build_guards (dynamo_timed)
+  CPU    4.5% | self= 147.277ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CPU    3.7% | self= 123.404ms | calls=    6 | compile_attempt_1 (dynamo_timed)
+  CPU    3.2% | self= 106.836ms | calls=  186 | Command Buffer Full
+--- trl-sft-qwen2-0.5b [aggressive/cold] (total_cuda=4981.828ms, total_cpu=3401.024ms) ---
+  CUDA  20.4% | self=1016.900ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CUDA  11.9% | self= 593.281ms | calls= 1575 | aten::mm
+  CUDA   5.3% | self= 266.250ms | calls=    3 | ## Call CompiledFxGraph fbyqedjhtnkudfwrfiivi5tc
+  CUDA   3.8% | self= 191.273ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.8% | self= 191.273ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.6% | self= 178.640ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   3.6% | self= 178.396ms | calls=  432 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   3.6% | self= 177.516ms | calls=    6 | aten::_fused_adamw_
+  CPU   25.2% | self= 855.377ms | calls=   18 | cudaDeviceSynchronize
+  CPU   17.7% | self= 603.136ms | calls=   15 | bytecode_tracing (dynamo_timed)
+  CPU    8.1% | self= 275.305ms | calls=   45 | cudaStreamSynchronize
+  CPU    5.7% | self= 193.363ms | calls=  465 | PythonDispatchMode
+  CPU    5.2% | self= 177.517ms | calls=    6 | build_guards (dynamo_timed)
+  CPU    4.4% | self= 148.649ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CPU    3.8% | self= 127.559ms | calls=    6 | compile_attempt_1 (dynamo_timed)
+  CPU    3.5% | self= 119.239ms | calls=  195 | Command Buffer Full
+--- trl-sft-qwen2-0.5b [aggressive/warm] (total_cuda=5087.616ms, total_cpu=3453.23ms) ---
+  CUDA  20.6% | self=1046.080ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CUDA  12.0% | self= 610.754ms | calls= 1575 | aten::mm
+  CUDA   5.3% | self= 269.150ms | calls=    3 | ## Call CompiledFxGraph fbyqedjhtnkudfwrfiivi5tc
+  CUDA   3.9% | self= 197.650ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.9% | self= 197.650ms | calls=   72 | triton_poi_fused__scaled_dot_product_efficient_a
+  CUDA   3.6% | self= 183.661ms | calls=  432 | ampere_bf16_s1688gemm_bf16_128x128_ldg8_f2f_tn
+  CUDA   3.5% | self= 178.888ms | calls=    3 | Optimizer.step#AdamW.step
+  CUDA   3.5% | self= 177.706ms | calls=    6 | aten::_fused_adamw_
+  CPU   25.2% | self= 870.190ms | calls=   18 | cudaDeviceSynchronize
+  CPU   17.3% | self= 598.721ms | calls=   15 | bytecode_tracing (dynamo_timed)
+  CPU    8.1% | self= 281.053ms | calls=   45 | cudaStreamSynchronize
+  CPU    5.5% | self= 190.320ms | calls=  465 | PythonDispatchMode
+  CPU    5.2% | self= 177.875ms | calls=    6 | build_guards (dynamo_timed)
+  CPU    4.2% | self= 146.702ms | calls=  252 | Command Buffer Full
+  CPU    4.1% | self= 142.667ms | calls=    3 | ## Call CompiledFxGraph fb6pk76zuxyauyl6fusovs56
+  CPU    3.7% | self= 127.838ms | calls=    6 | compile_attempt_1 (dynamo_timed)
+
+[TOP-LEVEL MODULE & DYNAMIC SHAPE TRACE]
+------------------------------------------------------------------------------
+trl-sft-qwen2-0.5b [baseline/none] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+trl-sft-qwen2-0.5b [baseline/none] Qwen2DecoderLayer: params=14912384, train_calls=720, eval_calls=0, unique_shapes=5 -> ["(((4, 1024, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 1024, 1024), torch.bool, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', i", "(((4, 1024, 896), torch.float32, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', ind", "(((4, 743, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 743, 743), torch.bool, device(type='cuda', index=0)), ((1, 743, 64), torch.float32, device(type='cuda', index", "(((4, 667, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 667, 667), torch.bool, device(type='cuda', index=0)), ((1, 667, 64), torch.float32, device(type='cuda', index", "(((4, 893, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 893, 893), torch.bool, device(type='cuda', index=0)), ((1, 893, 64), torch.float32, device(type='cuda', index"]
+trl-sft-qwen2-0.5b [safe/none] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+trl-sft-qwen2-0.5b [safe/none] Qwen2DecoderLayer: params=14912384, train_calls=720, eval_calls=0, unique_shapes=5 -> ["(((4, 1024, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 1024, 1024), torch.bool, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', i", "(((4, 1024, 896), torch.float32, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', index=0)), ((1, 1024, 64), torch.float32, device(type='cuda', ind", "(((4, 743, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 743, 743), torch.bool, device(type='cuda', index=0)), ((1, 743, 64), torch.float32, device(type='cuda', index", "(((4, 667, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 667, 667), torch.bool, device(type='cuda', index=0)), ((1, 667, 64), torch.float32, device(type='cuda', index", "(((4, 893, 896), torch.float32, device(type='cuda', index=0)), ((4, 1, 893, 893), torch.bool, device(type='cuda', index=0)), ((1, 893, 64), torch.float32, device(type='cuda', index"]
+trl-sft-qwen2-0.5b [balanced/cold] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+trl-sft-qwen2-0.5b [balanced/warm] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+trl-sft-qwen2-0.5b [aggressive/cold] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+trl-sft-qwen2-0.5b [aggressive/warm] Qwen2ForCausalLM: params=494032768, train_calls=30, eval_calls=0, unique_shapes=4 -> ["(((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)), ((4, 1024), torch.int64, device(type='cuda', index=0)))", "(((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)), ((4, 743), torch.int64, device(type='cuda', index=0)))", "(((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)), ((4, 667), torch.int64, device(type='cuda', index=0)))", "(((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)), ((4, 893), torch.int64, device(type='cuda', index=0)))"]
+
+[FULL PASS AUDIT & ARTIFACT INDEX]
+------------------------------------------------------------------------------
+[ARTIFACTS] trl-sft-qwen2-0.5b (baseline/none) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/01_trl-sft-qwen2-0.5b__baseline__none
+[SKIPPED] trl-sft-qwen2-0.5b (baseline/none) -> ptopt.passes: PTOPT_TELEMETRY_ONLY=1 (untouched PyTorch baseline probe)
+[ARTIFACTS] trl-sft-qwen2-0.5b (safe/none) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/02_trl-sft-qwen2-0.5b__safe__none
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> optimizer.fusion: Optimizer fusion hook installed
+[SKIPPED] trl-sft-qwen2-0.5b (safe/none) -> compile.auto: compile.enabled is False
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[SKIPPED] trl-sft-qwen2-0.5b (safe/none) -> amp.auto: amp.enabled is False or dtype is fp32
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[SKIPPED] trl-sft-qwen2-0.5b (safe/none) -> runtime.activation_checkpointing: runtime.activation_checkpointing is off
+[SKIPPED] trl-sft-qwen2-0.5b (safe/none) -> kernels.auto: kernels.enabled is False
+[APPLIED] trl-sft-qwen2-0.5b (safe/none) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[ARTIFACTS] trl-sft-qwen2-0.5b (balanced/cold) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/03_trl-sft-qwen2-0.5b__balanced__cold
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+[SKIPPED] trl-sft-qwen2-0.5b (balanced/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/cold) -> compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+[ARTIFACTS] trl-sft-qwen2-0.5b (balanced/warm) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/04_trl-sft-qwen2-0.5b__balanced__warm
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> kernels.auto: Custom kernels active: fused_linear_cross_entropy
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+[SKIPPED] trl-sft-qwen2-0.5b (balanced/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] trl-sft-qwen2-0.5b (balanced/warm) -> compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+[ARTIFACTS] trl-sft-qwen2-0.5b (aggressive/cold) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/05_trl-sft-qwen2-0.5b__aggressive__cold
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/aggressive)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> compile.train_cuda_graphs: DataLoader remainder batch detected on Qwen2ForCausalLM; using dynamic=True
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/cold) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/cold) -> compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+[ARTIFACTS] trl-sft-qwen2-0.5b (aggressive/warm) -> /content/pytorch-optimize-kernel/benchmark_results/055335_20261125-real-trl-sft-qwen2-0.5b/runs/06_trl-sft-qwen2-0.5b__aggressive__warm
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> runtime.flags: tf32=on, cudnn_benchmark=on, flash_sdp=True, mem_sdp=True
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> dataloader.auto_tune: DataLoader auto-tune hook installed
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> optimizer.fusion: Optimizer fusion hook installed
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> compile.auto: Auto-Compile hook installed (mode=max-autotune, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/aggressive)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=True, fp8_req=False)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.rmsnorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.layernorm: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.cross_entropy: sm_89, triton=True
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.swiglu: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.rope: sm_89, triton=True; deferred to torch.compile Inductor fusion
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.auto: Custom kernels active: cross_entropy, fused_linear_cross_entropy
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> compile.train_cuda_graphs: DataLoader remainder batch detected on Qwen2ForCausalLM; using dynamic=True
+[SKIPPED] trl-sft-qwen2-0.5b (aggressive/warm) -> compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
+[APPLIED] trl-sft-qwen2-0.5b (aggressive/warm) -> compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+
+[ACTIONABLE OPTIMIZATION HINTS]
+------------------------------------------------------------------------------
+[VRAM:FRAGMENTATION] trl-sft-qwen2-0.5b (baseline/none): reserved overhead is 1286.04 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (baseline/none): avg GPU utilization is 47.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[VRAM:FRAGMENTATION] trl-sft-qwen2-0.5b (safe/none): reserved overhead is 548.27 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (safe/none): avg GPU utilization is 47.2% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] trl-sft-qwen2-0.5b (balanced/cold): 23 graph breaks (unique_graphs=15) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[VRAM:FRAGMENTATION] trl-sft-qwen2-0.5b (balanced/cold): reserved overhead is 532.32 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (balanced/cold): avg GPU utilization is 3.8% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] trl-sft-qwen2-0.5b (balanced/warm): 23 graph breaks (unique_graphs=15) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (balanced/warm): avg GPU utilization is 6.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] trl-sft-qwen2-0.5b (aggressive/cold): 23 graph breaks (unique_graphs=15) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[VRAM:FRAGMENTATION] trl-sft-qwen2-0.5b (aggressive/cold): reserved overhead is 532.32 MB -> inspect `expandable_segments` & allocator settings.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (aggressive/cold): avg GPU utilization is 3.7% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+[COMPILE:GRAPH_BREAK] trl-sft-qwen2-0.5b (aggressive/warm): 23 graph breaks (unique_graphs=15) -> inspect `diag_stderr.log` and `debug_profile.json`.
+[GPU:UNDERUTILIZED] trl-sft-qwen2-0.5b (aggressive/warm): avg GPU utilization is 6.9% -> workload is likely launch-bound or CPU/DataLoader-bound (`train_cuda_graphs` / `cuda_prefetch` candidate).
+
+[VERIFICATION STATUS]
+------------------------------------------------------------------------------
+STATUS             : PENDING_USER_REVIEW (Inspect bundle artifacts (debug_profile.json, diag_stderr.log, nvsmi_timeline.csv) to guide next optimization)
+==============================================================================

@@ -1,0 +1,20 @@
+[ptopt fallback/hook summary]
+  profile=balanced | exit_code=0 | cmd=/usr/bin/python3 trl/scripts/sft.py --model_name_or_path Qwen/Qwen2-0.5B --dataset_name trl-lib/Capybara --max_steps 30 --per_device_train_batch_size 4 --logging_steps 5 --save_strategy no --output_dir /tmp/qwen_sft_out
+  Counts: APPLIED=14 | SKIPPED=1 | FALLBACK=0
+  Applied Passes:
+  - [APPLIED] runtime.memory_allocator: alloc_conf=expandable_segments:True, torch_threads=6
+  - [APPLIED] runtime.flags: tf32=on, flash_sdp=True, mem_sdp=True
+  - [APPLIED] dataloader.auto_tune: DataLoader auto-tune hook installed
+  - [APPLIED] optimizer.fusion: Optimizer fusion hook installed
+  - [APPLIED] compile.auto: Auto-Compile hook installed (mode=default, dynamic=False, cache=/tmp/tmpwor6ihy6/trl-sft-qwen2-0.5b/balanced)
+  - [APPLIED] runtime.channels_last: Auto channels_last hook installed (CUDA Conv2d spatial>=128x128)
+  - [APPLIED] amp.auto: Auto-AMP installed (dtype=bf16, grad_scaler=False)
+  - [APPLIED] inference.opt: Inference opt hook installed (inference_mode=True, cuda_graphs=False, fp8_req=False)
+  - [APPLIED] runtime.activation_checkpointing: Activation checkpoint hook installed (mode=auto, vram_threshold=0.82)
+  - [APPLIED] kernels.fused_linear_cross_entropy: sm_89, triton=True; hybrid compile+FusedLCE head enabled
+  - [APPLIED] kernels.auto: Custom kernels active: fused_linear_cross_entropy
+  - [APPLIED] dataloader.auto_tune: Tuned DataLoader: num_workers 0->3, pin_memory=True, persistent=True
+  - [APPLIED] kernels.patch: Patched 1 submodules in Qwen2ForCausalLM with custom Triton kernels
+  - [APPLIED] compile.auto: Compiled(dynamic,dl_remainder:dataset=15806, batch_size=4) Qwen2ForCausalLM (mode=default, dynamic=True)
+  Skipped Passes (by arch/config):
+  - [SKIPPED (by arch/config)] compile.inductor_bw_tune: runtime.bandwidth_boost is False (opt-in via --bandwidth-boost or PTOPT_INDUCTOR_BW_TUNE=1)
