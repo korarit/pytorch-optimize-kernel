@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import functools
 import inspect
 import io
@@ -28,9 +29,10 @@ class _PTOPTWorkerInitWrapper:
         self.base_fn = base_fn
 
     def __call__(self, worker_id: int) -> Any:
-        os.environ.setdefault("OMP_NUM_THREADS", "1")
-        os.environ.setdefault("MKL_NUM_THREADS", "1")
-        os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+        # Overwrite inherited OMP/MKL settings from fork() so workers don't oversubscribe cores
+        os.environ["OMP_NUM_THREADS"] = "1"
+        os.environ["MKL_NUM_THREADS"] = "1"
+        os.environ["OPENBLAS_NUM_THREADS"] = "1"
         try:
             tmod = sys.modules.get("torch")
             set_threads = getattr(tmod, "set_num_threads", None) if tmod is not None else None
@@ -55,16 +57,40 @@ def read_shm_total_mb() -> float | None:
         return None
 
 
+def _iter_wrapped_datasets(dataset: Any, *, max_depth: int = 4) -> list[Any]:
+    """Unwrap `Subset` and `ConcatDataset` containers safely."""
+    out: list[Any] = []
+    stack: list[tuple[Any, int]] = [(dataset, 0)]
+    seen: set[int] = set()
+    while stack:
+        cur, depth = stack.pop()
+        if cur is None or id(cur) in seen:
+            continue
+        seen.add(id(cur))
+        out.append(cur)
+        if depth >= max_depth:
+            continue
+        inner = getattr(cur, "dataset", None)
+        if inner is not None:
+            stack.append((inner, depth + 1))
+        sub_list = getattr(cur, "datasets", None)
+        if isinstance(sub_list, (list, tuple)):
+            for ds in sub_list:
+                stack.append((ds, depth + 1))
+    return out
+
+
 def has_cuda_tensors(dataset: Any, torch_mod: Any) -> bool:
-    """Detect whether a TensorDataset-like object already stores tensors on CUDA."""
+    """Detect whether a TensorDataset (or Subset/ConcatDataset wrapper) holds CUDA tensors."""
     tensor_cls = getattr(torch_mod, "Tensor", None)
-    if tensor_cls is None:
+    if tensor_cls is None or dataset is None:
         return False
-    tensors = getattr(dataset, "tensors", None)
-    if isinstance(tensors, (tuple, list)):
-        for item in tensors:
-            if isinstance(item, tensor_cls) and getattr(item, "is_cuda", False):
-                return True
+    for ds in _iter_wrapped_datasets(dataset):
+        tensors = getattr(ds, "tensors", None)
+        if isinstance(tensors, (tuple, list)):
+            for item in tensors:
+                if isinstance(item, tensor_cls) and getattr(item, "is_cuda", False):
+                    return True
     return False
 
 
@@ -105,8 +131,17 @@ def _move_batch_to_cuda(obj: Any, torch_mod: Any, device: Any, tracked_tensors: 
         return tuple(moved)
     if isinstance(obj, list):
         return [_move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for v in obj]
-    if isinstance(obj, dict):
+    if type(obj) is dict:
         return {k: _move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for k, v in obj.items()}
+    if isinstance(obj, dict):
+        # Preserve dict subclasses (e.g. HuggingFace BatchEncoding, EasyDict)
+        try:
+            cloned = copy.copy(obj)
+            for k, v in list(obj.items()):
+                cloned[k] = _move_batch_to_cuda(v, torch_mod, device, tracked_tensors)
+            return cloned
+        except Exception:  # noqa: BLE001
+            return {k: _move_batch_to_cuda(v, torch_mod, device, tracked_tensors) for k, v in obj.items()}
     return obj
 
 
@@ -305,18 +340,22 @@ class _AsyncCudaPrefetchIter:
                 if callable(record_fn):
                     record_fn(cur_stream)
         self._stats["batches_served"] += 1
+        served = int(self._stats["batches_served"])
 
-        new_depth, headroom = compute_adaptive_prefetch_depth(self._torch, max_depth=self._max_depth)
-        self._current_depth = new_depth
-        self._stats["current_depth"] = new_depth
-        if headroom is not None:
-            self._stats["last_vram_used_ratio"] = headroom["used_ratio"]
-            self._stats["last_vram_free_mb"] = headroom["free_mb"]
-        if new_depth == 0:
-            self._record_backoff(headroom)
-        else:
-            self._backoff_logged = False
-            self._fill_queue(new_depth)
+        if served <= 2 or served % 8 == 0:
+            new_depth, headroom = compute_adaptive_prefetch_depth(self._torch, max_depth=self._max_depth)
+            self._current_depth = new_depth
+            self._stats["current_depth"] = new_depth
+            if headroom is not None:
+                self._stats["last_vram_used_ratio"] = headroom["used_ratio"]
+                self._stats["last_vram_free_mb"] = headroom["free_mb"]
+            if new_depth == 0:
+                self._record_backoff(headroom)
+            else:
+                self._backoff_logged = False
+                self._fill_queue(new_depth)
+        elif self._current_depth > 0:
+            self._fill_queue(self._current_depth)
         return cur_item
 
 
@@ -364,10 +403,13 @@ def decide_dataloader_params(
         data_ns = getattr(getattr(torch_mod, "utils", None), "data", None)
         iterable_ds_cls = getattr(data_ns, "IterableDataset", None) if data_ns is not None else None
         tensor_ds_cls = getattr(data_ns, "TensorDataset", None) if data_ns is not None else None
-        if iterable_ds_cls is not None and isinstance(dataset, iterable_ds_cls):
+        unwrapped_ds = _iter_wrapped_datasets(dataset)
+        if iterable_ds_cls is not None and any(isinstance(d, iterable_ds_cls) for d in unwrapped_ds):
             notes.append(("SKIPPED", "IterableDataset detected; keeping num_workers=0 to avoid duplicate streams"))
             target = 0
-        elif tensor_ds_cls is not None and isinstance(dataset, tensor_ds_cls):
+        elif tensor_ds_cls is not None and unwrapped_ds and all(
+            isinstance(d, tensor_ds_cls) or hasattr(d, "dataset") or hasattr(d, "datasets") for d in unwrapped_ds
+        ) and any(isinstance(d, tensor_ds_cls) for d in unwrapped_ds):
             notes.append(("SKIPPED", "In-memory TensorDataset detected; keeping num_workers=0 to avoid IPC overhead"))
             target = 0
         else:
@@ -671,7 +713,7 @@ def install_dataloader_hook(
 
         @functools.wraps(orig_to)
         def _pinned_async_to(t_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if _dynamo_compiling():
+            if getattr(t_self, "is_cuda", False) or _dynamo_compiling():
                 return orig_to(t_self, *args, **kwargs)
             if _should_promote_non_blocking(t_self, args, kwargs, _is_cuda_arg(args, kwargs)):
                 kwargs["non_blocking"] = True
@@ -685,7 +727,7 @@ def install_dataloader_hook(
 
             @functools.wraps(orig_cuda)
             def _pinned_async_cuda(t_self: Any, *args: Any, **kwargs: Any) -> Any:
-                if _dynamo_compiling():
+                if getattr(t_self, "is_cuda", False) or _dynamo_compiling():
                     return orig_cuda(t_self, *args, **kwargs)
                 if _should_promote_non_blocking(t_self, args, kwargs, True):
                     kwargs["non_blocking"] = True

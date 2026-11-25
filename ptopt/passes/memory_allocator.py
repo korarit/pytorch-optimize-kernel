@@ -107,8 +107,13 @@ def apply_memory_allocator_pass(
         set_threads = getattr(tmod, "set_num_threads", None)
         if callable(set_threads):
             try:
-                set_threads(int(cfg.runtime.omp_threads))
-                parts.append(f"torch_threads={cfg.runtime.omp_threads}")
+                local_ws = max(1, int(os.environ.get("LOCAL_WORLD_SIZE", "1") or "1"))
+            except ValueError:
+                local_ws = 1
+            eff_threads = max(1, int(cfg.runtime.omp_threads) // local_ws)
+            try:
+                set_threads(eff_threads)
+                parts.append(f"torch_threads={eff_threads}")
             except RuntimeError:
                 pass
 

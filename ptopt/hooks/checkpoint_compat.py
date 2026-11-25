@@ -187,24 +187,34 @@ def sync_all_live_optimizers(torch_mod: Any) -> int:
     return total
 
 
-def _restore_dropped_fp8_weights(mod_self: Any, state_dict: Mapping[str, Any]) -> OrderedDict[str, Any]:
+def _restore_dropped_fp8_weights(
+    mod_self: Any,
+    state_dict: Mapping[str, Any],
+    prefix: str = "",
+) -> OrderedDict[str, Any]:
     """Reconstruct dequantized weights if `PTOPT_FP8_DROP_BF16_EVAL=1` emptied `.weight.data` before save."""
     out: OrderedDict[str, Any] = OrderedDict()
     named_mods = dict(mod_self.named_modules()) if hasattr(mod_self, "named_modules") else {}
     for key, val in state_dict.items():
-        if (
-            isinstance(key, str)
-            and (key == "weight" or key.endswith(".weight"))
-            and hasattr(val, "numel")
-            and val.numel() == 0
-        ):
-            mod_name = "" if key == "weight" else key[: -len(".weight")]
-            sub = mod_self if mod_name == "" else named_mods.get(mod_name)
-            w_cache = getattr(sub, "_ptopt_fp8_w_cache", None) if sub is not None else None
-            if w_cache is not None and len(w_cache) >= 3:
-                _, w_t, w_scale = w_cache[0], w_cache[1], w_cache[2]
-                out[key] = (w_t.t().float() * w_scale.float()).to(val.dtype)
-                continue
+        if isinstance(key, str) and hasattr(val, "numel") and val.numel() == 0:
+            clean_key = key[len(prefix):] if (prefix and key.startswith(prefix)) else key
+            if clean_key == "weight" or clean_key.endswith(".weight"):
+                mod_name = "" if clean_key == "weight" else clean_key[: -len(".weight")]
+                sub = mod_self if mod_name == "" else named_mods.get(mod_name)
+                if sub is None and "." in mod_name:
+                    # Handle positional/custom prefix without named keyword match
+                    parts = mod_name.split(".")
+                    for idx in range(1, len(parts) + 1):
+                        cand = ".".join(parts[idx:])
+                        sub = mod_self if cand == "" else named_mods.get(cand)
+                        if sub is not None and getattr(sub, "_ptopt_fp8_w_cache", None) is not None:
+                            break
+                        sub = None
+                w_cache = getattr(sub, "_ptopt_fp8_w_cache", None) if sub is not None else None
+                if w_cache is not None and len(w_cache) >= 3:
+                    _, w_t, w_scale = w_cache[0], w_cache[1], w_cache[2]
+                    out[key] = (w_t.t().float() * w_scale.float()).to(val.dtype)
+                    continue
         out[key] = val
     metadata = getattr(state_dict, "_metadata", None)
     if isinstance(metadata, dict):
@@ -233,7 +243,10 @@ def install_checkpoint_compat_hooks(torch_mod: Any) -> bool:
             for sub in (mod_self.modules() if hasattr(mod_self, "modules") else (mod_self,))
         )
         if has_dropped_fp8:
-            sd = _restore_dropped_fp8_weights(mod_self, sd)
+            raw_prefix = kwargs.get("prefix", "")
+            if not isinstance(raw_prefix, str):
+                raw_prefix = ""
+            sd = _restore_dropped_fp8_weights(mod_self, sd, prefix=raw_prefix)
         has_cl_mod = bool(getattr(mod_self, "_ptopt_channels_last_done", False)) or (
             hasattr(mod_self, "modules")
             and any(getattr(sub, "_ptopt_channels_last_done", False) for sub in mod_self.modules())

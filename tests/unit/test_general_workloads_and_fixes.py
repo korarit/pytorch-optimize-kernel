@@ -20,6 +20,7 @@ from ptopt.config import ConfigResolver, OptimizeConfig, build_runtime_cache_key
 from ptopt.detect import GPUDeviceInfo, GPUProbeResult, HardwareFingerprint, HostInfo
 from ptopt.hooks.checkpoint_compat import install_checkpoint_compat_hooks, uninstall_checkpoint_compat_hooks
 from ptopt.hooks.manager import HookManager
+from ptopt.hooks.module_dispatch import build_shape_signature, estimate_module_depth, is_distributed_wrapped
 from ptopt.kernels.cross_entropy import triton_cross_entropy
 from ptopt.kernels.registry import (
     _patch_module_submodules,
@@ -27,29 +28,42 @@ from ptopt.kernels.registry import (
     install_custom_kernels_hooks,
     uninstall_custom_kernels_hooks,
 )
+from ptopt.passes.activation_checkpoint import (
+    install_activation_checkpoint_hook,
+    uninstall_activation_checkpoint_hook,
+)
 from ptopt.passes.auto_amp import (
     _FUNCTIONAL_LOSS_FP32_SPECS,
     install_auto_amp_hook,
     uninstall_auto_amp_hook,
 )
 from ptopt.passes.auto_compile import (
+    _detect_cuda_sm_for_compile,
     _disable_cudnn_benchmark_for_dynamic_conv,
     _has_explicit_dynamic_override,
+    _is_eligible_for_train_cuda_graphs,
     _is_worth_static_compile,
 )
-from ptopt.passes.channels_last import _is_conv_dominated_architecture
+from ptopt.passes.channels_last import (
+    _has_large_4d_input,
+    _is_conv_dominated_architecture,
+    install_channels_last_hook,
+    uninstall_channels_last_hook,
+)
 from ptopt.passes.dataloader_tune import (
     _PTOPTWorkerInitWrapper,
+    _move_batch_to_cuda,
     decide_dataloader_params,
     install_dataloader_hook,
     uninstall_dataloader_hook,
 )
 from ptopt.passes.inference_opt import (
     _slice_fp8_calib_inputs,
+    check_fp8_eligibility,
     install_inference_opt_hook,
     uninstall_inference_opt_hook,
 )
-from ptopt.passes.memory_allocator import apply_prelaunch_env
+from ptopt.passes.memory_allocator import apply_memory_allocator_pass, apply_prelaunch_env
 from ptopt.passes.optimizer_fusion import install_optimizer_fusion_hook, uninstall_optimizer_fusion_hook
 from ptopt.passes.runtime_flags import apply_runtime_flags_pass
 
@@ -60,6 +74,8 @@ class TestGeneralWorkloadsAndFixes(unittest.TestCase):
         uninstall_optimizer_fusion_hook(torch)
         uninstall_dataloader_hook(torch)
         uninstall_inference_opt_hook(torch)
+        uninstall_activation_checkpoint_hook(torch)
+        uninstall_channels_last_hook(torch)
         uninstall_custom_kernels_hooks(torch)
         uninstall_checkpoint_compat_hooks(torch)
 
@@ -376,11 +392,46 @@ class TestGeneralWorkloadsAndFixes(unittest.TestCase):
         )
         res = ConfigResolver().resolve(rocm_fp, profile="balanced")
         self.assertTrue(res.config.amp.enabled)
-        self.assertEqual(res.config.amp.dtype, "fp16")
+        self.assertEqual(res.config.amp.dtype, "bf16")
+        self.assertFalse(res.config.amp.grad_scaler)
         self.assertTrue(res.config.compile.enabled)
         self.assertFalse(res.config.runtime.tf32)
         self.assertFalse(res.config.optimizer.fused)
         self.assertFalse(res.config.runtime.cudnn_benchmark)
+
+        rocm_fp16_dev = GPUDeviceInfo(
+            index=0,
+            name="AMD Radeon RX 6800",
+            compute_capability="10.3",
+            major=10,
+            minor=3,
+            sm_int=103,
+            sm_name="gfx1030",
+            total_vram_mb=16384.0,
+            sm_count=60,
+            bf16_supported=False,
+            tf32_supported=False,
+            fp8_supported=False,
+            flash_sdp_supported=False,
+            mem_efficient_sdp_supported=True,
+        )
+        rocm_fp16 = HardwareFingerprint(
+            host=rocm_host,
+            gpu=GPUProbeResult(backend="rocm", device_count=1, selected_index=0, cuda_visible_devices=None, devices=[rocm_fp16_dev]),
+        )
+        res_fp16 = ConfigResolver().resolve(rocm_fp16, profile="balanced")
+        self.assertEqual(res_fp16.config.amp.dtype, "fp16")
+        self.assertTrue(res_fp16.config.amp.grad_scaler)
+
+        # ROCm version.hip suppresses NVIDIA SM>=89 FP8/compile SM detection
+        fake_hip_torch = SimpleNamespace(
+            version=SimpleNamespace(hip="6.2.0"),
+            cuda=SimpleNamespace(is_available=lambda: True, current_device=lambda: 0, get_device_properties=lambda _i: SimpleNamespace(major=9, minor=0)),
+            float8_e4m3fn=object(),
+            _scaled_mm=lambda *a, **kw: None,
+        )
+        self.assertEqual(_detect_cuda_sm_for_compile(fake_hip_torch), 0)
+        self.assertFalse(check_fp8_eligibility(fake_hip_torch)[0])
 
         mgr = HookManager()
         cfg_bal = OptimizeConfig(profile="balanced")
@@ -573,6 +624,352 @@ class TestGeneralWorkloadsAndFixes(unittest.TestCase):
             with patch("ptopt.passes.memory_allocator.detect_runtime_cache_key", return_value=k_new):
                 apply_prelaunch_env(cfg, env)
             self.assertEqual(env["TORCHINDUCTOR_CACHE_DIR"], str(custom))
+
+    def test_inference_frozen_bn_finetune_and_distillation_teacher(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.inference.inference_mode = True
+        mgr = HookManager()
+        rt = install_inference_opt_hook(cfg, mgr, torch)
+        assert rt is not None
+        try:
+            # 1) Teacher-student distillation with torch.no_grad() BEFORE & AFTER student.train()
+            teacher = nn.Linear(8, 4).eval()
+            student = nn.Linear(8, 4)
+            x = torch.randn(4, 8)
+            with torch.no_grad():
+                tgt0 = teacher(x)
+            F.mse_loss(student(x), tgt0).backward()
+            self.assertIsNotNone(student.weight.grad)
+
+            student.train()
+            student.zero_grad()
+            with torch.no_grad():
+                tgt1 = teacher(x)
+            F.mse_loss(student(x), tgt1).backward()
+            self.assertIsNotNone(student.weight.grad)
+
+            # 2) Frozen-BN fine-tuning: eval() inside active training script with is_grad_enabled()=True
+            backbone = nn.Sequential(nn.Linear(8, 8), nn.BatchNorm1d(8))
+            head = nn.Linear(8, 2)
+            backbone.train()
+            _ = backbone(x)
+            backbone.eval()
+            loss = head(backbone(x)).sum()
+            loss.backward()
+            self.assertIsNotNone(backbone[0].weight.grad)
+            self.assertIsNotNone(head.weight.grad)
+        finally:
+            uninstall_inference_opt_hook(torch)
+
+    def test_dynamic_cache_kv_growth_detected_by_shape_signature_and_cuda_graphs(self) -> None:
+        class _FakeDynamicCache:
+            def __init__(self, seq_len: int) -> None:
+                self.key_cache = [torch.randn(1, 2, seq_len, 4)]
+                self.value_cache = [torch.randn(1, 2, seq_len, 4)]
+
+        sig1 = build_shape_signature((torch.tensor([[5]]),), {"past_key_values": _FakeDynamicCache(10)}, torch)
+        sig2 = build_shape_signature((torch.tensor([[6]]),), {"past_key_values": _FakeDynamicCache(11)}, torch)
+        self.assertNotEqual(sig1, sig2)
+
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.inference.inference_mode = True
+        cfg.inference.cuda_graphs = True
+        mgr = HookManager()
+
+        class _KVDecodeMod(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.w = nn.Parameter(torch.randn(4, 4))
+
+            def forward(self, inp: torch.Tensor, past_key_values: object = None) -> torch.Tensor:
+                return inp @ self.w
+
+        m = _KVDecodeMod().eval()
+        with (
+            patch.object(torch.cuda, "is_available", return_value=True),
+            patch.object(torch.Tensor, "is_cuda", new_callable=lambda: property(lambda _s: True)),
+            patch.object(torch, "compile", side_effect=lambda fn, **_kw: fn),
+        ):
+            rt = install_inference_opt_hook(cfg, mgr, torch)
+            assert rt is not None
+            try:
+                _ = m(torch.randn(1, 4), past_key_values=_FakeDynamicCache(1))
+                _ = m(torch.randn(1, 4), past_key_values=_FakeDynamicCache(2))
+                self.assertEqual(rt.cuda_graph_compiles, 0)
+                self.assertGreaterEqual(rt.cuda_graph_fallbacks, 1)
+            finally:
+                uninstall_inference_opt_hook(torch)
+
+    def test_dataloader_batch_encoding_subset_tensordataset_and_worker_omp_overwrite(self) -> None:
+        class _BatchEncoding(dict):
+            @property
+            def input_ids(self) -> object:
+                return self["input_ids"]
+
+        class _FakeCPUTensor:
+            def __init__(self, val: int) -> None:
+                self.val = val
+                self.is_cuda = False
+                self.device = SimpleNamespace(type="cpu")
+
+            def to(self, *, device: object, non_blocking: bool = False) -> "_FakeCPUTensor":
+                out = _FakeCPUTensor(self.val)
+                out.is_cuda = True
+                out.device = SimpleNamespace(type="cuda")
+                return out
+
+        fake_t = SimpleNamespace(Tensor=_FakeCPUTensor)
+        # Preserve dict subclass type cleanly
+        be = _BatchEncoding({"input_ids": _FakeCPUTensor(42), "meta": "abc"})
+        tracked: list[object] = []
+        moved = _move_batch_to_cuda(be, fake_t, "cuda:0", tracked)
+        self.assertIsInstance(moved, _BatchEncoding)
+        self.assertTrue(moved.input_ids.is_cuda)  # type: ignore[attr-defined]
+        self.assertEqual(len(tracked), 1)
+
+        # Subset(TensorDataset) skips multiprocessing workers
+        cfg = OptimizeConfig(profile="balanced")
+        sub_tds = torch.utils.data.Subset(torch.utils.data.TensorDataset(torch.randn(20, 4)), [0, 1, 2, 3])
+        tuned, notes = decide_dataloader_params(
+            cfg=cfg,
+            dataset=sub_tds,
+            collate_fn=None,
+            worker_init_fn=None,
+            orig_num_workers=0,
+            orig_pin_memory=False,
+            orig_persistent_workers=False,
+            orig_prefetch_factor=None,
+            torch_mod=torch,
+            shm_mb=4096.0,
+            cpu_cores=8,
+        )
+        self.assertEqual(tuned["num_workers"], 0)
+        self.assertTrue(any("TensorDataset" in r for _s, r in notes))
+
+        # Worker wrapper must overwrite inherited OMP_NUM_THREADS from fork()
+        wrapper = _PTOPTWorkerInitWrapper(None)
+        with patch.dict(os.environ, {"OMP_NUM_THREADS": "16", "MKL_NUM_THREADS": "16"}, clear=False):
+            wrapper(0)
+            self.assertEqual(os.environ["OMP_NUM_THREADS"], "1")
+            self.assertEqual(os.environ["MKL_NUM_THREADS"], "1")
+
+    def test_ddp_dist_omp_scaling_train_cg_skip_and_act_ckpt_midrun_guard(self) -> None:
+        class DistributedDataParallel(nn.Module):
+            def __init__(self, module: nn.Module) -> None:
+                super().__init__()
+                self.module = module
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return self.module(x)
+
+        ddp_mod = DistributedDataParallel(nn.Sequential(nn.Linear(64, 64), nn.Linear(64, 64))).train()
+        self.assertTrue(is_distributed_wrapped(ddp_mod))
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.amp.grad_scaler = False
+        cfg.compile.train_cuda_graphs = True
+        mgr = HookManager()
+        rt_mock = SimpleNamespace(cfg=cfg, train_cuda_graphs=True, dynamic=False)
+        with patch.dict(os.environ, {"PTOPT_CUDA_SM_OVERRIDE": "89"}):
+            ok_cg, reason_cg = _is_eligible_for_train_cuda_graphs(
+                ddp_mod, (torch.randn(2, 64),), {}, torch, rt_mock  # type: ignore[arg-type]
+            )
+        self.assertFalse(ok_cg)
+        self.assertIn("DDP", reason_cg)
+
+        # LOCAL_WORLD_SIZE divides omp_threads
+        cfg_thr = OptimizeConfig(profile="balanced")
+        cfg_thr.runtime.omp_threads = 16
+        with patch.dict(os.environ, {"LOCAL_WORLD_SIZE": "4"}):
+            msg_thr = apply_memory_allocator_pass(cfg_thr, mgr, torch)
+            self.assertIn("torch_threads=4", msg_thr)
+
+        # Mid-run activation checkpointing skipped for DDP
+        cfg_ckpt = OptimizeConfig(profile="balanced")
+        cfg_ckpt.runtime.activation_checkpointing = "auto"
+        probes = iter([0.20, 0.95])
+        install_activation_checkpoint_hook(cfg_ckpt, mgr, torch, vram_probe_fn=lambda: next(probes))
+        try:
+            _ = ddp_mod(torch.randn(2, 64))
+            _ = ddp_mod(torch.randn(2, 64))
+            self.assertFalse(getattr(ddp_mod, "_ptopt_act_ckpt_active", False))
+        finally:
+            uninstall_activation_checkpoint_hook(torch)
+
+    def test_amp_linalg_istft_fp32_guards_and_autograd_backward(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.amp.enabled = True
+        cfg.amp.dtype = "bf16"
+        mgr = HookManager()
+        rt = install_auto_amp_hook(cfg, mgr, torch)
+        assert rt is not None
+        autocast_calls: list[tuple[str, bool, object]] = []
+
+        class _FakeAutocast:
+            def __init__(self, device_type: str = "cuda", dtype: object = None, enabled: bool = True) -> None:
+                self.args = (device_type, enabled, dtype)
+
+            def __enter__(self) -> "_FakeAutocast":
+                autocast_calls.append(self.args)
+                return self
+
+            def __exit__(self, *_a: object) -> None:
+                return None
+
+        class _LinalgSignalNet(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.w = nn.Parameter(torch.randn(4, 4))
+
+            def forward(self, spd: torch.Tensor) -> torch.Tensor:
+                vals = torch.linalg.eigvalsh if False else torch.linalg.eigh(spd).eigenvalues
+                return vals.sum() + self.w.sum()
+
+        net = _LinalgSignalNet()
+        try:
+            with (
+                patch.object(torch.amp, "autocast", _FakeAutocast),
+                patch.object(torch.Tensor, "is_cuda", new_callable=lambda: property(lambda _s: True)),
+            ):
+                m = torch.eye(4).unsqueeze(0)
+                m = 0.5 * (m + m.transpose(-1, -2))
+                _ = net(m)
+                self.assertIn(("cuda", True, torch.bfloat16), autocast_calls)
+                self.assertIn(("cuda", False, None), autocast_calls)
+        finally:
+            uninstall_auto_amp_hook(torch)
+
+        # torch.autograd.backward triggers scaler cleanly once without double-scaling
+        cfg_fp16 = OptimizeConfig(profile="balanced")
+        cfg_fp16.amp.enabled = True
+        cfg_fp16.amp.dtype = "fp16"
+        cfg_fp16.amp.grad_scaler = True
+
+        class _FakeScaler:
+            def __init__(self, *_a: object, **_kw: object) -> None:
+                self.scale_calls = 0
+
+            def is_enabled(self) -> bool:
+                return True
+
+            def scale(self, t: torch.Tensor) -> torch.Tensor:
+                self.scale_calls += 1
+                return t * 4.0
+
+            def step(self, opt: torch.optim.Optimizer, *a: object, **kw: object) -> object:
+                return opt.step(*a, **kw)
+
+            def update(self) -> None:
+                return None
+
+        with patch.object(torch.amp, "GradScaler", _FakeScaler):
+            rt2 = install_auto_amp_hook(cfg_fp16, mgr, torch)
+            assert rt2 is not None
+            try:
+                p = nn.Parameter(torch.tensor([3.0]))
+                with patch.object(torch.Tensor, "is_cuda", new_callable=lambda: property(lambda _s: True)):
+                    torch.autograd.backward(p * 1.0)
+                self.assertEqual(rt2.scaler.scale_calls, 1)
+                self.assertAlmostEqual(float(p.grad.item()), 4.0, places=4)
+            finally:
+                uninstall_auto_amp_hook(torch)
+
+    def test_optimizer_fusion_init_subclass_late_definition_and_compile_depth(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.optimizer.fused = False
+        cfg.optimizer.foreach = True
+        mgr = HookManager()
+        install_optimizer_fusion_hook(cfg, mgr, torch)
+        try:
+            class _LateCustomOpt(torch.optim.Optimizer):
+                def __init__(self, params: object, lr: float = 0.01, foreach: bool | None = None) -> None:
+                    super().__init__(params, {"lr": lr, "foreach": foreach})
+
+            p = nn.Parameter(torch.randn(4))
+            opt = _LateCustomOpt([p])
+            self.assertTrue(opt.defaults["foreach"])
+        finally:
+            uninstall_optimizer_fusion_hook(torch)
+
+        # MLP with activations/dropout counts only compute leaves (<8) so stays eager
+        shallow_mlp = nn.Sequential(
+            nn.Linear(16, 16), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(16, 16), nn.ReLU(), nn.Dropout(0.1),
+            nn.Linear(16, 4), nn.Identity(), nn.Flatten(),
+        )
+        self.assertEqual(estimate_module_depth(shallow_mlp), 3)
+        ok_mlp, _ = _is_worth_static_compile(shallow_mlp, (torch.randn(2, 16),), {}, torch, False)
+        self.assertFalse(ok_mlp)
+
+    def test_channels_last_kwargs_and_eeg_1ch_skip_and_rmsnorm_eps_none(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        mgr = HookManager()
+        cnn = nn.Conv2d(3, 8, 3, padding=1)
+        received_cl: list[bool] = []
+        orig_fwd = cnn.forward
+
+        def _spy_fwd(sample: torch.Tensor) -> torch.Tensor:
+            received_cl.append(sample.is_contiguous(memory_format=torch.channels_last))
+            return orig_fwd(sample)
+
+        cnn.forward = _spy_fwd  # type: ignore[method-assign]
+        with patch.object(torch.cuda, "is_available", return_value=True):
+            install_channels_last_hook(torch, min_spatial_area=0, require_cuda=False, manager=mgr)
+            try:
+                _ = cnn(sample=torch.randn(2, 3, 128, 128))
+                self.assertEqual(received_cl, [True])
+            finally:
+                uninstall_channels_last_hook(torch)
+
+        # EEGNet-like 4D input (B, 1, C_eeg, T) must skip channels_last
+        self.assertFalse(
+            _has_large_4d_input((torch.randn(8, 1, 64, 512),), {}, torch, min_spatial_area=16384, require_cuda=False)
+        )
+
+        # nn.RMSNorm(eps=None) and add_unit_offset=True
+        class _NullEpsRMSNorm(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.weight = nn.Parameter(torch.ones(8))
+                self.eps = None
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x * self.weight
+
+        class _UnitOffsetRMSNorm(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.weight = nn.Parameter(torch.ones(8))
+                self.add_unit_offset = True
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return x * (1.0 + self.weight)
+
+        m_null = _NullEpsRMSNorm()
+        m_unit = _UnitOffsetRMSNorm()
+        called_eps: list[float] = []
+        with (
+            patch.object(torch.Tensor, "is_cuda", new_callable=lambda: property(lambda _s: True)),
+            patch("ptopt.kernels.rmsnorm.triton_rmsnorm", side_effect=lambda x, w, eps=1e-6: called_eps.append(eps) or x),
+        ):
+            patched = _patch_module_submodules(
+                nn.Sequential(m_null, m_unit), torch, {"rmsnorm": True}, mgr, min_lce_vocab=4096, fallback_on_error=True
+            )
+            self.assertEqual(patched, 1)
+            self.assertFalse(getattr(m_unit, "_ptopt_kern_patched", False))
+            _ = m_null(torch.randn(2, 8))
+            self.assertEqual(called_eps, [1e-6])
+
+        # checkpoint state_dict(prefix="model.head.") restores dropped FP8 weights
+        install_checkpoint_compat_hooks(torch)
+        try:
+            lin = nn.Linear(4, 3, bias=False)
+            w_ref = torch.ones((3, 4), dtype=torch.float32) * 2.0
+            lin._ptopt_fp8_w_cache = (None, w_ref.t().contiguous(), torch.tensor(0.25, dtype=torch.float32))
+            lin.weight.data = torch.empty(0, dtype=torch.bfloat16)
+            sd_pref = lin.state_dict(prefix="model.head.")
+            torch.testing.assert_close(sd_pref["model.head.weight"], (w_ref * 0.25).to(torch.bfloat16))
+        finally:
+            uninstall_checkpoint_compat_hooks(torch)
 
 
 if __name__ == "__main__":

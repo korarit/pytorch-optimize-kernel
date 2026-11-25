@@ -15,6 +15,7 @@ from ptopt.hooks.module_dispatch import (
     build_shape_signature,
     estimate_module_depth,
     has_cuda_context,
+    is_distributed_wrapped,
     iter_nested_tensors,
     register_module_call_handler,
     resolve_dataparallel_target,
@@ -62,6 +63,8 @@ def _detect_cuda_sm_for_compile(torch_mod: Any) -> int:
         except ValueError:
             pass
     try:
+        if getattr(getattr(torch_mod, "version", None), "hip", None):
+            return 0
         cuda_api = getattr(torch_mod, "cuda", None)
         if not cuda_api or not cuda_api.is_available():
             return 0
@@ -108,6 +111,8 @@ def _is_eligible_for_train_cuda_graphs(
         return False, "compile.dynamic=True requested"
     if getattr(getattr(rt.cfg, "amp", None), "grad_scaler", False):
         return False, "GradScaler enabled (CPU .item() step skip hazard)"
+    if is_distributed_wrapped(mod_self):
+        return False, "DDP/FSDP distributed wrapper detected (CUDA Graphs unsafe)"
 
     sm_int = _detect_cuda_sm_for_compile(torch_mod)
     if sm_int < 80 and os.environ.get("PTOPT_TRAIN_CG_FORCE") != "1":
@@ -499,11 +504,11 @@ def _should_use_auto_regional_compile(
     if env == "1":
         return _discover_regional_blocks(root_mod, torch_mod, min_blocks=4)
 
-    blocks = _discover_regional_blocks(root_mod, torch_mod, min_blocks=6)
+    blocks = _discover_regional_blocks(root_mod, torch_mod, min_blocks=8)
     if not blocks:
         return []
     total_params, _ = _count_module_params_and_elems(root_mod, (), {}, torch_mod)
-    if total_params < 20_000_000:
+    if total_params < 50_000_000:
         return []
     return blocks
 
@@ -1098,12 +1103,12 @@ def install_auto_compile_hook(
                     blk._compiled_call_impl = getattr(blk, impl_attr, None)
                     blk._ptopt_compile_active = blk._compiled_call_impl is not None
                 seen_reg = getattr(target_mod, "_ptopt_seen_shapes", None)
-                if seen_reg is not None and len(seen_reg) < 8:
+                cur_reg_dyn = getattr(target_mod, "_ptopt_compile_dynamic", rt.dynamic)
+                if seen_reg is not None and len(seen_reg) < 8 and cur_reg_dyn is not True:
                     sig_reg = _shape_signature(args, kwargs, torch_mod)
                     if sig_reg and sig_reg not in seen_reg:
                         seen_reg.add(sig_reg)
-                        cur_reg_dyn = getattr(target_mod, "_ptopt_compile_dynamic", rt.dynamic)
-                        if len(seen_reg) == 2 and cur_reg_dyn is not True and auto_dynamic_on_change and not explicit_dynamic_override:
+                        if len(seen_reg) == 2 and auto_dynamic_on_change and not explicit_dynamic_override:
                             reg_blocks = list(getattr(target_mod, "_ptopt_regional_blocks", ()))
                             if reg_blocks:
                                 _attempt_compile_regional_blocks(

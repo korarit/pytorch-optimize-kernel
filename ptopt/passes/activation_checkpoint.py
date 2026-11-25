@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, Callable
 
 from ptopt.config import OptimizeConfig
 from ptopt.hooks.module_dispatch import (
+    is_distributed_wrapped,
     recompute_dispatch_guard,
     register_module_call_handler,
     unregister_module_call_handler,
@@ -426,8 +427,11 @@ def install_activation_checkpoint_hook(
                 else:
                     step_cnt = int(getattr(mod_self, "_ptopt_act_ckpt_probe_steps", 0)) + 1
                     mod_self._ptopt_act_ckpt_probe_steps = step_cnt
-                    should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
-                    vram_ratio = probe_vram() if should_probe else None
+                    if step_cnt > 1 and is_distributed_wrapped(mod_self):
+                        vram_ratio = None
+                    else:
+                        should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
+                        vram_ratio = probe_vram() if should_probe else None
                     if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
                         _activate_act_ckpt(
                             mod_self,
@@ -440,8 +444,11 @@ def install_activation_checkpoint_hook(
             elif getattr(mod_self, "_ptopt_act_ckpt_partial", False):
                 step_cnt = int(getattr(mod_self, "_ptopt_act_ckpt_probe_steps", 0)) + 1
                 mod_self._ptopt_act_ckpt_probe_steps = step_cnt
-                should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
-                vram_ratio = probe_vram() if should_probe else None
+                if step_cnt > 1 and is_distributed_wrapped(mod_self):
+                    vram_ratio = None
+                else:
+                    should_probe = (vram_probe_fn is not None) or step_cnt <= 2 or (step_cnt % 8 == 0)
+                    vram_ratio = probe_vram() if should_probe else None
                 if vram_ratio is not None and vram_ratio >= rt.vram_threshold:
                     _activate_act_ckpt(
                         mod_self,
@@ -457,6 +464,7 @@ def install_activation_checkpoint_hook(
             can_retry_oom = (
                 allow_oom_retry
                 and eligible
+                and not is_distributed_wrapped(mod_self)
                 and _is_oom_error(exc, torch_mod)
                 and not getattr(mod_self, "_ptopt_act_ckpt_oom_retried", False)
                 and (

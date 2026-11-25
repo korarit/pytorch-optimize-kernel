@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 def _detect_cuda_sm(torch_mod: Any) -> int:
     try:
+        if getattr(getattr(torch_mod, "version", None), "hip", None):
+            return 0
         idx = int(torch_mod.cuda.current_device()) if hasattr(torch_mod.cuda, "current_device") else 0
         props = torch_mod.cuda.get_device_properties(idx)
         return int(props.major) * 10 + int(props.minor)

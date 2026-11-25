@@ -6,6 +6,7 @@ import functools
 import math
 import os
 import sys
+import threading
 import weakref
 from typing import TYPE_CHECKING, Any
 
@@ -49,7 +50,35 @@ _FUNCTIONAL_LOSS_FP32_SPECS: dict[str, bool] = {
     "gaussian_nll_loss": True,
     "poisson_nll_loss": True,
 }
-_FFT_FP32_FUNCS = ("rfft", "irfft", "fft", "ifft", "rfft2", "irfft2", "fft2", "ifft2")
+_FFT_FP32_FUNCS = (
+    "rfft",
+    "irfft",
+    "fft",
+    "ifft",
+    "rfft2",
+    "irfft2",
+    "fft2",
+    "ifft2",
+    "rfftn",
+    "irfftn",
+    "fftn",
+    "ifftn",
+)
+_LINALG_FP32_FUNCS = (
+    "eigh",
+    "eig",
+    "svd",
+    "svdvals",
+    "cholesky",
+    "cholesky_ex",
+    "solve",
+    "solve_ex",
+    "inv",
+    "pinv",
+    "qr",
+    "lstsq",
+    "matrix_exp",
+)
 
 
 def _has_cuda_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
@@ -102,7 +131,7 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
         if orig_fn is None or not callable(orig_fn):
             continue
 
-        def _make_loss_wrapper(base_fn: Any, with_target: bool) -> Any:
+        def _make_loss_wrapper(base_fn: Any, with_target: bool, name: str) -> Any:
             @functools.wraps(base_fn)
             def _fp32_loss_guard(*args: Any, **kwargs: Any) -> Any:
                 if (
@@ -115,6 +144,8 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
                         args_list[0] = _promote_half_cuda_tensor(args_list[0], half_dtypes)
                         if with_target and len(args_list) > 1:
                             args_list[1] = _promote_half_cuda_tensor(args_list[1], half_dtypes)
+                        if name == "gaussian_nll_loss" and len(args_list) > 2:
+                            args_list[2] = _promote_half_cuda_tensor(args_list[2], half_dtypes)
                         args = tuple(args_list)
                     elif "input" in kwargs:
                         kwargs = dict(kwargs)
@@ -122,49 +153,85 @@ def _install_functional_loss_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> 
                     if with_target and "target" in kwargs:
                         kwargs = dict(kwargs)
                         kwargs["target"] = _promote_half_cuda_tensor(kwargs["target"], half_dtypes)
+                    if name == "gaussian_nll_loss" and "var" in kwargs:
+                        kwargs = dict(kwargs)
+                        kwargs["var"] = _promote_half_cuda_tensor(kwargs["var"], half_dtypes)
+                    if "weight" in kwargs and kwargs["weight"] is not None:
+                        kwargs = dict(kwargs)
+                        kwargs["weight"] = _promote_half_cuda_tensor(kwargs["weight"], half_dtypes)
                 return base_fn(*args, **kwargs)
 
             return _fp32_loss_guard
 
         orig_losses[fn_name] = orig_fn
-        setattr(func_mod, fn_name, _make_loss_wrapper(orig_fn, promote_target))
+        setattr(func_mod, fn_name, _make_loss_wrapper(orig_fn, promote_target, fn_name))
 
     if orig_losses:
         func_mod._ptopt_amp_orig_losses = orig_losses
 
 
+def _promote_spectral_or_linalg_tensor(val: Any, half_dtypes: tuple[Any, ...], chalf_dt: Any, c64_dt: Any) -> Any:
+    if hasattr(val, "_ptopt_lazy_linear"):
+        return val
+    if val is None or not getattr(val, "is_cuda", False):
+        return val
+    dt = getattr(val, "dtype", None)
+    if dt in half_dtypes:
+        return val.float()
+    if chalf_dt is not None and c64_dt is not None and dt == chalf_dt:
+        return val.to(c64_dt)
+    return val
+
+
 def _install_fft_stft_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
-    """Force FP32 outside CUDA autocast for stft/fft calls inside ptopt AMP forward passes."""
+    """Force FP32 outside CUDA autocast for stft/istft/fft/linalg calls inside ptopt AMP forward passes."""
     half_dtypes = tuple(
         dt for dt in (getattr(torch_mod, "float16", None), getattr(torch_mod, "bfloat16", None)) if dt is not None
     )
     if not half_dtypes:
         return
+    chalf_dt = getattr(torch_mod, "complex32", None)
+    c64_dt = getattr(torch_mod, "complex64", None)
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    is_compiling_fn = getattr(getattr(torch_mod, "compiler", None), "is_compiling", None)
 
-    def _promote_tensor_arg(val: Any) -> Any:
-        return _promote_half_cuda_tensor(val, half_dtypes)
+    def _promote_val(val: Any) -> Any:
+        if tensor_cls is not None and isinstance(val, tensor_cls):
+            return _promote_spectral_or_linalg_tensor(val, half_dtypes, chalf_dt, c64_dt)
+        return val
 
-    def _make_fft_guard(base_fn: Any) -> Any:
+    def _make_fp32_ctx_guard(base_fn: Any) -> Any:
         @functools.wraps(base_fn)
-        def _fp32_fft_guard(*args: Any, **kwargs: Any) -> Any:
-            if rt._ptopt_autocast_depth <= 0 or rt.disabled_by_watchdog or rt.user_amp_detected:
+        def _fp32_ctx_guard(*args: Any, **kwargs: Any) -> Any:
+            if (
+                (callable(is_compiling_fn) and is_compiling_fn())
+                or rt._ptopt_autocast_depth <= 0
+                or rt.disabled_by_watchdog
+                or rt.user_amp_detected
+            ):
                 return base_fn(*args, **kwargs)
-            new_args = tuple(_promote_tensor_arg(a) if i < 2 else a for i, a in enumerate(args))
-            if "window" in kwargs and kwargs["window"] is not None:
-                kwargs = dict(kwargs)
-                kwargs["window"] = _promote_tensor_arg(kwargs["window"])
-            if "input" in kwargs and kwargs["input"] is not None:
-                kwargs = dict(kwargs)
-                kwargs["input"] = _promote_tensor_arg(kwargs["input"])
+            new_args = tuple(_promote_val(a) for a in args)
+            if kwargs:
+                new_kw = None
+                for kw_name, kw_val in kwargs.items():
+                    if tensor_cls is not None and isinstance(kw_val, tensor_cls):
+                        prom = _promote_val(kw_val)
+                        if prom is not kw_val:
+                            if new_kw is None:
+                                new_kw = dict(kwargs)
+                            new_kw[kw_name] = prom
+                if new_kw is not None:
+                    kwargs = new_kw
             with torch_mod.amp.autocast(device_type="cuda", enabled=False):
                 return base_fn(*new_args, **kwargs)
 
-        return _fp32_fft_guard
+        return _fp32_ctx_guard
 
-    orig_stft = getattr(torch_mod, "stft", None)
-    if callable(orig_stft):
-        torch_mod._ptopt_amp_orig_stft = orig_stft
-        torch_mod.stft = _make_fft_guard(orig_stft)
+    for attr_name, store_attr in (("stft", "_ptopt_amp_orig_stft"), ("istft", "_ptopt_amp_orig_istft")):
+        orig_fn = getattr(torch_mod, attr_name, None)
+        if callable(orig_fn):
+            setattr(torch_mod, store_attr, orig_fn)
+            setattr(torch_mod, attr_name, _make_fp32_ctx_guard(orig_fn))
 
     fft_mod = getattr(torch_mod, "fft", None)
     if fft_mod is not None:
@@ -173,9 +240,20 @@ def _install_fft_stft_fp32_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
             orig_fn = getattr(fft_mod, fn_name, None)
             if callable(orig_fn):
                 orig_ffts[fn_name] = orig_fn
-                setattr(fft_mod, fn_name, _make_fft_guard(orig_fn))
+                setattr(fft_mod, fn_name, _make_fp32_ctx_guard(orig_fn))
         if orig_ffts:
             fft_mod._ptopt_amp_orig_ffts = orig_ffts
+
+    linalg_mod = getattr(torch_mod, "linalg", None)
+    if linalg_mod is not None:
+        orig_linalg: dict[str, Any] = {}
+        for fn_name in _LINALG_FP32_FUNCS:
+            orig_fn = getattr(linalg_mod, fn_name, None)
+            if callable(orig_fn):
+                orig_linalg[fn_name] = orig_fn
+                setattr(linalg_mod, fn_name, _make_fp32_ctx_guard(orig_fn))
+        if orig_linalg:
+            linalg_mod._ptopt_amp_orig_linalg = orig_linalg
 
 
 def _install_grad_clip_unscale_guards(torch_mod: Any, rt: AutoAmpRuntime) -> None:
@@ -221,9 +299,6 @@ def _install_grad_clip_unscale_guards(torch_mod: Any, rt: AutoAmpRuntime) -> Non
                 opt_param_ids = set()
             if opt_param_ids & target_ids:
                 matched_opts.append(opt)
-
-        if not matched_opts:
-            matched_opts = list(rt._live_optimizers)
 
         for opt in matched_opts:
             oid = id(opt)
@@ -345,7 +420,8 @@ class AutoAmpRuntime:
         self._unscaled_this_step = False
         self._last_forward_skipped_amp = False
         self._any_amp_forward_this_step = False
-        self._ptopt_autocast_depth = 0
+        self._tls = threading.local()
+        self._in_amp_backward = False
         self._amp_step_count = 0
         self._module_depth = 0
         self.scaler: Any = None
@@ -375,6 +451,14 @@ class AutoAmpRuntime:
         self._sync_watchdog_checks: int = 0
         if self.use_scaler:
             self._init_internal_scaler()
+
+    @property
+    def _ptopt_autocast_depth(self) -> int:
+        return int(getattr(self._tls, "autocast_depth", 0))
+
+    @_ptopt_autocast_depth.setter
+    def _ptopt_autocast_depth(self, val: int) -> None:
+        self._tls.autocast_depth = max(0, int(val))
 
     def _init_internal_scaler(self) -> None:
         self._in_internal_scaler_init = True
@@ -563,17 +647,8 @@ def install_auto_amp_hook(
         if _is_autocast_active(torch_mod):
             rt.mark_user_amp("torch.amp.autocast")
             return next_fn(mod_self, *args, **kwargs)
-        if not getattr(mod_self, "_ptopt_amp_cuda_ok", False):
-            if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
-                return next_fn(mod_self, *args, **kwargs)
-            if hasattr(mod_self, "parameters"):
-                try:
-                    for p in mod_self.parameters():
-                        if getattr(p, "is_cuda", False):
-                            mod_self._ptopt_amp_cuda_ok = True
-                        break
-                except Exception:  # noqa: BLE001
-                    pass
+        if not _has_cuda_context(mod_self, args, kwargs, torch_mod):
+            return next_fn(mod_self, *args, **kwargs)
         if has_float64_context(mod_self, args, kwargs, torch_mod):
             is_train_fwd = bool(getattr(mod_self, "training", True) and torch_mod.is_grad_enabled())
             if is_train_fwd:
@@ -620,12 +695,12 @@ def install_auto_amp_hook(
 
     register_module_call_handler(torch_mod, "amp.auto", 40, _amp_mod_call)
 
-    # 3. Wrap Tensor.backward for fp16 GradScaler & zero-sync stability watchdog
+    # 3. Wrap Tensor.backward & torch.autograd.backward for fp16 GradScaler & zero-sync stability watchdog
     orig_backward = torch_mod.Tensor.backward
 
     @functools.wraps(orig_backward)
     def _amp_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
-        if rt.disabled_by_watchdog or rt.user_amp_detected:
+        if rt._in_amp_backward or rt.disabled_by_watchdog or rt.user_amp_detected:
             return orig_backward(tensor_self, *args, **kwargs)
         if rt._last_forward_skipped_amp and not rt._any_amp_forward_this_step:
             rt._last_forward_skipped_amp = False
@@ -633,28 +708,81 @@ def install_auto_amp_hook(
         rt._last_forward_skipped_amp = False
         rt._any_amp_forward_this_step = False
 
-        # Enqueue non-blocking stability check so forward->backward never forces a CUDA sync
-        if getattr(tensor_self, "is_cuda", False) and not rt.enqueue_loss_stability_check(tensor_self):
+        rt._in_amp_backward = True
+        try:
+            # Enqueue non-blocking stability check so forward->backward never forces a CUDA sync
+            if getattr(tensor_self, "is_cuda", False) and not rt.enqueue_loss_stability_check(tensor_self):
+                return orig_backward(tensor_self, *args, **kwargs)
+
+            if (
+                rt.use_scaler
+                and rt.scaler is not None
+                and getattr(tensor_self, "is_cuda", False)
+                and tensor_self.numel() == 1
+                and not args
+                and not kwargs
+            ):
+                rt._step_scaled = True
+                rt._unscaled_this_step = False
+                rt._unscaled_optimizer_ids.clear()
+                scaled = rt.scaler.scale(tensor_self)
+                return orig_backward(scaled)
+
             return orig_backward(tensor_self, *args, **kwargs)
-
-        if (
-            rt.use_scaler
-            and rt.scaler is not None
-            and getattr(tensor_self, "is_cuda", False)
-            and tensor_self.numel() == 1
-            and not args
-            and not kwargs
-        ):
-            rt._step_scaled = True
-            rt._unscaled_this_step = False
-            rt._unscaled_optimizer_ids.clear()
-            scaled = rt.scaler.scale(tensor_self)
-            return orig_backward(scaled)
-
-        return orig_backward(tensor_self, *args, **kwargs)
+        finally:
+            rt._in_amp_backward = False
 
     torch_mod.Tensor._ptopt_amp_orig_backward = orig_backward
     torch_mod.Tensor.backward = _amp_backward
+
+    autograd_mod = getattr(torch_mod, "autograd", None)
+    orig_ag_backward = getattr(autograd_mod, "backward", None) if autograd_mod is not None else None
+    if callable(orig_ag_backward):
+        tensor_cls = getattr(torch_mod, "Tensor", None)
+
+        @functools.wraps(orig_ag_backward)
+        def _amp_autograd_backward(tensors: Any, grad_tensors: Any = None, *args: Any, **kwargs: Any) -> Any:
+            if rt._in_amp_backward or rt.disabled_by_watchdog or rt.user_amp_detected:
+                return orig_ag_backward(tensors, grad_tensors, *args, **kwargs)
+            if rt._last_forward_skipped_amp and not rt._any_amp_forward_this_step:
+                rt._last_forward_skipped_amp = False
+                return orig_ag_backward(tensors, grad_tensors, *args, **kwargs)
+            rt._last_forward_skipped_amp = False
+            rt._any_amp_forward_this_step = False
+
+            single_t = (
+                tensors
+                if (tensor_cls is not None and isinstance(tensors, tensor_cls))
+                else (
+                    tensors[0]
+                    if isinstance(tensors, (tuple, list)) and len(tensors) == 1 and tensor_cls is not None and isinstance(tensors[0], tensor_cls)
+                    else None
+                )
+            )
+            rt._in_amp_backward = True
+            try:
+                if single_t is not None and getattr(single_t, "is_cuda", False):
+                    if not rt.enqueue_loss_stability_check(single_t):
+                        return orig_ag_backward(tensors, grad_tensors, *args, **kwargs)
+                    if (
+                        rt.use_scaler
+                        and rt.scaler is not None
+                        and single_t.numel() == 1
+                        and grad_tensors is None
+                        and not kwargs.get("create_graph", False)
+                        and not args
+                    ):
+                        rt._step_scaled = True
+                        rt._unscaled_this_step = False
+                        rt._unscaled_optimizer_ids.clear()
+                        scaled = rt.scaler.scale(single_t)
+                        return orig_ag_backward(scaled, grad_tensors, *args, **kwargs)
+                return orig_ag_backward(tensors, grad_tensors, *args, **kwargs)
+            finally:
+                rt._in_amp_backward = False
+
+        autograd_mod._ptopt_amp_orig_backward = orig_ag_backward
+        autograd_mod.backward = _amp_autograd_backward
 
     # 4. Wrap optimizer step() classes & track live optimizers for grad-clip unscaling
     def _make_amp_step(base_step: Any) -> Any:
@@ -775,6 +903,11 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
         torch_mod.Tensor.backward = torch_mod.Tensor._ptopt_amp_orig_backward
         delattr(torch_mod.Tensor, "_ptopt_amp_orig_backward")
 
+    autograd_mod = getattr(torch_mod, "autograd", None)
+    if autograd_mod is not None and hasattr(autograd_mod, "_ptopt_amp_orig_backward"):
+        autograd_mod.backward = autograd_mod._ptopt_amp_orig_backward
+        delattr(autograd_mod, "_ptopt_amp_orig_backward")
+
     func_mod = getattr(getattr(torch_mod, "nn", None), "functional", None)
     if func_mod is not None and hasattr(func_mod, "_ptopt_amp_orig_losses"):
         for fn_name, orig_fn in getattr(func_mod, "_ptopt_amp_orig_losses").items():
@@ -785,11 +918,21 @@ def uninstall_auto_amp_hook(torch_mod: Any) -> None:
         torch_mod.stft = torch_mod._ptopt_amp_orig_stft
         delattr(torch_mod, "_ptopt_amp_orig_stft")
 
+    if hasattr(torch_mod, "_ptopt_amp_orig_istft"):
+        torch_mod.istft = torch_mod._ptopt_amp_orig_istft
+        delattr(torch_mod, "_ptopt_amp_orig_istft")
+
     fft_mod = getattr(torch_mod, "fft", None)
     if fft_mod is not None and hasattr(fft_mod, "_ptopt_amp_orig_ffts"):
         for fn_name, orig_fn in getattr(fft_mod, "_ptopt_amp_orig_ffts").items():
             setattr(fft_mod, fn_name, orig_fn)
         delattr(fft_mod, "_ptopt_amp_orig_ffts")
+
+    linalg_mod = getattr(torch_mod, "linalg", None)
+    if linalg_mod is not None and hasattr(linalg_mod, "_ptopt_amp_orig_linalg"):
+        for fn_name, orig_fn in getattr(linalg_mod, "_ptopt_amp_orig_linalg").items():
+            setattr(linalg_mod, fn_name, orig_fn)
+        delattr(linalg_mod, "_ptopt_amp_orig_linalg")
 
     utils_mod = getattr(getattr(torch_mod, "nn", None), "utils", None)
     if utils_mod is not None and hasattr(utils_mod, "_ptopt_amp_orig_clips"):

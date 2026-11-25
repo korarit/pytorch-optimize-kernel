@@ -201,12 +201,12 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="gpu_rocm",
             layer="gpu_arch",
-            reason="ROCm backend: default to fp16 AMP without NVIDIA TF32",
+            reason="ROCm backend: use bf16 AMP when supported or fp16+GradScaler without NVIDIA TF32",
             condition=lambda fp, _p: fp.effective_backend == "rocm",
-            updates={
+            updates=lambda fp, _p: {
                 "runtime.tf32": False,
-                "amp.dtype": "fp16",
-                "amp.grad_scaler": True,
+                "amp.dtype": "bf16" if (fp.primary_gpu is not None and fp.primary_gpu.bf16_supported) else "fp16",
+                "amp.grad_scaler": not bool(fp.primary_gpu is not None and fp.primary_gpu.bf16_supported),
                 "attention.flash_sdp": False,
             },
         ),
@@ -265,7 +265,7 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="vram_lt_12gb",
             layer="vram_tier",
             reason="VRAM < 12 GB: favor memory-saving allocator & conservative compile",
-            condition=lambda fp, _p: _is_cuda(fp) and 0 < fp.vram_mb < 12288,
+            condition=lambda fp, _p: _is_gpu_accel(fp) and 0 < fp.vram_mb < 12288,
             updates={
                 "runtime.alloc_conf": "expandable_segments:True",
                 "compile.mode": "default",
@@ -277,14 +277,14 @@ def get_builtin_rules() -> list[ConfigRule]:
             name="vram_12_24gb",
             layer="vram_tier",
             reason="VRAM 12-24 GB (e.g. T4/L4): use expandable_segments allocator",
-            condition=lambda fp, _p: _is_cuda(fp) and 12288 <= fp.vram_mb < 32768,
+            condition=lambda fp, _p: _is_gpu_accel(fp) and 12288 <= fp.vram_mb < 32768,
             updates={"runtime.alloc_conf": "expandable_segments:True"},
         ),
         ConfigRule(
             name="vram_ge_40gb",
             layer="vram_tier",
             reason="VRAM >= 40 GB (e.g. A100/H100): headroom available for aggressive tuning",
-            condition=lambda fp, _p: _is_cuda(fp) and fp.vram_mb >= 40960,
+            condition=lambda fp, _p: _is_gpu_accel(fp) and fp.vram_mb >= 40960,
             updates={"runtime.alloc_conf": "expandable_segments:True"},
         ),
         # 5. user_profile

@@ -413,6 +413,7 @@ def _patch_module_submodules(
         if (
             eligible.get("rmsnorm")
             and "gemma" not in cls_lower
+            and not bool(getattr(sub, "add_unit_offset", False))
             and ((rms_cls is not None and isinstance(sub, rms_cls)) or "rmsnorm" in cls_lower)
         ):
             weight = getattr(sub, "weight", None)
@@ -420,11 +421,15 @@ def _patch_module_submodules(
                 orig_fwd = sub.forward
 
                 def _make_rms_fwd(m: Any, base_f: Any) -> Callable[..., Any]:
+                    raw_eps = getattr(m, "eps", None)
+                    if raw_eps is None:
+                        raw_eps = getattr(m, "variance_epsilon", None)
+                    rms_eps = float(raw_eps) if raw_eps is not None else 1e-6
+
                     @functools.wraps(base_f)
                     def _rms_fwd(x: Any) -> Any:
                         if getattr(x, "is_cuda", False) and _dtype_name(x.dtype, torch_mod) in ("fp32", "fp16", "bf16"):
                             try:
-                                rms_eps = float(getattr(m, "eps", getattr(m, "variance_epsilon", 1e-6)))
                                 return triton_rmsnorm(x, m.weight, eps=rms_eps)
                             except Exception as exc:  # noqa: BLE001
                                 if _is_checkpoint_control_flow(exc) or not fallback_on_error or manager.strict:

@@ -105,8 +105,27 @@ def convert_module_channels_last(module: Any, torch_mod: Any) -> bool:
             for inp in inputs
         )
 
+    def _input_pre_hook_kw(
+        _mod: Any,
+        inputs: tuple[Any, ...],
+        kwargs: dict[str, Any],
+    ) -> tuple[tuple[Any, ...], dict[str, Any]]:
+        conv_args = tuple(
+            _convert_tensor_channels_last(inp, torch_mod, allow_2d=is_c2d, allow_3d=is_c3d)
+            for inp in inputs
+        )
+        conv_kw = (
+            {k: _convert_tensor_channels_last(v, torch_mod, allow_2d=is_c2d, allow_3d=is_c3d) for k, v in kwargs.items()}
+            if kwargs
+            else kwargs
+        )
+        return conv_args, conv_kw
+
     if hasattr(module, "register_forward_pre_hook"):
-        module.register_forward_pre_hook(_input_pre_hook)
+        try:
+            module.register_forward_pre_hook(_input_pre_hook_kw, with_kwargs=True)
+        except TypeError:
+            module.register_forward_pre_hook(_input_pre_hook)
     for sub_m in module.modules():
         sub_m._ptopt_channels_last_done = True
     module._ptopt_channels_last_3d = is_c3d
@@ -153,6 +172,9 @@ def _has_large_4d_input(
             if require_cuda and not getattr(tensor, "is_cuda", False):
                 continue
             if tensor.dim() == 4:
+                # Skip 1-channel or 1D-height/width EEG/signal tensors (e.g. EEGNet (B, 1, C_eeg, T))
+                if int(tensor.shape[1]) <= 1 or int(tensor.shape[-2]) <= 1 or int(tensor.shape[-1]) <= 1:
+                    continue
                 spatial = int(tensor.shape[-2]) * int(tensor.shape[-1])
                 bc = int(tensor.shape[0]) * int(tensor.shape[1])
                 if spatial >= min_spatial_area:

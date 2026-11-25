@@ -5,6 +5,7 @@ from __future__ import annotations
 import functools
 import threading
 from contextlib import contextmanager
+import dataclasses
 from typing import Any, Callable, Iterator
 
 ModuleCallHandler = Callable[[Any, tuple[Any, ...], dict[str, Any], Callable[..., Any]], Any]
@@ -55,6 +56,37 @@ def iter_nested_tensors(
                 yield from _walk(val, depth + 1)
                 if yielded >= max_items:
                     return
+        elif dataclasses.is_dataclass(cur) and not isinstance(cur, type):
+            cid = id(cur)
+            if cid in seen_ids:
+                return
+            seen_ids.add(cid)
+            for f in dataclasses.fields(cur):
+                yield from _walk(getattr(cur, f.name, None), depth + 1)
+                if yielded >= max_items:
+                    return
+        else:
+            # Inspect HuggingFace DynamicCache / KV-cache objects so dynamic KV shapes are tracked
+            k_cache = getattr(cur, "key_cache", None)
+            v_cache = getattr(cur, "value_cache", None)
+            layers = getattr(cur, "layers", None)
+            if k_cache is not None or v_cache is not None or layers is not None:
+                cid = id(cur)
+                if cid in seen_ids:
+                    return
+                seen_ids.add(cid)
+                for attr_val in (k_cache, v_cache):
+                    if attr_val is not None:
+                        yield from _walk(attr_val, depth + 1)
+                        if yielded >= max_items:
+                            return
+                if isinstance(layers, (list, tuple)):
+                    for layer in layers:
+                        for lv in (getattr(layer, "keys", None), getattr(layer, "values", None)):
+                            if lv is not None:
+                                yield from _walk(lv, depth + 1)
+                                if yielded >= max_items:
+                                    return
 
     yield from _walk(obj, 0)
 
@@ -106,7 +138,7 @@ def has_float64_context(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, 
 
 
 def estimate_module_depth(mod_self: Any) -> int:
-    """Count non-container leaf modules (op depth) for launch-bound compile profitability."""
+    """Count parameterized/compute leaf modules (op depth) for launch-bound compile profitability."""
     if not hasattr(mod_self, "modules"):
         return 0
     try:
@@ -115,10 +147,32 @@ def estimate_module_depth(mod_self: Any) -> int:
             if sub is mod_self:
                 continue
             if hasattr(sub, "children") and not any(True for _ in sub.children()):
-                depth += 1
+                has_p = False
+                if hasattr(sub, "parameters"):
+                    has_p = next(sub.parameters(recurse=False), None) is not None
+                if has_p or type(sub).__name__.startswith(("Conv", "Linear", "LSTM", "GRU", "RNN", "Multihead")):
+                    depth += 1
         return depth
     except Exception:  # noqa: BLE001
         return 0
+
+
+def is_distributed_wrapped(mod_self: Any) -> bool:
+    """Return True if `mod_self` or any ancestor/child is wrapped in DDP or FSDP."""
+    for cls in type(mod_self).__mro__:
+        if cls.__name__ in ("DistributedDataParallel", "FullyShardedDataParallel"):
+            return True
+    if hasattr(mod_self, "modules"):
+        try:
+            for sub in mod_self.modules():
+                if any(
+                    cls.__name__ in ("DistributedDataParallel", "FullyShardedDataParallel")
+                    for cls in type(sub).__mro__
+                ):
+                    return True
+        except Exception:  # noqa: BLE001
+            pass
+    return False
 
 
 def has_requires_grad_tensor(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:

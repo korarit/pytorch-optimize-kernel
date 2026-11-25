@@ -119,18 +119,21 @@ def install_optimizer_fusion_hook(
                 seen_cls_ids.add(id(sub_cls))
                 candidate_classes.append((getattr(sub_cls, "__name__", "CustomOptimizer"), sub_cls))
 
-    patched_classes: list[tuple[Any, Any]] = []
-    for cls_name, opt_cls in candidate_classes:
+    def _try_patch_opt_cls(cls_name: str, opt_cls: Any) -> bool:
+        if opt_cls is None or "_ptopt_orig_init" in getattr(opt_cls, "__dict__", {}):
+            return False
         orig_init = opt_cls.__init__
+        if getattr(orig_init, "_ptopt_is_fusion_init", False):
+            return False
         try:
             sig = inspect.signature(orig_init)
         except (TypeError, ValueError):
-            continue
+            return False
         supports_fused = "fused" in sig.parameters
         supports_foreach = "foreach" in sig.parameters
         supports_capturable = "capturable" in sig.parameters
         if not (supports_fused or supports_foreach or supports_capturable):
-            continue
+            return False
 
         def _make_wrapped_init(
             target_cls_name: str,
@@ -204,6 +207,7 @@ def install_optimizer_fusion_hook(
                     )
                     base_init(opt_self, mat_params, *args, **kwargs)
 
+            _wrapped_init._ptopt_is_fusion_init = True
             return _wrapped_init
 
         opt_cls.__init__ = _make_wrapped_init(
@@ -211,8 +215,37 @@ def install_optimizer_fusion_hook(
         )
         opt_cls._ptopt_orig_init = orig_init
         patched_classes.append((opt_cls, orig_init))
+        return True
+
+    patched_classes: list[tuple[Any, Any]] = []
+    for cls_name, opt_cls in candidate_classes:
+        _try_patch_opt_cls(cls_name, opt_cls)
+
+    if opt_base is not None:
+        orig_init_subclass = opt_base.__dict__.get("__init_subclass__")
+
+        @classmethod  # type: ignore[misc]
+        def _ptopt_opt_init_subclass(cls: Any, **kwargs: Any) -> None:
+            if orig_init_subclass is not None:
+                fn = orig_init_subclass.__func__ if hasattr(orig_init_subclass, "__func__") else orig_init_subclass
+                fn(cls, **kwargs)
+            else:
+                super(opt_base, cls).__init_subclass__(**kwargs)
+            if "__init__" in getattr(cls, "__dict__", {}):
+                _try_patch_opt_cls(getattr(cls, "__name__", "CustomOptimizer"), cls)
+
+        opt_base._ptopt_fusion_orig_init_subclass = orig_init_subclass
+        opt_base._ptopt_fusion_has_init_subclass = "__init_subclass__" in opt_base.__dict__
+        opt_base.__init_subclass__ = _ptopt_opt_init_subclass
 
     if not patched_classes:
+        if opt_base is not None and hasattr(opt_base, "_ptopt_fusion_orig_init_subclass"):
+            if opt_base._ptopt_fusion_has_init_subclass:
+                opt_base.__init_subclass__ = opt_base._ptopt_fusion_orig_init_subclass
+            elif "__init_subclass__" in opt_base.__dict__:
+                delattr(opt_base, "__init_subclass__")
+            delattr(opt_base, "_ptopt_fusion_orig_init_subclass")
+            delattr(opt_base, "_ptopt_fusion_has_init_subclass")
         return False
     optim_mod._ptopt_fusion_patched_classes = patched_classes
     _OPTIM_FUSION_INSTALLED = True
@@ -226,6 +259,14 @@ def uninstall_optimizer_fusion_hook(torch_mod: Any) -> None:
         return
     optim_mod = getattr(torch_mod, "optim", None)
     if optim_mod is not None:
+        opt_base = getattr(optim_mod, "Optimizer", None)
+        if opt_base is not None and hasattr(opt_base, "_ptopt_fusion_orig_init_subclass"):
+            if getattr(opt_base, "_ptopt_fusion_has_init_subclass", False):
+                opt_base.__init_subclass__ = opt_base._ptopt_fusion_orig_init_subclass
+            elif "__init_subclass__" in getattr(opt_base, "__dict__", {}):
+                delattr(opt_base, "__init_subclass__")
+            delattr(opt_base, "_ptopt_fusion_orig_init_subclass")
+            delattr(opt_base, "_ptopt_fusion_has_init_subclass")
         for opt_cls, orig_init in getattr(optim_mod, "_ptopt_fusion_patched_classes", ()):
             try:
                 opt_cls.__init__ = orig_init

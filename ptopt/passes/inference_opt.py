@@ -30,6 +30,8 @@ _INFERENCE_OPT_INSTALLED = False
 
 def _detect_cuda_sm(torch_mod: Any) -> int:
     try:
+        if getattr(getattr(torch_mod, "version", None), "hip", None):
+            return 0
         if not getattr(torch_mod, "cuda", None) or not torch_mod.cuda.is_available():
             return 0
         idx = int(torch_mod.cuda.current_device()) if hasattr(torch_mod.cuda, "current_device") else 0
@@ -901,6 +903,7 @@ class InferenceOptRuntime:
         self.grad_guard_skips = 0
         self.cuda_graph_compiles = 0
         self.cuda_graph_fallbacks = 0
+        self._seen_training_call = False
 
 
 def install_inference_opt_hook(
@@ -956,9 +959,15 @@ def install_inference_opt_hook(
     # 2. Register top-level nn.Module.__call__ handler on unified dispatcher
     def _inference_mod_call(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], next_fn: Any) -> Any:
         if getattr(mod_self, "training", True):
+            rt._seen_training_call = True
+            try:
+                mod_self._ptopt_seen_train = True
+            except Exception:  # noqa: BLE001
+                pass
             return next_fn(mod_self, *args, **kwargs)
 
-        # Safety guard: skip inference_mode if explicit enable_grad or requires_grad tensor exists
+        # Safety guard: skip inference_mode early if explicit enable_grad or requires_grad tensor exists
+        is_grad_en = bool(getattr(torch_mod, "is_grad_enabled", lambda: False)())
         needs_grad = (
             rt.enable_grad_depth > 0
             or _has_requires_grad_tensor(args, kwargs, torch_mod)
@@ -1111,17 +1120,7 @@ def install_inference_opt_hook(
         # Optional CUDA Graphs / reduce-overhead compile for repeated static-shape CUDA eval (isolated from train handle)
         cg_target, is_dp_wrap, _ = resolve_dataparallel_target(mod_self, torch_mod)
 
-        on_cuda = getattr(mod_self, "_ptopt_infer_cuda_ok", False)
-        if not on_cuda:
-            on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
-            if on_cuda and hasattr(mod_self, "parameters"):
-                try:
-                    for p in mod_self.parameters():
-                        if getattr(p, "is_cuda", False):
-                            mod_self._ptopt_infer_cuda_ok = True
-                        break
-                except Exception:  # noqa: BLE001
-                    pass
+        on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
         loss_base = getattr(getattr(getattr(torch_mod, "nn", None), "modules", None), "loss", None)
         loss_cls = getattr(loss_base, "_Loss", None) if loss_base is not None else None
         is_parameterless_non_compilable = False
@@ -1235,10 +1234,17 @@ def install_inference_opt_hook(
                         f"Dynamic eval input shape detected on {type(cg_target).__name__}; reverted reduce-overhead/CUDA Graphs",
                     )
 
+        # Prevent:
+        # 1) Frozen-BN fine-tuning (`eval()` inside an active training script with grad enabled) from losing grads.
+        # 2) Upgrading separate `with torch.no_grad():` teacher/target modules into inference_mode() (InferenceTensor hazard).
         use_infer_ctx = (
             rt.inference_mode_enabled
             and hasattr(torch_mod, "inference_mode")
             and os.environ.get("PTOPT_INFERENCE_MODE") != "0"
+            and (
+                (is_grad_en and not rt._seen_training_call)
+                or (not is_grad_en and getattr(mod_self, "_ptopt_seen_train", False))
+            )
         )
         ctx = torch_mod.inference_mode() if use_infer_ctx else nullcontext()
         with ctx:
