@@ -177,7 +177,7 @@ git clone --depth 1 https://github.com/pytorch/examples.git
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name pytorch-examples-resnet50 \
   --cwd /content/external_repos/examples/imagenet \
-  --cmd "python3 -c \"import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')\"" \
+  --cmd "python3 -c \"import sys, runpy, torchvision.datasets as d; _F=d.FakeData; d.FakeData=lambda sz,*a,**kw: _F(6400 if sz>100000 else (1280 if sz>10000 else sz),*a,**kw); sys.argv=['main.py','-a','resnet50','--dummy','--seed','42','--epochs','1','--batch-size','64','--workers','2']; runpy.run_path('main.py', run_name='__main__')\"" \
   --profiles safe,balanced,aggressive \
   --ptopt-arg="--override dataloader.cuda_prefetch=true" \
   --cache-modes auto \
@@ -287,6 +287,8 @@ python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --measure-pure-wall
 ```
 > **OOM Rescue Stress Test**: ลองเพิ่ม `--per_device_train_batch_size` จน Arm A ชน `CUDA out of memory` แล้วทดสอบ `ptopt --profile balanced --fallback-report` เพื่อยืนยันว่า Auto Activation Checkpointing / Step-0 OOM rescue + Hybrid LCE ช่วยให้รันจบได้โดยไม่แก้โค้ด!
+>
+> **หมายเหตุ Data Tokenization Cache**: รอบแรกสุดของ `trl/scripts/sft.py` บน `trl-lib/Capybara` มีขั้นตอน `.map()` tokenize บน CPU (~25–30s); หากต้องการวัดเวลาเทรนเน้น ๆ ควรปล่อยให้ dataset tokenized cache ถูกสร้างไว้ก่อนเริ่มจับเวลา
 
 ---
 
@@ -301,11 +303,11 @@ pip install -q diffusers timm
 # Pre-download DiT-XL/2 + VAE weights ก่อนจับเวลา
 python3 -c "import sys; sys.path.insert(0, '/content/external_repos/DiT'); from download import find_model; find_model('DiT-XL-2-256x256.pt')"
 
-# เทียบ Baseline vs balanced vs Static FP8 (L4 sm_89+)
+# เทียบ Baseline vs balanced vs Static FP8 (L4 sm_89+; ใช้ 50 steps เพื่อให้ steady-state denoise คุ้มค่า startup compile)
 python3 $PTOPT_REPO/pipline-for-test/real_bench.py \
   --name dit-xl2-fp8-static \
   --cwd /content/external_repos/DiT \
-  --cmd "python3 sample.py --image-size 256 --num-sampling-steps 25 --seed 42" \
+  --cmd "python3 sample.py --image-size 256 --num-sampling-steps 50 --seed 42" \
   --profiles balanced,aggressive \
   --env PTOPT_INFERENCE_FP8=1 \
   --env PTOPT_FP8_STATIC_SCALE=1 \

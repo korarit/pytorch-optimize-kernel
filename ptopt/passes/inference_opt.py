@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import functools
 import os
 import sys
@@ -16,6 +17,7 @@ from ptopt.hooks.module_dispatch import (
     has_requires_grad_tensor,
     iter_nested_tensors,
     register_module_call_handler,
+    resolve_dataparallel_target,
     unregister_module_call_handler,
 )
 from ptopt.passes.memory_allocator import probe_cuda_vram_headroom
@@ -47,6 +49,84 @@ def _has_requires_grad_tensor(args: tuple[Any, ...], kwargs: dict[str, Any], tor
 
 def _shape_signature(args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> tuple[Any, ...]:
     return build_shape_signature(args, kwargs, torch_mod, include_device=False)
+
+
+def _is_embedding_only_module(mod_self: Any, args: tuple[Any, ...], kwargs: dict[str, Any], torch_mod: Any) -> bool:
+    """Return True if inputs are integer/bool indices and all parameterized leaf submodules are Embeddings."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    nn_ns = getattr(torch_mod, "nn", None)
+    emb_cls = getattr(nn_ns, "Embedding", None)
+    if tensor_cls is None or emb_cls is None or not hasattr(mod_self, "modules"):
+        return False
+    saw_tensor = False
+    for item in (*args, *kwargs.values()):
+        for tensor in iter_nested_tensors(item, tensor_cls):
+            saw_tensor = True
+            try:
+                if tensor.is_floating_point() or tensor.is_complex():
+                    return False
+            except Exception:  # noqa: BLE001
+                return False
+    if not saw_tensor:
+        return False
+
+    saw_emb = False
+    try:
+        for sub in mod_self.modules():
+            if hasattr(sub, "parameters") and next(sub.parameters(recurse=False), None) is not None:
+                if not isinstance(sub, emb_cls):
+                    return False
+                saw_emb = True
+    except Exception:  # noqa: BLE001
+        return False
+    return saw_emb
+
+
+def _clone_cudagraph_outputs(out: Any, torch_mod: Any, *, max_bytes: int | None = None) -> Any:
+    """Clone small/medium CUDA tensor outputs returned from reduce-overhead modules so sibling runs stay isolated."""
+    tensor_cls = getattr(torch_mod, "Tensor", None)
+    if tensor_cls is None or out is None:
+        return out
+    if max_bytes is None:
+        try:
+            max_bytes = int(os.environ.get("PTOPT_CG_CLONE_MAX_BYTES", str(64 * 1024 * 1024)))
+        except ValueError:
+            max_bytes = 64 * 1024 * 1024
+
+    total_cuda_bytes = 0
+    has_cuda_tensor = False
+    for tensor in iter_nested_tensors(out, tensor_cls):
+        if getattr(tensor, "is_cuda", False):
+            has_cuda_tensor = True
+            try:
+                total_cuda_bytes += int(tensor.numel()) * int(tensor.element_size())
+            except Exception:  # noqa: BLE001
+                return out
+    if not has_cuda_tensor or total_cuda_bytes > max_bytes:
+        return out
+
+    def _clone_leaf(obj: Any) -> Any:
+        if isinstance(obj, tensor_cls):
+            return obj.clone() if getattr(obj, "is_cuda", False) else obj
+        if isinstance(obj, tuple) and hasattr(obj, "_fields"):
+            return type(obj)(*(_clone_leaf(v) for v in obj))
+        if isinstance(obj, tuple):
+            return tuple(_clone_leaf(v) for v in obj)
+        if isinstance(obj, list):
+            return [_clone_leaf(v) for v in obj]
+        if type(obj) is dict:
+            return {k: _clone_leaf(v) for k, v in obj.items()}
+        if isinstance(obj, dict):
+            cloned = copy.copy(obj)
+            for k, v in list(obj.items()):
+                cloned[k] = _clone_leaf(v)
+            return cloned
+        return obj
+
+    try:
+        return _clone_leaf(out)
+    except Exception:  # noqa: BLE001
+        return out
 
 
 def check_fp8_eligibility(torch_mod: Any) -> tuple[bool, str]:
@@ -921,6 +1001,7 @@ def install_inference_opt_hook(
             mod_self._ptopt_fp8_checked = True
             decide_fp8_weight_retention(torch_mod, cfg=rt.cfg, manager=manager)
             n_patched = apply_fp8_linear_eval_hooks(mod_self, torch_mod)
+            mod_self._ptopt_fp8_patched_count = int(n_patched)
             if n_patched > 0:
                 manager.record_event(
                     "inference.fp8",
@@ -928,143 +1009,207 @@ def install_inference_opt_hook(
                     f"Patched {n_patched} Linear layers on {type(mod_self).__name__} with FP8 _scaled_mm",
                 )
 
-        # When compiling eval module with FP8 enabled, pre-build weight caches once before torch.compile traces.
-        # Under opt-in bandwidth_boost with high VRAM headroom (>=16GB & <65% used), lower threshold 512 -> 128.
+        eval_calls = int(getattr(mod_self, "_ptopt_infer_eval_calls", 0)) + 1
+        mod_self._ptopt_infer_eval_calls = eval_calls
+        try:
+            min_eval_calls = int(os.environ.get("PTOPT_COMPILE_EVAL_MIN_CALLS", "2"))
+        except ValueError:
+            min_eval_calls = 2
+
+        # When compiling eval module with FP8, pre-build weight caches and calibrate activation scales once
+        # right before compile threshold is reached (skips 1-shot eval modules and safe/eager mode inline calib).
+        static_scale_req = os.environ.get("PTOPT_FP8_STATIC_SCALE") == "1"
+        will_compile_eval = bool(rt.cfg.compile.enabled or rt.cuda_graphs_enabled)
         if (
             rt.fp8_requested
             and rt.fp8_eligible
-            and (rt.cfg.compile.enabled or rt.cuda_graphs_enabled)
+            and (will_compile_eval or os.environ.get("PTOPT_FP8_STATIC_PRECALIB") == "1")
+            and eval_calls >= min_eval_calls
             and not getattr(mod_self, "_ptopt_fp8_prewarmed", False)
         ):
-            tensor_cls = getattr(torch_mod, "Tensor", None)
-            hr_fp8 = probe_cuda_vram_headroom(torch_mod)
-            boost_enabled = bool(getattr(getattr(rt.cfg, "runtime", None), "bandwidth_boost", False))
-            min_prewarm_rows = (
-                128
-                if (
-                    boost_enabled
-                    and hr_fp8 is not None
-                    and hr_fp8["total_mb"] >= 16384.0
-                    and hr_fp8["used_ratio"] < 0.65
+            has_fp8_patched = int(getattr(mod_self, "_ptopt_fp8_patched_count", 0)) > 0 or (
+                hasattr(mod_self, "modules")
+                and any(
+                    getattr(sub_m, "_ptopt_fp8_patched", False) or getattr(sub_m, "_ptopt_fp8_mha_patched", False)
+                    for sub_m in mod_self.modules()
                 )
-                else 512
             )
-            has_large_m = any(
-                _estimate_token_rows(tensor) >= min_prewarm_rows
-                for item in (*args, *kwargs.values())
-                for tensor in iter_nested_tensors(item, tensor_cls)
-            )
-            if has_large_m:
+            if not has_fp8_patched:
                 mod_self._ptopt_fp8_prewarmed = True
-                prewarm_fp8_weight_caches(mod_self, torch_mod)
-                if os.environ.get("PTOPT_FP8_STATIC_SCALE") == "1" and not getattr(
-                    mod_self, "_ptopt_fp8_static_calibrated", False
-                ):
-                    mod_self._ptopt_fp8_static_calibrated = True
-                    no_grad_fn = getattr(torch_mod, "no_grad", None)
-                    amp_ns = getattr(torch_mod, "amp", None)
-                    autocast_cls = getattr(amp_ns, "autocast", None) if amp_ns is not None else None
-                    amp_dtype = getattr(torch_mod, "bfloat16", None) if str(getattr(rt.cfg.amp, "dtype", "")) == "bf16" else getattr(torch_mod, "float16", None)
-                    call_impl = getattr(mod_self, "_call_impl", None)
-                    if callable(call_impl):
-                        try:
-                            collector = getattr(manager, "_telemetry_collector", None)
-                            suppress_fn = getattr(collector, "suppress", None)
-                            s_ctx = suppress_fn() if callable(suppress_fn) else nullcontext()
-                            g_ctx = no_grad_fn() if callable(no_grad_fn) else nullcontext()
-                            a_ctx = (
-                                autocast_cls("cuda", dtype=amp_dtype)
-                                if (callable(autocast_cls) and getattr(rt.cfg.amp, "enabled", False) and amp_dtype is not None)
-                                else nullcontext()
-                            )
-                            n_calib = _resolve_fp8_calib_steps()
-                            with s_ctx, g_ctx, a_ctx:
-                                for ci in range(n_calib):
-                                    c_args, c_kwargs = _slice_fp8_calib_inputs(
-                                        args, kwargs, torch_mod, step_idx=ci
-                                    )
-                                    try:
-                                        _calib_out = call_impl(*c_args, **c_kwargs)
-                                    except Exception:  # noqa: BLE001
-                                        _calib_out = call_impl(*args, **kwargs)
-                                    del _calib_out
-                            cuda_ns = getattr(torch_mod, "cuda", None)
-                            if cuda_ns is not None and getattr(cuda_ns, "is_available", lambda: False)():
-                                empty_cache_fn = getattr(cuda_ns, "empty_cache", None)
-                                if callable(empty_cache_fn):
-                                    empty_cache_fn()
-                            n_ready = sum(
-                                1 for sub_m in mod_self.modules()
-                                if getattr(sub_m, "_ptopt_fp8_static_ready", False)
-                            )
-                            manager.record_event(
-                                "inference.fp8_static",
-                                "APPLIED",
-                                f"Calibrated static FP8 activation scales on {type(mod_self).__name__} "
-                                f"({n_calib} steps, {n_ready} layers ready)",
-                            )
-                        except Exception:  # noqa: BLE001
-                            pass
+                mod_self._ptopt_fp8_static_calibrated = True
+            else:
+                tensor_cls = getattr(torch_mod, "Tensor", None)
+                hr_fp8 = probe_cuda_vram_headroom(torch_mod)
+                boost_enabled = bool(getattr(getattr(rt.cfg, "runtime", None), "bandwidth_boost", False))
+                min_prewarm_rows = (
+                    128
+                    if (
+                        boost_enabled
+                        and hr_fp8 is not None
+                        and hr_fp8["total_mb"] >= 16384.0
+                        and hr_fp8["used_ratio"] < 0.65
+                    )
+                    else 512
+                )
+                has_large_m = any(
+                    _estimate_token_rows(tensor) >= min_prewarm_rows
+                    for item in (*args, *kwargs.values())
+                    for tensor in iter_nested_tensors(item, tensor_cls)
+                )
+                if has_large_m:
+                    mod_self._ptopt_fp8_prewarmed = True
+                    prewarm_fp8_weight_caches(mod_self, torch_mod)
+                    if static_scale_req and not getattr(
+                        mod_self, "_ptopt_fp8_static_calibrated", False
+                    ):
+                        mod_self._ptopt_fp8_static_calibrated = True
+                        no_grad_fn = getattr(torch_mod, "no_grad", None)
+                        amp_ns = getattr(torch_mod, "amp", None)
+                        autocast_cls = getattr(amp_ns, "autocast", None) if amp_ns is not None else None
+                        amp_dtype = getattr(torch_mod, "bfloat16", None) if str(getattr(rt.cfg.amp, "dtype", "")) == "bf16" else getattr(torch_mod, "float16", None)
+                        call_impl = getattr(mod_self, "_call_impl", None)
+                        if callable(call_impl):
+                            try:
+                                collector = getattr(manager, "_telemetry_collector", None)
+                                suppress_fn = getattr(collector, "suppress", None)
+                                s_ctx = suppress_fn() if callable(suppress_fn) else nullcontext()
+                                g_ctx = no_grad_fn() if callable(no_grad_fn) else nullcontext()
+                                a_ctx = (
+                                    autocast_cls("cuda", dtype=amp_dtype)
+                                    if (callable(autocast_cls) and getattr(rt.cfg.amp, "enabled", False) and amp_dtype is not None)
+                                    else nullcontext()
+                                )
+                                n_calib = _resolve_fp8_calib_steps()
+                                with s_ctx, g_ctx, a_ctx:
+                                    for ci in range(n_calib):
+                                        c_args, c_kwargs = _slice_fp8_calib_inputs(
+                                            args, kwargs, torch_mod, step_idx=ci
+                                        )
+                                        try:
+                                            _calib_out = call_impl(*c_args, **c_kwargs)
+                                        except Exception:  # noqa: BLE001
+                                            _calib_out = call_impl(*args, **kwargs)
+                                        del _calib_out
+                                cuda_ns = getattr(torch_mod, "cuda", None)
+                                if cuda_ns is not None and getattr(cuda_ns, "is_available", lambda: False)():
+                                    empty_cache_fn = getattr(cuda_ns, "empty_cache", None)
+                                    if callable(empty_cache_fn):
+                                        empty_cache_fn()
+                                n_ready = sum(
+                                    1 for sub_m in mod_self.modules()
+                                    if getattr(sub_m, "_ptopt_fp8_static_ready", False)
+                                )
+                                manager.record_event(
+                                    "inference.fp8_static",
+                                    "APPLIED",
+                                    f"Calibrated static FP8 activation scales on {type(mod_self).__name__} "
+                                    f"({n_calib} steps, {n_ready} layers ready)",
+                                )
+                            except Exception:  # noqa: BLE001
+                                pass
 
-        # Optional CUDA Graphs / reduce-overhead compile for static-shape CUDA eval (isolated from train handle)
+        # Optional CUDA Graphs / reduce-overhead compile for repeated static-shape CUDA eval (isolated from train handle)
+        cg_target, is_dp_wrap, _ = resolve_dataparallel_target(mod_self, torch_mod)
+
         on_cuda = _has_cuda_context(mod_self, args, kwargs, torch_mod)
         if (
             rt.cuda_graphs_enabled
             and on_cuda
+            and cg_target is not None
             and callable(getattr(torch_mod, "compile", None))
-            and not getattr(mod_self, "_orig_mod", None)
+            and not getattr(cg_target, "_orig_mod", None)
         ):
-            if not getattr(mod_self, "_ptopt_infer_cg_checked", False):
-                mod_self._ptopt_infer_cg_checked = True
-                mod_self._ptopt_infer_cg_shapes = {_shape_signature(args, kwargs, torch_mod)}
-                existing_eval = getattr(mod_self, "_ptopt_eval_compiled_impl", None)
-                existing_cur = getattr(mod_self, "_compiled_call_impl", None)
-                # Compile dedicated eval CUDA Graph handle if not already user-precompiled
-                is_user_precompiled = existing_cur is not None and existing_cur is not getattr(
-                    mod_self, "_ptopt_train_compiled_impl", None
+            if not getattr(cg_target, "_ptopt_infer_cg_checked", False):
+                sig = _shape_signature(args, kwargs, torch_mod)
+                has_regional_blocks = bool(
+                    getattr(cg_target, "_ptopt_train_regional_active", False)
+                    or getattr(cg_target, "_ptopt_eval_regional_active", False)
+                    or getattr(cg_target, "_ptopt_regional_blocks", None)
                 )
-                if existing_eval is None and not is_user_precompiled and callable(getattr(mod_self, "_call_impl", None)):
-                    try:
-                        eval_impl = torch_mod.compile(
-                            mod_self._call_impl,
-                            mode="reduce-overhead",
-                        )
-                        mod_self._ptopt_eval_compiled_impl = eval_impl
-                        mod_self._compiled_call_impl = eval_impl
-                        mod_self._ptopt_compile_checked = True
-                        mod_self._ptopt_infer_cg_active = True
-                        rt.cuda_graph_compiles += 1
-                        manager.record_event(
-                            "inference.cuda_graphs",
-                            "APPLIED",
-                            f"Compiled eval {type(mod_self).__name__} with mode=reduce-overhead (CUDA Graphs)",
-                        )
-                    except Exception as exc:  # noqa: BLE001
-                        mod_self._ptopt_eval_compiled_impl = None
-                        mod_self._compiled_call_impl = None
-                        rt.cuda_graph_fallbacks += 1
-                        manager.record_event(
-                            "inference.cuda_graphs",
-                            "FALLBACK",
-                            f"reduce-overhead compile failed on {type(mod_self).__name__}; using standard eval",
-                            str(exc),
-                        )
-            elif getattr(mod_self, "_ptopt_infer_cg_active", False):
-                eval_impl = getattr(mod_self, "_ptopt_eval_compiled_impl", None)
+                if has_regional_blocks:
+                    cg_target._ptopt_infer_cg_checked = True
+                    cg_target._ptopt_infer_cg_active = False
+                    manager.record_event(
+                        "inference.cuda_graphs",
+                        "SKIPPED",
+                        f"Regional block compile active on {type(cg_target).__name__}; skipping root reduce-overhead",
+                    )
+                elif _is_embedding_only_module(cg_target, args, kwargs, torch_mod):
+                    cg_target._ptopt_infer_cg_checked = True
+                    cg_target._ptopt_infer_cg_active = False
+                    manager.record_event(
+                        "inference.cuda_graphs",
+                        "SKIPPED",
+                        f"Skipped reduce-overhead on pure embedding module {type(cg_target).__name__}",
+                    )
+                elif eval_calls < min_eval_calls:
+                    if not hasattr(cg_target, "_ptopt_infer_cg_warmup_shape"):
+                        cg_target._ptopt_infer_cg_warmup_shape = sig
+                elif (
+                    hasattr(cg_target, "_ptopt_infer_cg_warmup_shape")
+                    and sig
+                    and sig != getattr(cg_target, "_ptopt_infer_cg_warmup_shape", None)
+                ):
+                    cg_target._ptopt_infer_cg_checked = True
+                    cg_target._ptopt_infer_cg_active = False
+                    rt.cuda_graph_fallbacks += 1
+                    manager.record_event(
+                        "inference.cuda_graphs",
+                        "SKIPPED",
+                        f"Dynamic eval input shape detected during warmup on {type(cg_target).__name__}; skipping reduce-overhead",
+                    )
+                else:
+                    cg_target._ptopt_infer_cg_checked = True
+                    cg_target._ptopt_infer_cg_shapes = {sig} if sig else set()
+                    existing_eval = getattr(cg_target, "_ptopt_eval_compiled_impl", None)
+                    existing_cur = getattr(cg_target, "_compiled_call_impl", None)
+                    # Compile dedicated eval CUDA Graph handle if not already user-precompiled
+                    is_user_precompiled = existing_cur is not None and existing_cur is not getattr(
+                        cg_target, "_ptopt_train_compiled_impl", None
+                    )
+                    if existing_eval is None and not is_user_precompiled and callable(getattr(cg_target, "_call_impl", None)):
+                        try:
+                            eval_impl = torch_mod.compile(
+                                cg_target._call_impl,
+                                mode="reduce-overhead",
+                            )
+                            cg_target._ptopt_eval_compiled_impl = eval_impl
+                            cg_target._compiled_call_impl = eval_impl
+                            cg_target._ptopt_compile_checked = True
+                            cg_target._ptopt_infer_cg_active = True
+                            rt.cuda_graph_compiles += 1
+                            dp_note = f" (unwrapped from {type(mod_self).__name__})" if is_dp_wrap else ""
+                            manager.record_event(
+                                "inference.cuda_graphs",
+                                "APPLIED",
+                                f"Compiled eval {type(cg_target).__name__}{dp_note} with mode=reduce-overhead (CUDA Graphs)",
+                            )
+                        except Exception as exc:  # noqa: BLE001
+                            cg_target._ptopt_eval_compiled_impl = None
+                            cg_target._compiled_call_impl = None
+                            rt.cuda_graph_fallbacks += 1
+                            manager.record_event(
+                                "inference.cuda_graphs",
+                                "FALLBACK",
+                                f"reduce-overhead compile failed on {type(cg_target).__name__}; using standard eval",
+                                str(exc),
+                            )
+            elif getattr(cg_target, "_ptopt_infer_cg_active", False):
+                eval_impl = getattr(cg_target, "_ptopt_eval_compiled_impl", None)
                 if eval_impl is not None:
-                    mod_self._compiled_call_impl = eval_impl
-                seen = getattr(mod_self, "_ptopt_infer_cg_shapes", None)
+                    cg_target._compiled_call_impl = eval_impl
+                seen = getattr(cg_target, "_ptopt_infer_cg_shapes", None)
                 sig = _shape_signature(args, kwargs, torch_mod)
                 if seen is not None and sig and sig not in seen:
-                    mod_self._ptopt_eval_compiled_impl = None
-                    mod_self._compiled_call_impl = None
-                    mod_self._ptopt_infer_cg_active = False
-                    mod_self._ptopt_compile_checked = False
+                    cg_target._ptopt_eval_compiled_impl = None
+                    cg_target._compiled_call_impl = None
+                    cg_target._ptopt_infer_cg_active = False
+                    cg_target._ptopt_compile_checked = False
                     rt.cuda_graph_fallbacks += 1
                     manager.record_event(
                         "inference.cuda_graphs",
                         "FALLBACK",
-                        f"Dynamic eval input shape detected on {type(mod_self).__name__}; reverted reduce-overhead/CUDA Graphs",
+                        f"Dynamic eval input shape detected on {type(cg_target).__name__}; reverted reduce-overhead/CUDA Graphs",
                     )
 
         use_infer_ctx = (
@@ -1091,17 +1236,20 @@ def install_inference_opt_hook(
                     if manager.strict:
                         raise
             try:
-                return next_fn(mod_self, *args, **kwargs)
+                res = next_fn(mod_self, *args, **kwargs)
+                if cg_target is not None and getattr(cg_target, "_ptopt_infer_cg_active", False):
+                    res = _clone_cudagraph_outputs(res, torch_mod)
+                return res
             except Exception as exc:  # noqa: BLE001
-                if getattr(mod_self, "_ptopt_infer_cg_active", False):
-                    mod_self._ptopt_eval_compiled_impl = None
-                    mod_self._compiled_call_impl = None
-                    mod_self._ptopt_infer_cg_active = False
+                if cg_target is not None and getattr(cg_target, "_ptopt_infer_cg_active", False):
+                    cg_target._ptopt_eval_compiled_impl = None
+                    cg_target._compiled_call_impl = None
+                    cg_target._ptopt_infer_cg_active = False
                     rt.cuda_graph_fallbacks += 1
                     manager.record_event(
                         "inference.cuda_graphs",
                         "FALLBACK",
-                        f"reduce-overhead eval failed on {type(mod_self).__name__}; reverted to eager",
+                        f"reduce-overhead eval failed on {type(cg_target).__name__}; reverted to eager",
                         str(exc),
                     )
                     if manager.strict:

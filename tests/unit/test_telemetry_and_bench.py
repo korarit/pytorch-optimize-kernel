@@ -102,6 +102,40 @@ class TestTelemetryHookDummyLoop(unittest.TestCase):
             self.assertEqual(len(data["losses"]), 4)
             self.assertEqual(len(data["fallback_events"]), 1)
 
+    def test_collector_unscales_grad_scaler_losses(self) -> None:
+        orig_amp_scale = torch.amp.GradScaler.scale
+        orig_cuda_amp_scale = torch.cuda.amp.GradScaler.scale
+        orig_cuda_in_dict = "scale" in torch.cuda.amp.GradScaler.__dict__
+        with tempfile.TemporaryDirectory() as tmp:
+            out_path = Path(tmp) / "tel_scaler.json"
+            mgr = HookManager()
+            mgr.config = OptimizeConfig(profile="safe")
+            collector = TelemetryCollector(out_path, mgr)
+            collector.install(torch)
+            try:
+                model = nn.Linear(8, 4)
+                opt = torch.optim.SGD(model.parameters(), lr=0.01)
+                scaler = torch.amp.GradScaler("cpu", init_scale=65536.0, enabled=True)
+                raw_losses: list[float] = []
+                for _ in range(3):
+                    x = torch.randn(3, 8)
+                    y = torch.randint(0, 4, (3,))
+                    opt.zero_grad()
+                    loss = F.cross_entropy(model(x), y)
+                    raw_losses.append(float(loss.detach().item()))
+                    scaler.scale(loss).backward()
+                    scaler.step(opt)
+                    scaler.update()
+                self.assertEqual(len(collector.losses), 3)
+                for rec_l, raw_l in zip(collector.losses, raw_losses):
+                    self.assertAlmostEqual(rec_l, raw_l, places=4)
+            finally:
+                collector.uninstall()
+                mgr.reset()
+        self.assertIs(torch.amp.GradScaler.scale, orig_amp_scale)
+        self.assertIs(torch.cuda.amp.GradScaler.scale, orig_cuda_amp_scale)
+        self.assertEqual("scale" in torch.cuda.amp.GradScaler.__dict__, orig_cuda_in_dict)
+
 
 class TestBenchmarkReportFormatter(unittest.TestCase):
     """Tests Detailed Text Report generation including crash/skip resilience."""

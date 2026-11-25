@@ -208,6 +208,36 @@ class TestDataLoaderTuningPass(unittest.TestCase):
         self.assertEqual(seen_calls[0]["kwargs"].get("non_blocking"), True)
         self.assertEqual(seen_calls[1]["kwargs"].get("non_blocking"), False)
 
+    def test_pinned_tensor_to_cuda_short_circuits_while_torch_compiling(self) -> None:
+        from unittest.mock import patch
+
+        cfg = self._tuned_cfg(num_workers=2)
+        mgr = HookManager()
+        seen_calls: list[dict[str, object]] = []
+        orig_to = torch.Tensor.to
+
+        def _spy_to(self_t: torch.Tensor, *args: object, **kwargs: object) -> torch.Tensor:
+            seen_calls.append({"args": args, "kwargs": dict(kwargs)})
+            return self_t
+
+        with (
+            patch.object(torch.cuda, "is_available", return_value=True),
+            patch.object(torch.Tensor, "to", _spy_to),
+        ):
+            install_dataloader_hook(cfg, mgr, torch, shm_probe_fn=lambda: 16384.0)
+            try:
+                t_pinned = torch.randn(4)
+                with (
+                    patch.object(torch.compiler, "is_compiling", return_value=True),
+                    patch.object(torch.Tensor, "is_pinned", side_effect=AssertionError("must not touch is_pinned during compile")),
+                ):
+                    t_pinned.to("cuda")
+            finally:
+                uninstall_dataloader_hook(torch)
+                mgr.reset()
+        self.assertEqual(torch.Tensor.to, orig_to)
+        self.assertNotIn("non_blocking", seen_calls[0]["kwargs"])
+
 
 if __name__ == "__main__":
     unittest.main()

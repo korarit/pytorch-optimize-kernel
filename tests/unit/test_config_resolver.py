@@ -189,17 +189,32 @@ class TestConfigResolverMatrix(unittest.TestCase):
         self.assertFalse(res_cpu.config.dataloader.cuda_prefetch)
 
     def test_l4_sm89_aggressive(self) -> None:
-        fp = _make_fp(gpu_name="NVIDIA L4", major=8, minor=9, vram_mb=22563.1, triton_version="3.8.0")
+        fp = _make_fp(gpu_name="NVIDIA L4", major=8, minor=9, vram_mb=22563.1, sm_count=58, triton_version="3.8.0")
         res = self.resolver.resolve(fp, profile="aggressive", env={})
         cfg = res.config
         self.assertTrue(cfg.runtime.tf32)
         self.assertEqual(cfg.amp.dtype, "bf16")
-        self.assertEqual(cfg.compile.mode, "max-autotune")
+        self.assertEqual(cfg.compile.mode, "default")
         self.assertTrue(cfg.compile.train_cuda_graphs)
         self.assertTrue(cfg.inference.cuda_graphs)
         self.assertTrue(cfg.kernels.enabled)
         self.assertIn("gpu_cuda_ada_sm89", res.matched_rules)
+        self.assertIn("profile_aggressive_low_sm_cuda", res.matched_rules)
+        self.assertNotIn("profile_aggressive_high_vram_cuda", res.matched_rules)
         self.assertIn("profile_aggressive_triton_kernels", res.matched_rules)
+
+    def test_a100_and_sm68_aggressive_use_max_autotune(self) -> None:
+        for name, maj, min_, vram, sms in (
+            ("NVIDIA A100-SXM4-40GB", 8, 0, 40960.0, 108),
+            ("NVIDIA GeForce RTX 3080 16GB", 8, 6, 20480.0, 68),
+        ):
+            fp = _make_fp(gpu_name=name, major=maj, minor=min_, vram_mb=vram, sm_count=sms, triton_version="3.8.0")
+            res = self.resolver.resolve(fp, profile="aggressive", env={})
+            cfg = res.config
+            self.assertEqual(cfg.compile.mode, "max-autotune")
+            self.assertTrue(cfg.compile.train_cuda_graphs)
+            self.assertTrue(cfg.inference.cuda_graphs)
+            self.assertIn("profile_aggressive_high_vram_cuda", res.matched_rules)
 
     def test_low_vram_disables_cuda_graphs_and_keeps_default_compile(self) -> None:
         fp = _make_fp(gpu_name="RTX 3060 8GB", major=8, minor=6, vram_mb=8192.0)

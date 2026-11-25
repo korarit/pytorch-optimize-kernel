@@ -254,3 +254,17 @@ def recompute_dispatch_guard(torch_mod: Any) -> Iterator[None]:
         yield
     finally:
         disp._recompute_depth = max(0, disp._recompute_depth - 1)
+
+
+def resolve_dataparallel_target(mod_self: Any, torch_mod: Any) -> tuple[Any, bool, str | None]:
+    """Unwrap single-GPU `nn.DataParallel` so compilation targets `.module` without `_get_device_index` breaks."""
+    dp_cls = getattr(getattr(torch_mod, "nn", None), "DataParallel", None)
+    if dp_cls is None or not isinstance(mod_self, dp_cls):
+        return mod_self, False, None
+    inner = getattr(mod_self, "module", None)
+    dev_ids = getattr(mod_self, "device_ids", None)
+    if inner is None:
+        return None, True, "DataParallel missing inner .module; skipping compile"
+    if isinstance(dev_ids, (list, tuple)) and len(dev_ids) > 1:
+        return None, True, f"Multi-GPU DataParallel (devices={len(dev_ids)}) skipped for compile safety"
+    return inner, True, f"Unwrapped single-GPU DataParallel -> {type(inner).__name__}"

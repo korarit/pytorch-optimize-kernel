@@ -50,6 +50,14 @@ def recommended_workers_high_vram(fp: HardwareFingerprint) -> int:
     return min(cap, max(2, cores // 2))
 
 
+def _has_enough_sms_for_max_autotune(fp: HardwareFingerprint) -> bool:
+    if fp.primary_gpu is None:
+        return False
+    sm_count = int(getattr(fp.primary_gpu, "sm_count", 0) or 0)
+    # Match Inductor's is_big_gpu threshold (68 SMs on CUDA, e.g., RTX 3080+); GPUs with <68 SMs (e.g. L4=58) disable GEMM autotune.
+    return sm_count == 0 or sm_count >= 68
+
+
 def get_builtin_rules() -> list[ConfigRule]:
     """Return ordered built-in rules across all hardware and profile layers."""
     return [
@@ -369,10 +377,33 @@ def get_builtin_rules() -> list[ConfigRule]:
         ConfigRule(
             name="profile_aggressive_high_vram_cuda",
             layer="user_profile",
-            reason="Aggressive profile on sm>=80 & VRAM>=16GB: enable max-autotune & CUDA graphs",
-            condition=lambda fp, p: p == "aggressive" and _is_cuda(fp) and fp.sm_int >= 80 and fp.vram_mb >= 16384,
+            reason="Aggressive profile on sm>=80, sm_count>=68 & VRAM>=16GB: enable max-autotune & CUDA graphs",
+            condition=lambda fp, p: (
+                p == "aggressive"
+                and _is_cuda(fp)
+                and fp.sm_int >= 80
+                and fp.vram_mb >= 16384
+                and _has_enough_sms_for_max_autotune(fp)
+            ),
             updates={
                 "compile.mode": "max-autotune",
+                "inference.cuda_graphs": True,
+                "compile.train_cuda_graphs": True,
+            },
+        ),
+        ConfigRule(
+            name="profile_aggressive_low_sm_cuda",
+            layer="user_profile",
+            reason="Aggressive profile on sm>=80, VRAM>=16GB with <68 SMs (e.g. L4): keep compile.mode=default while enabling CUDA graphs",
+            condition=lambda fp, p: (
+                p == "aggressive"
+                and _is_cuda(fp)
+                and fp.sm_int >= 80
+                and fp.vram_mb >= 16384
+                and not _has_enough_sms_for_max_autotune(fp)
+            ),
+            updates={
+                "compile.mode": "default",
                 "inference.cuda_graphs": True,
                 "compile.train_cuda_graphs": True,
             },

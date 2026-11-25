@@ -173,7 +173,10 @@ class TestInferenceOptPass(unittest.TestCase):
             rt = install_inference_opt_hook(cfg, mgr, torch)
             assert rt is not None
             try:
+                # 1st eval call stays eager (prevents 1-shot eval modules like VAE Decoder from compiling);
+                # 2nd static-shape eval call compiles with mode="reduce-overhead".
                 model(torch.randn(1, 8))
+                self.assertEqual(compile_modes, [])
                 model(torch.randn(1, 8))
                 self.assertEqual(compile_modes, ["reduce-overhead"])
                 self.assertEqual(rt.cuda_graph_compiles, 1)
@@ -187,6 +190,154 @@ class TestInferenceOptPass(unittest.TestCase):
             finally:
                 uninstall_inference_opt_hook(torch)
                 mgr.reset()
+
+    def test_cuda_graphs_skip_embedding_only_and_clone_cuda_outputs(self) -> None:
+        from ptopt.passes.inference_opt import _clone_cudagraph_outputs, _is_embedding_only_module
+
+        emb = nn.Sequential(nn.Embedding(16, 8)).eval()
+        idx = torch.tensor([1, 2, 3], dtype=torch.long)
+        self.assertTrue(_is_embedding_only_module(emb, (idx,), {}, torch))
+
+        cfg = OptimizeConfig(profile="aggressive")
+        cfg.inference.inference_mode = True
+        cfg.inference.cuda_graphs = True
+        mgr = HookManager()
+        compile_modes: list[object] = []
+        with (
+            patch("ptopt.passes.inference_opt._has_cuda_context", return_value=True),
+            patch.object(torch, "compile", side_effect=lambda fn, **kw: (compile_modes.append(kw.get("mode")), fn)[1]),
+        ):
+            install_inference_opt_hook(cfg, mgr, torch)
+            try:
+                _ = emb(idx)
+                _ = emb(idx)
+                self.assertEqual(compile_modes, [])
+                self.assertTrue(
+                    any(
+                        ev.pass_name == "inference.cuda_graphs" and ev.status == "SKIPPED" and "embedding" in ev.reason.lower()
+                        for ev in mgr.events
+                    )
+                )
+            finally:
+                uninstall_inference_opt_hook(torch)
+                mgr.reset()
+
+        # Verify CUDA output cloning detaches CUDAGraph output storage and preserves namedtuple & OrderedDict subclasses
+        from collections import OrderedDict, namedtuple
+
+        _OutTuple = namedtuple("_OutTuple", ["logits", "aux"])
+
+        class _FakeModelOutput(OrderedDict):
+            pass
+
+        orig_out = torch.randn(2, 4)
+        named_in = _OutTuple(logits=orig_out, aux=torch.randn(2, 2))
+        mo_in = _FakeModelOutput(logits=orig_out, meta="ok")
+        with patch.object(torch.Tensor, "is_cuda", new_callable=lambda: property(lambda _s: True)):
+            cloned = _clone_cudagraph_outputs((orig_out,), torch, max_bytes=1024)
+            self.assertIsNot(cloned[0], orig_out)
+            torch.testing.assert_close(cloned[0], orig_out)
+
+            cloned_nt = _clone_cudagraph_outputs(named_in, torch, max_bytes=1024)
+            self.assertIsInstance(cloned_nt, _OutTuple)
+            self.assertIsNot(cloned_nt.logits, orig_out)
+            torch.testing.assert_close(cloned_nt.logits, orig_out)
+
+            cloned_mo = _clone_cudagraph_outputs(mo_in, torch, max_bytes=1024)
+            self.assertIsInstance(cloned_mo, _FakeModelOutput)
+            self.assertEqual(cloned_mo["meta"], "ok")
+            self.assertIsNot(cloned_mo["logits"], orig_out)
+
+            # Large outputs above cap skip cloning
+            uncloned = _clone_cudagraph_outputs((orig_out,), torch, max_bytes=4)
+            self.assertIs(uncloned[0], orig_out)
+
+        # Verify reduce-overhead skips when regional blocks are already compiled on target_mod
+        reg_root = nn.Linear(8, 4).eval()
+        reg_root._ptopt_train_regional_active = True
+        mgr_reg = HookManager()
+        reg_modes: list[object] = []
+        with (
+            patch("ptopt.passes.inference_opt._has_cuda_context", return_value=True),
+            patch.object(torch, "compile", side_effect=lambda fn, **kw: (reg_modes.append(kw.get("mode")), fn)[1]),
+        ):
+            install_inference_opt_hook(cfg, mgr_reg, torch)
+            try:
+                _ = reg_root(torch.randn(1, 8))
+                _ = reg_root(torch.randn(1, 8))
+                self.assertEqual(reg_modes, [])
+                self.assertTrue(
+                    any(ev.pass_name == "inference.cuda_graphs" and ev.status == "SKIPPED" and "Regional" in ev.reason for ev in mgr_reg.events)
+                )
+            finally:
+                uninstall_inference_opt_hook(torch)
+                mgr_reg.reset()
+
+    def test_fp8_static_calib_skips_modules_with_zero_fp8_layers_and_respects_eval_calls(self) -> None:
+        patch_embed_like = nn.Sequential(nn.Conv2d(4, 32, kernel_size=2, stride=2)).eval()
+        cfg_bal = OptimizeConfig(profile="balanced")
+        cfg_bal.amp.enabled = True
+        cfg_bal.amp.dtype = "bf16"
+        cfg_bal.compile.enabled = True
+        cfg_bal.inference.inference_mode = True
+        mgr = HookManager()
+        with (
+            patch.dict(os.environ, {"PTOPT_INFERENCE_FP8": "1", "PTOPT_FP8_STATIC_SCALE": "1"}),
+            patch("ptopt.passes.inference_opt.check_fp8_eligibility", return_value=(True, "mock_sm89")),
+            patch("ptopt.passes.inference_opt.prewarm_fp8_weight_caches", return_value=0) as mock_prewarm,
+        ):
+            install_inference_opt_hook(cfg_bal, mgr, torch)
+            try:
+                _ = patch_embed_like(torch.randn(2, 4, 32, 32))
+                _ = patch_embed_like(torch.randn(2, 4, 32, 32))
+                mock_prewarm.assert_not_called()
+                self.assertFalse(any(ev.pass_name == "inference.fp8_static" for ev in mgr.events))
+            finally:
+                uninstall_inference_opt_hook(torch)
+                mgr.reset()
+
+        # Safe mode (eager): no wasted pre-calib passes on 1st call; balanced (compiled): defers to 2nd eval call
+        cfg_safe = OptimizeConfig(profile="safe")
+        cfg_safe.inference.inference_mode = True
+        lin_safe = nn.Sequential(nn.Linear(128, 128)).eval()
+        mgr_safe = HookManager()
+        with (
+            patch.dict(os.environ, {"PTOPT_INFERENCE_FP8": "1", "PTOPT_FP8_STATIC_SCALE": "1", "PTOPT_FP8_MIN_WORK": "1"}),
+            patch("ptopt.passes.inference_opt.check_fp8_eligibility", return_value=(True, "mock_sm89")),
+            patch("ptopt.passes.inference_opt._has_cuda_context", return_value=True),
+            patch("ptopt.passes.inference_opt._is_cuda_tensor", return_value=True),
+            patch("ptopt.passes.inference_opt.prewarm_fp8_weight_caches", return_value=1) as mock_prewarm_safe,
+            patch.object(torch, "_scaled_mm", new=lambda x_q, w_t, **kw: x_q.float() @ w_t.float(), create=True),
+        ):
+            install_inference_opt_hook(cfg_safe, mgr_safe, torch)
+            try:
+                _ = lin_safe(torch.randn(512, 128))
+                _ = lin_safe(torch.randn(512, 128))
+                mock_prewarm_safe.assert_not_called()
+            finally:
+                uninstall_inference_opt_hook(torch)
+                mgr_safe.reset()
+
+        lin_comp = nn.Sequential(nn.Linear(128, 128)).eval()
+        mgr_comp = HookManager()
+        with (
+            patch.dict(os.environ, {"PTOPT_INFERENCE_FP8": "1", "PTOPT_FP8_STATIC_SCALE": "1", "PTOPT_FP8_MIN_WORK": "1"}),
+            patch("ptopt.passes.inference_opt.check_fp8_eligibility", return_value=(True, "mock_sm89")),
+            patch("ptopt.passes.inference_opt._has_cuda_context", return_value=True),
+            patch("ptopt.passes.inference_opt._is_cuda_tensor", return_value=True),
+            patch("ptopt.passes.inference_opt.prewarm_fp8_weight_caches", return_value=1) as mock_prewarm_comp,
+            patch.object(torch, "_scaled_mm", new=lambda x_q, w_t, **kw: x_q.float() @ w_t.float(), create=True),
+        ):
+            install_inference_opt_hook(cfg_bal, mgr_comp, torch)
+            try:
+                _ = lin_comp(torch.randn(512, 128))
+                mock_prewarm_comp.assert_not_called()
+                _ = lin_comp(torch.randn(512, 128))
+                mock_prewarm_comp.assert_called_once()
+                self.assertTrue(any(ev.pass_name == "inference.fp8_static" and ev.status == "APPLIED" for ev in mgr_comp.events))
+            finally:
+                uninstall_inference_opt_hook(torch)
+                mgr_comp.reset()
 
     def test_cpu_dynamic_quantization_opt_in(self) -> None:
         cfg = OptimizeConfig(profile="safe")

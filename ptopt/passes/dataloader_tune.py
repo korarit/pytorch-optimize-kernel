@@ -604,7 +604,10 @@ def install_dataloader_hook(
     if cuda_avail and (cfg.dataloader.pin_memory or getattr(cfg.dataloader, "cuda_prefetch", False)) and tensor_cls is not None and hasattr(tensor_cls, "to"):
         orig_to = tensor_cls.to
         compiler_ns = getattr(torch_mod, "compiler", None)
-        is_compiling_fn = getattr(compiler_ns, "is_compiling", None)
+
+        def _dynamo_compiling() -> bool:
+            fn = getattr(compiler_ns, "is_compiling", None) if compiler_ns is not None else None
+            return bool(fn()) if callable(fn) else False
 
         def _is_cuda_arg(args: tuple[Any, ...], kwargs: dict[str, Any]) -> bool:
             dev = kwargs.get("device")
@@ -620,7 +623,7 @@ def install_dataloader_hook(
                 and not getattr(t_self, "is_cuda", True)
                 and "non_blocking" not in kwargs
                 and len(args) <= 1
-                and (is_compiling_fn is None or not is_compiling_fn())
+                and not _dynamo_compiling()
                 and getattr(t_self, "device", None) is not None
                 and t_self.device.type == "cpu"
                 and t_self.is_pinned()
@@ -628,6 +631,8 @@ def install_dataloader_hook(
 
         @functools.wraps(orig_to)
         def _pinned_async_to(t_self: Any, *args: Any, **kwargs: Any) -> Any:
+            if _dynamo_compiling():
+                return orig_to(t_self, *args, **kwargs)
             if _should_promote_non_blocking(t_self, args, kwargs, _is_cuda_arg(args, kwargs)):
                 kwargs["non_blocking"] = True
             return orig_to(t_self, *args, **kwargs)
@@ -640,6 +645,8 @@ def install_dataloader_hook(
 
             @functools.wraps(orig_cuda)
             def _pinned_async_cuda(t_self: Any, *args: Any, **kwargs: Any) -> Any:
+                if _dynamo_compiling():
+                    return orig_cuda(t_self, *args, **kwargs)
                 if _should_promote_non_blocking(t_self, args, kwargs, True):
                     kwargs["non_blocking"] = True
                 return orig_cuda(t_self, *args, **kwargs)

@@ -6,11 +6,13 @@ import atexit
 import functools
 import importlib
 import json
+import math
 import os
 import statistics
 import sys
 import threading
 import time
+import weakref
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -181,6 +183,10 @@ class TelemetryCollector:
         self._opt_pre_hook_handle: Any = None
         self._opt_hook_handle: Any = None
         self._orig_backward: Any = None
+        self._orig_scaler_scales: list[tuple[Any, Any]] = []
+        self._scaled_loss_scalers: weakref.WeakKeyDictionary[Any, weakref.ReferenceType[Any]] = (
+            weakref.WeakKeyDictionary()
+        )
         self._orig_mod_call: Any = None
         self._mod_call_attr: str | None = None
         # Debug profiling state (unused unless debug_profile / torch_profile is enabled)
@@ -259,7 +265,59 @@ class TelemetryCollector:
         self._installed = True
         self._torch = torch_mod
         collector = self
-        is_compiling_fn = getattr(getattr(torch_mod, "compiler", None), "is_compiling", None)
+        compiler_ns = getattr(torch_mod, "compiler", None)
+
+        def _dynamo_compiling() -> bool:
+            fn = getattr(compiler_ns, "is_compiling", None) if compiler_ns is not None else None
+            return bool(fn()) if callable(fn) else False
+
+        # 0. Track GradScaler.scale(loss) owners so backward() telemetry logs unscaled loss without extra scale() syncs
+        self._orig_scaler_scales = []
+        seen_scaler_cls_ids: set[int] = set()
+        scaler_candidates = (
+            getattr(getattr(torch_mod, "amp", None), "GradScaler", None),
+            getattr(getattr(getattr(torch_mod, "cuda", None), "amp", None), "GradScaler", None),
+        )
+        tensor_cls = getattr(torch_mod, "Tensor", None)
+        for scaler_cls in scaler_candidates:
+            if scaler_cls is None or not isinstance(scaler_cls, type) or not hasattr(scaler_cls, "scale"):
+                continue
+            owner_cls = scaler_cls
+            for base in getattr(scaler_cls, "__mro__", (scaler_cls,)):
+                if "scale" in getattr(base, "__dict__", {}):
+                    owner_cls = base
+                    break
+            cid = id(owner_cls)
+            if cid in seen_scaler_cls_ids:
+                continue
+            seen_scaler_cls_ids.add(cid)
+            orig_scale = owner_cls.__dict__["scale"]
+            self._orig_scaler_scales.append((owner_cls, orig_scale))
+
+            def _make_scaler_scale_wrap(base_scale: Any) -> Any:
+                @functools.wraps(base_scale)
+                def _wrapped_scale(scaler_self: Any, outputs: Any, *s_args: Any, **s_kwargs: Any) -> Any:
+                    scaled = base_scale(scaler_self, outputs, *s_args, **s_kwargs)
+                    if (
+                        collector._suppress_depth == 0
+                        and not _dynamo_compiling()
+                        and getattr(scaler_self, "is_enabled", lambda: True)()
+                        and tensor_cls is not None
+                    ):
+                        try:
+                            from ptopt.hooks.module_dispatch import iter_nested_tensors  # noqa: PLC0415
+
+                            s_ref = weakref.ref(scaler_self)
+                            for scaled_t in iter_nested_tensors(scaled, tensor_cls, max_items=16):
+                                if getattr(scaled_t, "numel", lambda: 0)() == 1:
+                                    collector._scaled_loss_scalers[scaled_t] = s_ref
+                        except Exception:  # noqa: BLE001
+                            pass
+                    return scaled
+
+                return _wrapped_scale
+
+            owner_cls.scale = _make_scaler_scale_wrap(orig_scale)
 
         # 1. Capture scalar loss on backward() (+ optional backward phase timing)
         self._orig_backward = torch_mod.Tensor.backward
@@ -267,11 +325,18 @@ class TelemetryCollector:
 
         @functools.wraps(orig_backward)
         def _wrapped_backward(tensor_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if (callable(is_compiling_fn) and is_compiling_fn()) or collector._suppress_depth > 0:
+            if _dynamo_compiling() or collector._suppress_depth > 0:
                 return orig_backward(tensor_self, *args, **kwargs)
             try:
                 if tensor_self.numel() == 1:
-                    collector.losses.append(float(tensor_self.detach().cpu().item()))
+                    loss_val = float(tensor_self.detach().cpu().item())
+                    scaler_ref = collector._scaled_loss_scalers.pop(tensor_self, None)
+                    scaler_obj = scaler_ref() if scaler_ref is not None else None
+                    if scaler_obj is not None and getattr(scaler_obj, "is_enabled", lambda: True)():
+                        scale_factor = float(scaler_obj.get_scale())
+                        if math.isfinite(scale_factor) and scale_factor > 0.0 and scale_factor != 1.0:
+                            loss_val /= scale_factor
+                    collector.losses.append(loss_val)
             except Exception:  # noqa: BLE001
                 pass
             if not collector.debug_profile:
@@ -366,7 +431,7 @@ class TelemetryCollector:
 
         @functools.wraps(orig_mod_call)
         def _wrapped_mod_call(mod_self: Any, *args: Any, **kwargs: Any) -> Any:
-            if (callable(is_compiling_fn) and is_compiling_fn()) or collector._suppress_depth > 0:
+            if _dynamo_compiling() or collector._suppress_depth > 0:
                 return orig_mod_call(mod_self, *args, **kwargs)
             collector._module_depth += 1
             is_top = collector._module_depth == 1
@@ -461,6 +526,13 @@ class TelemetryCollector:
         if not self._installed or self._torch is None:
             return
         self._stop_profiler_if_done(force=True)
+        for scaler_cls, orig_scale in self._orig_scaler_scales:
+            try:
+                scaler_cls.scale = orig_scale
+            except Exception:  # noqa: BLE001
+                pass
+        self._orig_scaler_scales.clear()
+        self._scaled_loss_scalers.clear()
         if self._orig_backward is not None:
             self._torch.Tensor.backward = self._orig_backward
         if self._opt_pre_hook_handle is not None:

@@ -481,8 +481,11 @@ class TestAutoCompilePass(unittest.TestCase):
                 train_impl = getattr(model, "_ptopt_train_compiled_impl", None)
                 self.assertIsNotNone(train_impl)
 
-                # Switching to .eval() must NOT be skipped by train's compiled handle; it builds reduce-overhead handle
+                # First eval call stays eager (1-shot eval modules avoid compile cost);
+                # second static-shape eval call compiles reduce-overhead handle isolated from train.
                 model.eval()
+                _ = model(x)
+                self.assertIsNone(getattr(model, "_ptopt_eval_compiled_impl", None))
                 _ = model(x)
                 eval_impl = getattr(model, "_ptopt_eval_compiled_impl", None)
                 self.assertIsNotNone(eval_impl)
@@ -571,6 +574,217 @@ class TestAutoCompilePass(unittest.TestCase):
                 uninstall_auto_compile_hook(torch)
                 uninstall_dataloader_hook(torch)
                 mgr_exp.reset()
+
+    def test_single_gpu_dataparallel_unwrapping_and_multi_gpu_skip(self) -> None:
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        inner = nn.Linear(512, 512)
+        dp_single = nn.DataParallel(inner)
+        compiled_fns: list[object] = []
+
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: (compiled_fns.append(fn), fn)[1]
+        ):
+            install_auto_compile_hook(cfg, mgr, torch)
+            try:
+                _ = dp_single(torch.randn(4, 512))
+                self.assertIsNone(getattr(dp_single, "_compiled_call_impl", None))
+                self.assertIsNotNone(getattr(inner, "_compiled_call_impl", None))
+                self.assertEqual(compiled_fns, [inner._call_impl])
+                self.assertTrue(
+                    any(ev.pass_name == "compile.auto" and ev.status == "APPLIED" and "DataParallel" in ev.reason for ev in mgr.events)
+                )
+
+                dp_multi = nn.DataParallel(nn.Linear(512, 512))
+                dp_multi.device_ids = [0, 1]
+                with patch.object(dp_multi, "_call_impl", return_value=torch.zeros(4, 512)):
+                    _ = dp_multi(torch.randn(4, 512))
+                self.assertIsNone(getattr(dp_multi.module, "_compiled_call_impl", None))
+                self.assertTrue(
+                    any(ev.pass_name == "compile.auto" and ev.status == "SKIPPED" and "Multi-GPU" in ev.reason for ev in mgr.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
+    def test_regional_block_compile_and_thrash_demotion(self) -> None:
+        class _ToyBlock(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.fc1 = nn.Linear(64, 64)
+                self.act = nn.SiLU()
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                return self.fc1(self.act(x))
+
+        class _ToyCausalLM(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.layers = nn.ModuleList([_ToyBlock() for _ in range(4)])
+                self.lm_head = nn.Linear(64, 128)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                for layer in self.layers:
+                    x = layer(x)
+                return self.lm_head(x)
+
+        # 1. Explicit regional compile discovers all homogeneous ModuleList stacks (e.g. Encoder+Decoder),
+        # excludes heterogeneous-shape ModuleLists, keeps float inputs static until shape change, and starts dynamic on int token IDs.
+        class _EncDecToy(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.encoder = nn.ModuleList([_ToyBlock() for _ in range(4)])
+                self.decoder = nn.ModuleList([_ToyBlock() for _ in range(4)])
+                # Heterogeneous widths must be skipped cleanly by _discover_regional_blocks
+                self.hetero = nn.ModuleList([nn.Sequential(nn.Linear(64, d), nn.ReLU()) for d in (32, 64, 48, 16)])
+                self.lm_head = nn.Linear(64, 128)
+
+            def forward(self, x: torch.Tensor) -> torch.Tensor:
+                for blk in self.encoder:
+                    x = blk(x)
+                for blk in self.decoder:
+                    x = blk(x)
+                return self.lm_head(x)
+
+        cfg = OptimizeConfig(profile="balanced")
+        cfg.compile.enabled = True
+        mgr = HookManager()
+        compiled_mods: list[object] = []
+        compile_kws: list[dict[str, object]] = []
+
+        def _spy_compile(fn: object, **kw: object) -> object:
+            compiled_mods.append(getattr(fn, "__self__", None))
+            compile_kws.append(dict(kw))
+            return fn
+
+        enc_dec = _EncDecToy()
+        with patch.dict(
+            os.environ, {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_TINY": "1", "PTOPT_COMPILE_REGIONAL": "1"}
+        ), patch.object(torch, "compile", side_effect=_spy_compile):
+            install_auto_compile_hook(cfg, mgr, torch)
+            try:
+                out1 = enc_dec(torch.randn(2, 8, 64))
+                self.assertEqual(out1.shape, (2, 8, 128))
+                self.assertIsNone(getattr(enc_dec, "_compiled_call_impl", None))
+                self.assertTrue(getattr(enc_dec, "_ptopt_train_regional_active", False))
+                expected_blocks = list(enc_dec.encoder) + list(enc_dec.decoder)
+                self.assertEqual(compiled_mods, expected_blocks)
+                self.assertTrue(all(kw.get("dynamic") is False for kw in compile_kws[:8]))
+
+                # Shape change on step 2 triggers dynamic=True recompile of regional blocks once
+                out2 = enc_dec(torch.randn(2, 12, 64))
+                self.assertEqual(out2.shape, (2, 12, 128))
+                self.assertTrue(all(kw.get("dynamic") is True for kw in compile_kws[8:]))
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr.reset()
+
+        # Integer-index inputs (e.g. token IDs) select dynamic=True on step 0 immediately
+        class _IntTokenLM(nn.Module):
+            def __init__(self) -> None:
+                super().__init__()
+                self.emb = nn.Embedding(32, 64)
+                self.layers = nn.ModuleList([_ToyBlock() for _ in range(4)])
+
+            def forward(self, ids: torch.Tensor) -> torch.Tensor:
+                x = self.emb(ids)
+                for blk in self.layers:
+                    x = blk(x)
+                return x
+
+        mgr_int = HookManager()
+        int_kws: list[dict[str, object]] = []
+        int_lm = _IntTokenLM()
+        with patch.dict(
+            os.environ, {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_TINY": "1", "PTOPT_COMPILE_REGIONAL": "1"}
+        ), patch.object(torch, "compile", side_effect=lambda fn, **kw: (int_kws.append(dict(kw)), fn)[1]):
+            install_auto_compile_hook(cfg, mgr_int, torch)
+            try:
+                _ = int_lm(torch.randint(0, 32, (2, 8)))
+                self.assertTrue(all(kw.get("dynamic") is True for kw in int_kws))
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr_int.reset()
+
+        # 2. Thrash demotion with regional disabled falls back cleanly to eager
+        lm2 = _ToyCausalLM()
+        mgr2 = HookManager()
+        with patch.dict(
+            os.environ, {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_TINY": "1", "PTOPT_COMPILE_REGIONAL": "0"}
+        ), patch("ptopt.passes.auto_compile._read_dynamo_recompile_and_gb_counts", side_effect=[(0, 0), (8, 25)]), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: fn
+        ):
+            install_auto_compile_hook(cfg, mgr2, torch)
+            try:
+                _ = lm2(torch.randn(2, 8, 64))
+                self.assertIsNone(getattr(lm2, "_compiled_call_impl", None))
+                self.assertTrue(getattr(lm2, "_ptopt_compile_demoted", False))
+                self.assertTrue(
+                    any(ev.pass_name == "compile.auto" and ev.status == "FALLBACK" and "thrashing" in ev.reason for ev in mgr2.events)
+                )
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr2.reset()
+
+        # 3. Thrash demotion on small LM automatically re-targets homogeneous ModuleList blocks via regional compile
+        lm3 = _ToyCausalLM()
+        mgr3 = HookManager()
+        demote_targets: list[object] = []
+        with patch.dict(
+            os.environ, {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_TINY": "1"}
+        ), patch("ptopt.passes.auto_compile._read_dynamo_recompile_and_gb_counts", side_effect=[(0, 0), (7, 18)]), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: (demote_targets.append(getattr(fn, "__self__", None)), fn)[1]
+        ):
+            install_auto_compile_hook(cfg, mgr3, torch)
+            try:
+                _ = lm3(torch.randn(2, 8, 64))
+                self.assertIsNone(getattr(lm3, "_compiled_call_impl", None))
+                self.assertTrue(getattr(lm3, "_ptopt_train_regional_active", False))
+                self.assertEqual(demote_targets, [lm3, *list(lm3.layers)])
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr3.reset()
+
+        # 4. Multi-model counter isolation & eval warmup dynamic shortcut
+        mod_a = nn.Linear(64, 64)
+        mod_b = nn.Linear(64, 64)
+        mgr4 = HookManager()
+        # mod_a has 0 recompiles (pre=0, post=0), then mod_b recompiles heavily (pre=0, post=10), then mod_a has 0 again
+        seq_counts = [(0, 0), (0, 0), (0, 0), (10, 0), (10, 0), (10, 0)]
+        with patch.dict(
+            os.environ, {"PTOPT_COMPILE_CPU": "1", "PTOPT_COMPILE_TINY": "1"}
+        ), patch("ptopt.passes.auto_compile._read_dynamo_recompile_and_gb_counts", side_effect=seq_counts), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: fn
+        ):
+            install_auto_compile_hook(cfg, mgr4, torch)
+            try:
+                _ = mod_a(torch.randn(2, 64))
+                _ = mod_b(torch.randn(2, 64))
+                _ = mod_a(torch.randn(2, 64))
+                self.assertFalse(getattr(mod_a, "_ptopt_compile_demoted", False))
+                self.assertTrue(getattr(mod_b, "_ptopt_compile_demoted", False))
+
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr4.reset()
+
+        # 5. Eval shape change during 2-step warmup goes straight to dynamic=True, mode=default on call 2
+        ev_mod = nn.Linear(512, 512).eval()
+        mgr5 = HookManager()
+        ev_kws: list[dict[str, object]] = []
+        with patch.dict(os.environ, {"PTOPT_COMPILE_CPU": "1"}), patch.object(
+            torch, "compile", side_effect=lambda fn, **kw: (ev_kws.append(dict(kw)), fn)[1]
+        ):
+            install_auto_compile_hook(cfg, mgr5, torch)
+            try:
+                _ = ev_mod(torch.randn(2, 512))
+                self.assertEqual(ev_kws, [])
+                _ = ev_mod(torch.randn(3, 512))
+                self.assertEqual(ev_kws, [{"mode": "default", "dynamic": True}])
+            finally:
+                uninstall_auto_compile_hook(torch)
+                mgr5.reset()
 
 
 if __name__ == "__main__":
